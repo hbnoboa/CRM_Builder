@@ -42,4 +42,11 @@ export interface PaginatedResponse<T> {
 export const DEFAULT_PAGE = 1;
 export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 100;
-export const DASHBOARD_MAX_LIMIT = 0; // 0 = sem limite
+// Teto do "carregar tudo" (all=true): trava de seguranca para nenhuma tela ou integracao
+// derrubar a API baixando uma tabela enorme. Na pratica nao e atingido: acima de
+// SERVER_MODE_THRESHOLD a tela trabalha no modo servidor (paginas e contas no banco).
+export const DASHBOARD_MAX_LIMIT = 5000;
+
+// Acima disto a pagina da tabela nao baixa todos os registros: graficos e numeros vem do
+// servidor e a tabela pagina no servidor. Abaixo, tudo no navegador (filtro instantaneo).
+export const SERVER_MODE_THRESHOLD = 3000;

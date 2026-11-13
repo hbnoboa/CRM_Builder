@@ -394,7 +394,12 @@ export function useDashboardFilters(): DashboardFilters {
 // Automatically EXCLUDES filters emitted by the CURRENT widget (sourceWidgetId).
 // Parent→child propagation already handled by useDashboardFilters().
 
-export function useWidgetFilters(): DashboardFilterParams {
+/**
+ * Parametros de filtro do painel para pedir dados ao servidor. `includeOwn`: inclui os
+ * cliques do proprio widget (a tabela filtra a si mesma; graficos nao).
+ */
+export function useWidgetFilters(options?: { includeOwn?: boolean }): DashboardFilterParams {
+  const includeOwn = !!options?.includeOwn;
   const { crossFilters, slicerFilters, dateRange } = useDashboardFilters();
   const { widgetId } = useContext(WidgetIdentityContext);
   const { externalFilters } = useContext(InternalFilterContext);
@@ -404,7 +409,7 @@ export function useWidgetFilters(): DashboardFilterParams {
 
     for (const cf of crossFilters) {
       // Skip filters emitted by THIS widget — prevents self-filtering
-      if (widgetId && cf.sourceWidgetId === widgetId) continue;
+      if (!includeOwn && widgetId && cf.sourceWidgetId === widgetId) continue;
       if (cf.values.length === 1) {
         filterItems.push({ fieldSlug: cf.fieldSlug, operator: 'equals', value: cf.values[0] });
       } else if (cf.values.length > 1) {
@@ -431,7 +436,7 @@ export function useWidgetFilters(): DashboardFilterParams {
       dateStart: dateRange?.start,
       dateEnd: dateRange?.end,
     };
-  }, [crossFilters, slicerFilters, dateRange, widgetId, externalFilters]);
+  }, [crossFilters, slicerFilters, dateRange, widgetId, externalFilters, includeOwn]);
 }
 
 // ─── Visual State Helper ───────────────────────────────────────────────────

@@ -182,3 +182,20 @@ test('[X-05] estatisticas do painel nao mostram nem deixam deduzir campo oculto'
     for (const row of rows) expect(row.data ?? {}).not.toHaveProperty('cpf');
   }
 });
+
+test('[X-05] listagem nao filtra nem ordena por campo oculto', async ({ request }) => {
+  // "CPF vazio": sem a protecao, a Ana descobriria quais registros dela nao tem CPF (A e A3)
+  const cpfIgual = encodeURIComponent(JSON.stringify([{ fieldSlug: 'cpf', operator: 'isEmpty', value: '', fieldType: 'text' }]));
+  // Ana nao ve o CPF: filtrar por ele responde vazio (nem pela tabela, nem pelo painel)
+  const porFiltro = await (await call(request, 'get', `/data/clientes?filters=${cpfIgual}`, ana, { expected: 200 })).json();
+  expect(porFiltro.data).toEqual([]);
+  const porPainel = await (await call(request, 'get', `/data/clientes?dashboardFilters=${cpfIgual}`, ana, { expected: 200 })).json();
+  expect(porPainel.data).toEqual([]);
+  // ...e ordenar por ele nao muda nada (volta para a data de criacao)
+  const normal = await (await call(request, 'get', '/data/clientes', ana, { expected: 200 })).json();
+  const porCpf = await (await call(request, 'get', '/data/clientes?sortBy=cpf&sortOrder=asc', ana, { expected: 200 })).json();
+  expect(porCpf.data.map((r: { id: string }) => r.id)).toEqual(normal.data.map((r: { id: string }) => r.id));
+  // Controle: o dono filtra pelo CPF normalmente
+  const dono = await (await call(request, 'get', `/data/clientes?filters=${cpfIgual}`, tenant.owner, { expected: 200 })).json();
+  expect(dono.data.map((r: { data: { nome: string } }) => r.data.nome)).toEqual(expect.arrayContaining(['A', 'A3']));
+});

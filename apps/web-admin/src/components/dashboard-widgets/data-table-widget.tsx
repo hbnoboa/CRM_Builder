@@ -90,7 +90,10 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { useEntityBySlug } from '@/hooks/use-entities';
 import { api } from '@/lib/api';
 import { getErrorMessage } from '@/lib/get-error-message';
-import { useDashboardFilters } from './dashboard-filter-context';
+import { useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { toDataRecord } from '@/components/entity-data/use-entity-data-source';
+import { useDebounce } from '@/hooks/use-debounce';
 import { WidgetWrapper } from './widget-wrapper';
 import type { WidgetConfig } from '@crm-builder/shared';
 import type { DataRecord, EntityField, CrossFilter, FieldFilter } from '@/components/entity-data/unified-filter-types';
@@ -351,8 +354,12 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const dashFilters = useDashboardFilters();
   const toggleCrossFilter = dashFilters.toggleCrossFilter;
 
+  // Tabela grande (modo servidor): a pagina vem do servidor, com ordenacao, busca, filtros
+  // da tabela e filtros do painel aplicados la; nada e baixado alem da pagina.
+  const serverMode = !!ctx.serverMode;
+
   // Config
-  const enablePagination = config.enablePagination !== false;
+  const enablePagination = serverMode || config.enablePagination !== false;
   const pageSize = config.pageSize || 25;
   const allowCreate = config.allowCreate !== false;
   const allowEdit = config.allowEdit !== false;
@@ -594,15 +601,75 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   }, [entity?.fields, config.displayFields, metaColumns, hiddenByRoleKey]);
 
   // Pagination
-  const totalRecords = sortedRecords.length;
+  // Busca e filtros de campo ativos, no formato da API (exportacao e PDF em lote usam os mesmos)
+  const activeQueryFilters = useCallback((): { search?: string; filters?: string } => ({
+    ...(filters.searchTerm ? { search: filters.searchTerm } : {}),
+    ...(filters.fieldFilters.length > 0
+      ? {
+          filters: JSON.stringify(filters.fieldFilters.map(f => ({
+            fieldSlug: f.fieldSlug,
+            operator: f.operator,
+            value: f.value,
+            ...(f.value2 !== undefined ? { value2: f.value2 } : {}),
+            fieldType: f.fieldType,
+          }))),
+        }
+      : {}),
+  }), [filters]);
+
+  // ── Modo servidor ────────────────────────────────────────────────────────
+  const panelFilters = useWidgetFilters({ includeOwn: true });
+  const debouncedSearch = useDebounce(filters.searchTerm, 400);
+  const serverQueryBase = useMemo(() => {
+    if (!serverMode) return null;
+    const q = activeQueryFilters();
+    return {
+      includeChildren: 'true',
+      sortBy: filters.sortBy || 'createdAt',
+      sortOrder: (filters.sortOrder || 'desc') as 'asc' | 'desc',
+      ...(debouncedSearch ? { search: debouncedSearch } : {}),
+      ...(q.filters ? { filters: q.filters } : {}),
+      ...(panelFilters.filters ? { dashboardFilters: panelFilters.filters } : {}),
+      ...(panelFilters.dateStart ? { dateStart: panelFilters.dateStart } : {}),
+      ...(panelFilters.dateEnd ? { dateEnd: panelFilters.dateEnd } : {}),
+    };
+  }, [serverMode, activeQueryFilters, filters.sortBy, filters.sortOrder, debouncedSearch, panelFilters]);
+  const serverQueryKey = JSON.stringify(serverQueryBase);
+  // Mudou filtro, busca ou ordem: volta para a primeira pagina
+  useEffect(() => { if (serverMode) setCurrentPage(1); }, [serverMode, serverQueryKey]);
+  const serverPage = useQuery({
+    queryKey: ['server-table', entitySlug, serverQueryKey, currentPage, pageSize],
+    queryFn: () => dataService.getAll(entitySlug, { ...serverQueryBase!, page: currentPage, limit: pageSize }),
+    enabled: serverMode && !!serverQueryBase,
+    placeholderData: keepPreviousData,
+  });
+  // Tempo real: um aviso desta tabela recarrega so a pagina exibida (juntando avisos por ~1 s)
+  const refetchServerPage = serverPage.refetch;
+  useEffect(() => {
+    if (!serverMode) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ entitySlug?: string }>).detail;
+      if (detail?.entitySlug !== entitySlug || timer) return;
+      timer = setTimeout(() => { timer = null; void refetchServerPage(); }, 1000);
+    };
+    window.addEventListener('entity-data-changed', onChange);
+    return () => { window.removeEventListener('entity-data-changed', onChange); if (timer) clearTimeout(timer); };
+  }, [serverMode, entitySlug, refetchServerPage]);
+
+  const totalRecords = serverMode ? (serverPage.data?.meta.total ?? 0) : sortedRecords.length;
+  // Total sem filtros (rodape "X de Y (total)")
+  const totalAll = serverMode ? ctx.totalServerRecords : allRecords.length;
   const totalPages = enablePagination ? Math.max(1, Math.ceil(totalRecords / pageSize)) : 1;
   const safePage = enablePagination ? Math.min(currentPage, totalPages) : 1;
 
   const displayedRecords = useMemo(() => {
+    if (serverMode) return (serverPage.data?.data ?? []).map(toDataRecord);
     if (!enablePagination) return sortedRecords;
     const start = (safePage - 1) * pageSize;
     return sortedRecords.slice(start, start + pageSize);
-  }, [sortedRecords, safePage, pageSize, enablePagination]);
+  }, [serverMode, serverPage.data, sortedRecords, safePage, pageSize, enablePagination]);
+  const tableLoading = serverMode ? serverPage.isLoading : isLoading;
 
   // Search handler
   const handleSearch = useCallback((value: string) => {
@@ -697,22 +764,6 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   }, [recordToDelete, entitySlug, deleteRecord, removeRecord]);
 
 
-  // Busca e filtros de campo ativos, no formato da API (exportacao e PDF em lote usam os mesmos)
-  const activeQueryFilters = useCallback((): { search?: string; filters?: string } => ({
-    ...(filters.searchTerm ? { search: filters.searchTerm } : {}),
-    ...(filters.fieldFilters.length > 0
-      ? {
-          filters: JSON.stringify(filters.fieldFilters.map(f => ({
-            fieldSlug: f.fieldSlug,
-            operator: f.operator,
-            value: f.value,
-            ...(f.value2 !== undefined ? { value2: f.value2 } : {}),
-            fieldType: f.fieldType,
-          }))),
-        }
-      : {}),
-  }), [filters]);
-
   // Export
   const handleExport = useCallback(async (format: 'json' | 'xlsx') => {
     try {
@@ -730,6 +781,13 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
 
       // SEMPRE aplicar filtros (search, sort, field filters)
       Object.assign(params, activeQueryFilters());
+      // Tabela grande: os filtros do painel tambem vao (no navegador eles ja estao na lista)
+      if (serverMode) {
+        if (panelFilters.filters) params.dashboardFilters = panelFilters.filters;
+        if (panelFilters.dateStart) params.dateStart = panelFilters.dateStart;
+        if (panelFilters.dateEnd) params.dateEnd = panelFilters.dateEnd;
+        params.includeChildren = 'true';
+      }
       if (filters.sortBy) {
         params.sortBy = filters.sortBy;
         params.sortOrder = filters.sortOrder;
@@ -766,7 +824,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao exportar');
     }
-  }, [selectedIds, filters, activeQueryFilters, entity?.name, entitySlug]);
+  }, [selectedIds, filters, activeQueryFilters, entity?.name, entitySlug, serverMode, panelFilters]);
 
   // PDF export
   const handlePdfExport = useCallback(async (template: PdfTemplate) => {
@@ -774,9 +832,10 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     setGeneratingPdf(true);
     try {
       const hasSelection = selectedIds.size > 0;
+      // Tabela grande: sem selecao, "um por registro" vale para a pagina exibida
       const ids = hasSelection
         ? Array.from(selectedIds)
-        : sortedRecords.map(r => r.id);
+        : (serverMode ? displayedRecords : sortedRecords).map(r => r.id);
 
       if (template.templateType === 'single') {
         if (ids.length === 0) {
@@ -818,8 +877,22 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           toast.error('Nenhum registro com os filtros atuais');
           return;
         }
+        // Tabela grande: sem selecao, o servidor monta o lote com os mesmos filtros da tabela
+        const serverBatch = serverMode && !hasSelection
+          ? {
+              useAllRecords: true,
+              ...activeQueryFilters(),
+              ...(panelFilters.filters ? { dashboardFilters: panelFilters.filters } : {}),
+              ...(panelFilters.dateStart ? { dateStart: panelFilters.dateStart } : {}),
+              ...(panelFilters.dateEnd ? { dateEnd: panelFilters.dateEnd } : {}),
+            }
+          : null;
+        if (serverBatch && totalRecords === 0) {
+          toast.error('Nenhum registro com os filtros atuais');
+          return;
+        }
         const { blob, fileName } = await pdfTemplatesService.generateBatch(template.id, {
-          ...(hasSelection || tableFiltered ? { recordIds: ids } : { useAllRecords: true }),
+          ...(serverBatch ?? (hasSelection || tableFiltered ? { recordIds: ids } : { useAllRecords: true })),
           mergePdfs: true,
         });
         const url = URL.createObjectURL(blob);
@@ -837,7 +910,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     } finally {
       setGeneratingPdf(false);
     }
-  }, [generatingPdf, selectedIds, sortedRecords, allRecords.length, dashFilters, filters]);
+  }, [generatingPdf, selectedIds, sortedRecords, allRecords.length, dashFilters, filters, serverMode, displayedRecords, activeQueryFilters, panelFilters, totalRecords]);
 
   // Column toggle
   const toggleColumn = useCallback((slug: string) => {
@@ -1184,7 +1257,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
 
       {/* Celular: cartoes (titulo + os proximos campos) em vez de colunas espremidas */}
       <div className="flex-1 space-y-2 overflow-auto sm:hidden" style={{ minHeight: '340px' }} data-testid="data-table-cards">
-        {isLoading ? (
+        {tableLoading ? (
           <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin" />
         ) : (
           displayedRecords.map((record) => {
@@ -1248,7 +1321,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {tableLoading ? (
               <TableRow>
                 <TableCell
                   colSpan={visibleFields.length + (allowBatchSelect ? 1 : 0) + (showRowActions ? 1 : 0)}
@@ -1354,7 +1427,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
           </TableBody>
         </Table>
         {/* Vazio fica fora das linhas: centralizado mesmo com a tabela rolada para o lado */}
-        {!isLoading && displayedRecords.length === 0 && (
+        {!tableLoading && displayedRecords.length === 0 && (
           <div className="sticky left-0 flex w-full justify-center">
             {filters.searchTerm || filters.fieldFilters.length > 0 ? (
                     // Busca/filtro sem resultado: o caminho de volta e limpar
@@ -1390,13 +1463,13 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       <div className="flex items-center justify-between mt-2 pt-2 border-t flex-shrink-0">
         <span className="text-sm text-muted-foreground whitespace-nowrap">
           {enablePagination && totalRecords > 0
-            ? `${((safePage - 1) * pageSize) + 1}–${Math.min(safePage * pageSize, totalRecords)} de ${totalRecords.toLocaleString('pt-BR')}${totalRecords < allRecords.length ? ` (${allRecords.length.toLocaleString('pt-BR')} total)` : ''}`
+            ? `${((safePage - 1) * pageSize) + 1}–${Math.min(safePage * pageSize, totalRecords)} de ${totalRecords.toLocaleString('pt-BR')}${totalRecords < totalAll ? ` (${totalAll.toLocaleString('pt-BR')} total)` : ''}`
             : totalRecords > 0
-              ? totalRecords < allRecords.length
-                ? `${totalRecords.toLocaleString('pt-BR')} de ${allRecords.length.toLocaleString('pt-BR')} registros`
+              ? totalRecords < totalAll
+                ? `${totalRecords.toLocaleString('pt-BR')} de ${totalAll.toLocaleString('pt-BR')} registros`
                 : `${totalRecords.toLocaleString('pt-BR')} registros`
               // Sem linhas: so diz "0" depois que a carga terminou bem (tabela grande demora)
-              : isLoading
+              : tableLoading
                 ? 'Carregando registros…'
                 : loadError
                   ? (

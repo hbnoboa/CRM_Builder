@@ -16,7 +16,7 @@ export type {
   PaginationMeta,
   PaginatedResponse,
 } from './pagination';
-export { DEFAULT_PAGE, DEFAULT_LIMIT, MAX_LIMIT, DASHBOARD_MAX_LIMIT } from './pagination';
+export { DEFAULT_PAGE, DEFAULT_LIMIT, MAX_LIMIT, DASHBOARD_MAX_LIMIT, SERVER_MODE_THRESHOLD } from './pagination';
 
 // Auth
 export type { AuthResponse, LoginCredentials } from './auth';

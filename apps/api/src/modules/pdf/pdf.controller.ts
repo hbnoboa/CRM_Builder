@@ -236,6 +236,7 @@ export class PdfController {
     const { buffer, fileName } = await this.generatorService.generateBatch(
       templateId, dto.recordIds || [], user, dto.mergePdfs, tenantId,
       dto.useAllRecords, dto.filters, dto.search,
+      { filters: dto.dashboardFilters, dateStart: dto.dateStart, dateEnd: dto.dateEnd },
     );
 
     res.set({

@@ -202,6 +202,9 @@ export function dayKeys(days: number): { start: Date; keys: string[] } {
   return { start, keys };
 }
 
+/** Comparador unico (localeCompare com opcoes recria o comparador a cada chamada). */
+const ptCollator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
+
 /** Ordem dos "top registros": vazios no fim, data ISO, numero, texto pt-BR. */
 export function compareTopValues(aRaw: unknown, bRaw: unknown, desc: boolean): number {
   const mult = desc ? -1 : 1;
@@ -213,7 +216,7 @@ export function compareTopValues(aRaw: unknown, bRaw: unknown, desc: boolean): n
   const an = Number(a);
   const bn = Number(b);
   if (!isNaN(an) && !isNaN(bn)) return (an - bn) * mult;
-  return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }) * mult;
+  return ptCollator.compare(a, b) * mult;
 }
 
 /** Ordem das linhas agrupadas: numero se os dois forem numeros, senao texto. */
@@ -244,4 +247,38 @@ export function acceptedFilterValues(target: string): string[] {
   if (t === 'true' || t === 'sim') return ['true', 'sim'];
   if (t === 'false' || t === 'nao' || t === 'não') return ['false', 'nao', 'não'];
   return [t];
+}
+
+// ─── Cache curto das estatisticas (fase 4) ─────────────────────────────────────
+// Resultado guardado por STATS_CACHE_TTL_MS por empresa + usuario + estatistica +
+// parametros. Gravar numa tabela muda a versao dela e descarta o que estava guardado
+// (ninguem ve numero velho depois de salvar). So na memoria desta API.
+
+export const STATS_CACHE_TTL_MS = Number(process.env.STATS_CACHE_TTL_MS ?? 10_000);
+const STATS_CACHE_MAX = 1000;
+const STATS_CACHE_MAX_BYTES = 256_000;
+const tableVersions = new Map<string, number>();
+const statsCache = new Map<string, { at: number; value: unknown }>();
+
+/** Chamado a cada registro criado/alterado/excluido (aviso "dados alterados"). */
+export function bumpStatsVersion(tenantId: string, entitySlug: string): void {
+  const k = `${tenantId}:${entitySlug}`;
+  tableVersions.set(k, (tableVersions.get(k) ?? 0) + 1);
+}
+
+export async function cachedStats<T>(parts: { tenantId: string; entitySlugs: string[]; userId: string; name: string; args: unknown }, compute: () => Promise<T>): Promise<T> {
+  if (STATS_CACHE_TTL_MS <= 0) return compute();
+  const versions = parts.entitySlugs.map((e) => tableVersions.get(`${parts.tenantId}:${e}`) ?? 0).join(',');
+  const key = `${parts.tenantId}|${parts.userId}|${parts.name}|${versions}|${JSON.stringify(parts.args)}`;
+  const hit = statsCache.get(key);
+  if (hit && Date.now() - hit.at < STATS_CACHE_TTL_MS) return hit.value as T;
+  const value = await compute();
+  // Resultado grande (ex.: lista com muitos registros) nao fica guardado: protege a memoria
+  if (JSON.stringify(value ?? null).length > STATS_CACHE_MAX_BYTES) return value;
+  statsCache.set(key, { at: Date.now(), value });
+  if (statsCache.size > STATS_CACHE_MAX) {
+    // descarta os mais antigos (Map guarda a ordem de insercao)
+    for (const k of statsCache.keys()) { statsCache.delete(k); if (statsCache.size <= STATS_CACHE_MAX * 0.8) break; }
+  }
+  return value;
 }

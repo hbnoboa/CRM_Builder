@@ -31,6 +31,8 @@ export interface EntityDataContextValue {
   error: string | null;
   totalServerRecords: number;
   isFullDataset: boolean;
+  /** Tabela grande: nada baixado; tabela e graficos pedem ao servidor. */
+  serverMode: boolean;
 
   // Filter state
   filters: UnifiedFilterState;
@@ -188,7 +190,7 @@ export function EntityDataProvider({
   initialFilters,
 }: EntityDataProviderProps) {
   const [serverDashFilters, setServerDashFilters] = React.useState<string | undefined>();
-  const { records: allRecords, isLoading, error, totalServerRecords, isFullDataset, refresh } =
+  const { records: allRecords, isLoading, error, totalServerRecords, isFullDataset, serverMode, refresh } =
     useEntityDataSource(entitySlug, serverDashFilters, disableWebSocketUpdates);
 
   const { data: rawEntity } = useEntityBySlug(entitySlug);
@@ -322,6 +324,7 @@ export function EntityDataProvider({
       error,
       totalServerRecords,
       isFullDataset,
+      serverMode,
       filters,
       addFieldFilter,
       removeFieldFilter,
@@ -342,7 +345,7 @@ export function EntityDataProvider({
     }),
     [
       entitySlug, entity, allRecords, filteredRecords, sortedRecords,
-      comparisonRecords, isLoading, error, totalServerRecords, isFullDataset,
+      comparisonRecords, isLoading, error, totalServerRecords, isFullDataset, serverMode,
       filters, addFieldFilter, removeFieldFilter, updateFieldFilter,
       toggleCrossFilter, removeCrossFilter, setSearchTerm, setSortConfig,
       setDateRange, setComparisonFilters, clearAllFilters, setFilters,

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { dataService } from '@/services/data.service';
 import type { EntityData } from '@/types';
 import type { DataRecord } from './unified-filter-types';
-import { DASHBOARD_MAX_LIMIT } from '@crm-builder/shared';
+import { DASHBOARD_MAX_LIMIT, SERVER_MODE_THRESHOLD } from '@crm-builder/shared';
 
 // ─── Tipos ───────────────────────────────────────────────────────────
 
@@ -21,12 +21,14 @@ export interface DataSourceState {
   error: string | null;
   totalServerRecords: number;
   isFullDataset: boolean;
+  /** Tabela grande (> SERVER_MODE_THRESHOLD): nada e baixado; graficos e tabela pedem ao servidor. */
+  serverMode: boolean;
   refresh: () => void;
 }
 
 // ─── Converter EntityData → DataRecord ──────────────────────────────
 
-function toDataRecord(ed: EntityData): DataRecord {
+export function toDataRecord(ed: EntityData): DataRecord {
   // API response includes extra fields not in the shared EntityData type
   const extra = ed as unknown as Record<string, unknown>;
   return {
@@ -61,6 +63,9 @@ export function useEntityDataSource(
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalServerRecords, setTotalServerRecords] = useState(0);
+  // Modo da tabela (decidido pelo total sem filtros, uma vez por tabela)
+  const [serverMode, setServerMode] = useState(false);
+  const modeRef = useRef<{ slug?: string; server: boolean }>({ server: false });
 
   const entitySlugRef = useRef(entitySlug);
   entitySlugRef.current = entitySlug;
@@ -79,6 +84,18 @@ export function useEntityDataSource(
     setError(null);
 
     try {
+      const slug = entitySlugRef.current;
+      // Tabela grande: so o total; os registros ficam no servidor (paginas e contas no banco)
+      if (modeRef.current.slug !== slug) {
+        const probe = await dataService.getAll(slug, { limit: 1, includeChildren: 'true' });
+        modeRef.current = { slug, server: probe.meta.total > SERVER_MODE_THRESHOLD };
+        setServerMode(modeRef.current.server);
+        if (modeRef.current.server) setTotalServerRecords(probe.meta.total);
+      }
+      if (modeRef.current.server) {
+        setRecords([]);
+        return;
+      }
       const params: Record<string, string> = {
         all: 'true',
         includeChildren: 'true',
@@ -121,6 +138,7 @@ export function useEntityDataSource(
     flushTimerRef.current = null;
     const slug = entitySlugRef.current;
     if (!slug) return;
+    if (modeRef.current.server) { pendingRef.current.clear(); needsFullRef.current = false; return; }
     if (needsFullRef.current || pendingRef.current.size > MAX_INCREMENTAL) {
       needsFullRef.current = false;
       pendingRef.current.clear();
@@ -212,7 +230,7 @@ export function useEntityDataSource(
     return () => window.removeEventListener('entity-data-changed', handler);
   }, [entitySlug, scheduleFlush, disableWebSocketUpdates]);
 
-  const isFullDataset = DASHBOARD_MAX_LIMIT === 0 || totalServerRecords <= DASHBOARD_MAX_LIMIT;
+  const isFullDataset = !serverMode && totalServerRecords <= DASHBOARD_MAX_LIMIT;
 
   return {
     records,
@@ -220,6 +238,7 @@ export function useEntityDataSource(
     error,
     totalServerRecords,
     isFullDataset,
+    serverMode,
     refresh: fetchAll,
   };
 }

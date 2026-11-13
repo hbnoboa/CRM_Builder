@@ -97,3 +97,22 @@ test('escopo do cargo vale nas estatisticas (Ana so conta o que ela criou)', asy
   const dist = await get(request, ana, 'distinct-count?fields=cor');
   expect(dist.total).toBe(1);
 });
+
+test('cache curto: gravar um registro atualiza a estatistica na hora', async ({ request }) => {
+  const contar = async () => {
+    const cores = await get(request, tenant.owner, 'field-distribution?fieldSlug=cor');
+    return cores.find((c: { value: string }) => c.value === 'roxo')?.count ?? 0;
+  };
+  expect(await contar()).toBe(0);
+  expect(await contar()).toBe(0); // segunda leitura vem do cache
+  await call(request, 'post', '/data/itens', tenant.owner, { expected: [200, 201], data: { data: { nome: 'f', cor: 'roxo' } } });
+  expect(await contar()).toBe(1);
+});
+
+test('listagem com periodo do painel (dateStart/dateEnd)', async ({ request }) => {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const dentro = await (await call(request, 'get', `/data/itens?dateStart=${hoje}`, tenant.owner, { expected: 200 })).json();
+  const fora = await (await call(request, 'get', '/data/itens?dateStart=2000-01-01&dateEnd=2000-01-02', tenant.owner, { expected: 200 })).json();
+  expect(dentro.meta.total).toBeGreaterThan(0);
+  expect(fora.meta.total).toBe(0);
+});

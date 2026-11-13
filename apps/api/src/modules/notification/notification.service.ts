@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { bumpStatsVersion } from '../stats/stats-sql';
 import { NotificationGateway, Notification } from './notification.gateway';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEFAULT_NOTIFICATION_PREFS, normalizePrefs, NotificationPrefs, RecordEventContext } from './notification-prefs';
@@ -470,6 +471,8 @@ export class NotificationService {
    * Emit data-changed event with operation details for granular frontend updates.
    */
   emitDataChanged(tenantId: string, payload: { operation: string; entitySlug: string; userId?: string; [key: string]: unknown }) {
+    // Numeros do painel guardados em cache para esta tabela deixam de valer
+    bumpStatsVersion(tenantId, payload.entitySlug);
     // Se o payload tem userId, excluir esse usuário do broadcast para evitar loops infinitos
     const excludeUserId = payload.userId as string | undefined;
     this.gateway.emitDataChanged(tenantId, payload, excludeUserId);
