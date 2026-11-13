@@ -80,7 +80,10 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
     router.push(backHref);
   }, [confirmLeave, router, backHref]);
 
-  const header = useRecordHeader(entity ?? { fields: [] }, record ? { id: record.id, data: record.data } : null);
+  // Objeto estavel: o formulario recarrega os valores quando `record` muda (senao, a cada
+  // re-render da pagina — ex.: ao marcar alteracao nao salva — o que foi digitado se perderia)
+  const formRecord = useMemo(() => (record ? { id: record.id, data: record.data } : null), [record]);
+  const header = useRecordHeader(entity ?? { fields: [] }, formRecord);
   const subEntityField = (entity?.fields || []).find((f) => f.type === 'sub-entity');
 
   const handleSubmitted = useCallback((saved?: { id: string }) => {
@@ -120,7 +123,6 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
     );
   }
 
-  const formRecord = record ? { id: record.id, data: record.data } : null;
   const title = isNew ? t('newRecord') : (header.recordTitle ?? entity.name);
 
   return (
