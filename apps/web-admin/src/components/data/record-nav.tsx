@@ -9,7 +9,7 @@ import { useRouter } from '@/i18n/tenant-navigation';
 
 /** Caminho (sem locale/tenant) da página de um registro, ou de criação quando sem id. */
 export function recordPath(entitySlug: string, recordId?: string | null, opts?: { parent?: string; back?: string }): string {
-  const base = recordId ? `/data/${entitySlug}/${recordId}` : `/data/${entitySlug}/novo`;
+  const base = recordId ? `/data/${entitySlug}/${recordId}/edit` : `/data/${entitySlug}/new`;
   const q = new URLSearchParams();
   if (!recordId && opts?.parent) q.set('pai', opts.parent);
   if (opts?.back) q.set('voltar', opts.back);
