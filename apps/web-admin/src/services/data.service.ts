@@ -19,6 +19,11 @@ export interface QueryDataParams {
   all?: string;
   // Include child counts for sub-entities
   includeChildren?: string;
+  // Filtros do painel (JSON [{ fieldSlug, operator, value }], aceita parent./child.) e periodo
+  dashboardFilters?: string;
+  dateStart?: string;
+  dateEnd?: string;
+  recordIds?: string;
 }
 
 // Meta com suporte a cursor

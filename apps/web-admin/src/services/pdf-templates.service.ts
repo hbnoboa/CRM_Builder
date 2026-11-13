@@ -478,6 +478,9 @@ export const pdfTemplatesService = {
       useAllRecords?: boolean;
       filters?: string;
       search?: string;
+      dashboardFilters?: string;
+      dateStart?: string;
+      dateEnd?: string;
       mergePdfs?: boolean;
     },
   ): Promise<{ blob: Blob; fileName: string }> {

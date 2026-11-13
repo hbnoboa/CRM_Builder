@@ -2,6 +2,10 @@
 
 import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useEntityData, EntityDataProvider } from '@/components/entity-data/entity-data-context';
+import { toDataRecord } from '@/components/entity-data/use-entity-data-source';
+import { useQuery } from '@tanstack/react-query';
+import { dataService } from '@/services/data.service';
+import { useWidgetFilters } from './dashboard-filter-context';
 import { useUpdateEntityData } from '@/hooks/use-data';
 import { WidgetWrapper } from './widget-wrapper';
 import { Badge } from '@/components/ui/badge';
@@ -195,7 +199,26 @@ function KanbanCardItem({
 }
 
 function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanBoardWidgetProps) {
-  const { sortedRecords: data, isLoading } = useEntityData();
+  const ctx = useEntityData();
+  // Tabela grande (modo servidor): os N cartoes mais recentes vem do servidor, com os filtros do painel
+  const serverMode = !!ctx.serverMode;
+  const panelFilters = useWidgetFilters({ includeOwn: true });
+  const cardLimit = Math.min(Number(config.limit) || 100, 100);
+  const serverCards = useQuery({
+    queryKey: ['kanban-server', entitySlug, panelFilters, cardLimit],
+    queryFn: () => dataService.getAll(entitySlug, {
+      limit: cardLimit, includeChildren: 'true', sortBy: 'createdAt', sortOrder: 'desc',
+      ...(panelFilters.filters ? { dashboardFilters: panelFilters.filters } : {}),
+      ...(panelFilters.dateStart ? { dateStart: panelFilters.dateStart } : {}),
+      ...(panelFilters.dateEnd ? { dateEnd: panelFilters.dateEnd } : {}),
+    }),
+    enabled: serverMode,
+  });
+  const data = useMemo(
+    () => (serverMode ? (serverCards.data?.data ?? []).map(toDataRecord) : ctx.sortedRecords),
+    [serverMode, serverCards.data, ctx.sortedRecords],
+  );
+  const isLoading = serverMode ? serverCards.isLoading : ctx.isLoading;
   const [layouts, setLayouts] = useState<{ lg: any[]; md?: any[]; sm?: any[] }>({ lg: [] });
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const updateMutation = useUpdateEntityData({

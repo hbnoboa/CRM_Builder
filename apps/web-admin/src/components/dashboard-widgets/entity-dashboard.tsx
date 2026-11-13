@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
-import { useMyDashboardTemplate, useDashboardTemplate } from '@/hooks/use-dashboard-templates';
+import { useMyDashboardTemplate, useDashboardTemplate, useEntityRecordCount } from '@/hooks/use-dashboard-templates';
 import { useEntities } from '@/hooks/use-entities';
 import { EntityDataProvider, useEntityData, useEntityDataOptional } from '@/components/entity-data/entity-data-context';
-import { DashboardFilterProvider, WidgetProvider, useDashboardFilters } from './dashboard-filter-context';
+import { DashboardFilterProvider, WidgetProvider, useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import type { CrossFilter, FieldFilter } from '@/components/entity-data/unified-filter-types';
 import { Database } from 'lucide-react';
 import { DashboardFilterBar } from './dashboard-filter-bar';
@@ -511,6 +511,8 @@ function RecordCountBadge({ countEntitySlug, mainEntitySlug }: { countEntitySlug
   }
   const ctx = useEntityDataOptional();
   if (!ctx) return null;
+  // Tabela grande: total do servidor; com filtro do painel, a contagem filtrada vem dele tambem
+  if (ctx.serverMode && mainEntitySlug) return <ServerCountBadge entitySlug={mainEntitySlug} total={ctx.totalServerRecords} />;
   const total = ctx.allRecords.length;
   const filtered = ctx.sortedRecords.length;
   const isFiltered = filtered < total;
@@ -534,6 +536,21 @@ function ScopedCountBadge({ countEntitySlug }: { countEntitySlug: string }) {
         <ScopedCountInner />
       </EntityDataProvider>
     </WidgetProvider>
+  );
+}
+
+function ServerCountBadge({ entitySlug, total }: { entitySlug: string; total: number }) {
+  const params = useWidgetFilters();
+  const hasFilters = !!(params.filters || params.dateStart || params.dateEnd);
+  const { data } = useEntityRecordCount(hasFilters ? entitySlug : undefined, params);
+  const filtered = hasFilters ? (data as { total?: number } | undefined)?.total : undefined;
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+      <Database className="h-3.5 w-3.5" />
+      {filtered !== undefined && filtered < total
+        ? <span>{filtered.toLocaleString('pt-BR')} de {total.toLocaleString('pt-BR')} registros</span>
+        : <span>{total.toLocaleString('pt-BR')} registros</span>}
+    </div>
   );
 }
 

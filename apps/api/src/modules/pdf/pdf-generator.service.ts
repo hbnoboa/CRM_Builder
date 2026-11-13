@@ -245,6 +245,7 @@ export class PdfGeneratorService {
     useAllRecords?: boolean,
     filters?: string,
     search?: string,
+    dashboardFilters?: { filters?: string; dateStart?: string; dateEnd?: string },
   ): Promise<{ buffer: Buffer; fileName: string; fileUrl?: string }> {
     const targetTenantId = getEffectiveTenantId(currentUser, tenantId);
 
@@ -279,6 +280,9 @@ export class PdfGeneratorService {
         tenantId,
         filters,
         search,
+        // Filtros do painel (clique em grafico, filtro da pagina, periodo): tabelas grandes
+        // mandam o filtro em vez da lista de ids
+        dashboardFilters: dashboardFilters && (dashboardFilters.filters || dashboardFilters.dateStart || dashboardFilters.dateEnd) ? dashboardFilters : undefined,
         includeChildren: true, // Nao filtrar por parentRecordId (permite batch de sub-entidades)
       });
 

@@ -21,6 +21,7 @@ import {
   MAX_LIMIT,
 } from '../../common/types';
 import { DASHBOARD_MAX_LIMIT } from '@crm-builder/shared';
+import { runStats, scopeSql } from '../stats/stats-sql';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { EntityDataQueryService } from '../../common/services/entity-data-query.service';
 import { clientRelationFields } from '../../common/utils/client-scope';
@@ -58,6 +59,9 @@ export interface QueryDataDto {
   all?: string; // 'true' para buscar todos os registros de uma vez
   // Dashboard filters — JSON stringified array of { fieldSlug, operator, value } with cross-entity prefixes
   dashboardFilters?: string;
+  // Periodo do painel (data de criacao), junto dos filtros do painel
+  dateStart?: string;
+  dateEnd?: string;
   // Internal flag — bypasses MAX_LIMIT cap (used by export, not exposed via API)
   _skipMaxLimit?: boolean;
 }
@@ -384,6 +388,22 @@ export class DataService {
     // Verificar permissao de leitura na entidade
     await this.checkEntityPermission(currentUser, entitySlug, 'canRead');
 
+    // Campo oculto para o cargo nao filtra nem ordena (senao daria para deduzir o valor)
+    const hiddenForRole = hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, currentUser.tenantId));
+    if (hiddenForRole.size > 0) {
+      const slugsOf = (json?: string): string[] => {
+        if (!json) return [];
+        try {
+          const parsed = JSON.parse(json) as unknown;
+          return Array.isArray(parsed) ? parsed.map((f) => (f && typeof f === 'object' ? String((f as { fieldSlug?: unknown }).fieldSlug ?? '') : '')) : [];
+        } catch { return []; }
+      };
+      if ([...slugsOf(query.filters), ...slugsOf(query.dashboardFilters)].some((f) => hiddenForRole.has(f))) {
+        query = { ...query, recordIds: JSON.stringify(['__campo_oculto__']) }; // nenhum registro
+      }
+      if (query.sortBy && hiddenForRole.has(query.sortBy)) query = { ...query, sortBy: 'createdAt' };
+    }
+
     // Parse parameters
     const isDashboardAll = query.all === 'true';
     const page = isDashboardAll ? 1 : (parseInt(String(query.page || '1'), 10) || 1);
@@ -406,9 +426,9 @@ export class DataService {
     }
 
     // Parse dashboardFilters se fornecidos
-    let dashboardFilterOptions: { filters?: string } | undefined;
-    if (query.dashboardFilters) {
-      dashboardFilterOptions = { filters: query.dashboardFilters };
+    let dashboardFilterOptions: { filters?: string; dateStart?: string; dateEnd?: string } | undefined;
+    if (query.dashboardFilters || query.dateStart || query.dateEnd) {
+      dashboardFilterOptions = { filters: query.dashboardFilters, dateStart: query.dateStart, dateEnd: query.dateEnd };
     }
 
     // Construir WHERE via servico centralizado
@@ -640,33 +660,30 @@ export class DataService {
       hasNextPage = offset + limit < total;
       hasPreviousPage = page > 1;
     } else if (isJsonFieldSort && !useCursor) {
-      // Ordenacao por campo JSON: buscar IDs + valor do campo, ordenar em memoria, paginar
-      const [activeItems, archivedItems2, activeCount, archivedCount] = await Promise.all([
-        this.prisma.entityData.findMany({
-          where,
-          select: { id: true, data: true },
-        }),
-        this.prisma.archivedEntityData.findMany({
-          where: archivedWhere,
-          select: { id: true, data: true },
-        }),
-        this.prisma.entityData.count({ where }),
-        this.prisma.archivedEntityData.count({ where: archivedWhere }),
-      ]);
+      // Ordenacao por campo JSON: o banco devolve so id + valor do campo (nao o registro
+      // inteiro); ordena em memoria e busca completos so os da pagina
+      const recs = await scopeSql(this.prisma, where, archivedWhere);
+      const sortRows = await runStats<{ id: string; v: unknown; arch: boolean }>(this.prisma, Prisma.sql`
+        WITH recs AS (${recs}), arch AS (SELECT id FROM "ArchivedEntityData" WHERE "tenantId" = ${where.tenantId as string} AND "entityId" = ${where.entityId as string})
+        SELECT r.id, r.data -> ${sortBy}::text AS v, (r.id IN (SELECT id FROM arch)) AS arch FROM recs r`);
+      const activeCount = sortRows.filter((r) => !r.arch).length;
+      const archivedCount = sortRows.length - activeCount;
+      const allItems: Array<{ id: string; data: unknown; _isArchived?: boolean }> = sortRows.map((r) => ({
+        id: r.id,
+        data: { [sortBy]: r.v },
+        ...(r.arch ? { _isArchived: true } : {}),
+      }));
 
-      const allItems: Array<{ id: string; data: unknown; _isArchived?: boolean }> = [
-        ...activeItems,
-        ...archivedItems2.map(r => ({ ...r, _isArchived: true })),
-      ];
-
-      // Ordenar em memoria pelo campo JSON
+      // Ordenar em memoria pelo campo JSON (um comparador so: localeCompare com opcoes
+      // recria o comparador a cada comparacao e levava segundos em 29 mil registros)
+      const jsonSortCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
       allItems.sort((a, b) => {
         const aVal = (a.data as Record<string, unknown>)?.[sortBy];
         const bVal = (b.data as Record<string, unknown>)?.[sortBy];
         if (aVal == null && bVal == null) return 0;
         if (aVal == null) return 1;
         if (bVal == null) return -1;
-        const comp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: 'base' });
+        const comp = jsonSortCollator.compare(String(aVal), String(bVal));
         return sortOrder === 'desc' ? -comp : comp;
       });
 

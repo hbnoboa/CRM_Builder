@@ -4,7 +4,7 @@ import { CustomRoleService } from '../custom-role/custom-role.service';
 import { EntityDataQueryService, type BuildWhereResult, type DashboardFilterOptions } from '../../common/services/entity-data-query.service';
 import {
   acceptedFilterValues, comparison, compareGroupValues, compareTopValues, compositeKeySql, dayKeys, fieldSql, optionMeta,
-  parentsSql, periodBounds, runStats, sameStats, scopeSql, serverTimeZone, statsMode, toStr,
+  cachedStats, parentsSql, periodBounds, runStats, sameStats, scopeSql, serverTimeZone, statsMode, toStr,
 } from './stats-sql';
 import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
@@ -63,10 +63,25 @@ export class StatsService {
    * Caminho antigo (JavaScript) x novo (SQL), conforme STATS_SQL. Em "shadow" calcula
    * os dois, registra a diferenca e devolve o antigo.
    */
-  private async dual<T>(name: string, js: () => Promise<T>, sql: () => Promise<T>): Promise<T> {
+  private async dual<T>(
+    name: string,
+    js: () => Promise<T>,
+    sql: () => Promise<T>,
+    cache?: { user: CurrentUser; scope: StatsScope; args: unknown; alsoEntities?: Array<string | undefined> },
+  ): Promise<T> {
     const mode = statsMode();
     if (mode === 'off') return js();
-    if (mode === 'on') return sql();
+    if (mode === 'on') {
+      if (!cache) return sql();
+      // Cache curto (fase 4): mesma pessoa, mesma estatistica, mesmos parametros e tabelas sem gravacao nova
+      return cachedStats({
+        tenantId: cache.scope.effectiveTenantId,
+        entitySlugs: [cache.scope.entity.slug, ...(cache.alsoEntities ?? []).filter((e): e is string => !!e)],
+        userId: cache.user.id,
+        name,
+        args: cache.args,
+      }, sql);
+    }
     const [oldResult, newResult] = await Promise.all([
       js(),
       sql().catch((e: Error) => { this.logger.error(`[stats-sql] ${name} falhou: ${e.message}`); return undefined; }),
@@ -513,7 +528,8 @@ export class StatsService {
     if (!result) return [];
     return this.dual('records-over-time',
       () => this.recordsOverTimeJs({ ...result, where: { ...result.where } }, days, dateField),
-      () => this.recordsOverTimeSql({ ...result, where: { ...result.where } }, days, dateField));
+      () => this.recordsOverTimeSql({ ...result, where: { ...result.where } }, days, dateField),
+      { user, scope: result, args: [days, dateField, dashFilters] });
   }
 
   /** Regra unica: um ponto por dia local, do inicio do periodo (meia-noite) ate hoje. */
@@ -622,7 +638,8 @@ export class StatsService {
     if (!result) return [];
     return this.dual('field-distribution',
       () => this.fieldDistributionJs(result, fieldSlug, limit ?? 20),
-      () => this.fieldDistributionSql(result, fieldSlug, limit));
+      () => this.fieldDistributionSql(result, fieldSlug, limit),
+      { user, scope: result, args: [fieldSlug, limit, dashFilters] });
   }
 
   /**
@@ -766,7 +783,8 @@ export class StatsService {
     const limit = Number(options?.limit) || undefined;
     return this.dual('cross-field-distribution',
       () => this.crossFieldJs(result, rowFieldSlug, columnFieldSlug, limit ?? 20),
-      () => this.crossFieldSql(result, rowFieldSlug, columnFieldSlug, limit));
+      () => this.crossFieldSql(result, rowFieldSlug, columnFieldSlug, limit),
+      { user, scope: result, args: [rowFieldSlug, columnFieldSlug, options] });
   }
 
   /** Regra unica: celula vazia nao conta; top linhas e colunas pela frequencia. */
@@ -998,7 +1016,8 @@ export class StatsService {
     if (!qr) return { count: 0, sum: 0, avg: 0, min: 0, max: 0 };
     return this.dual('field-aggregation',
       () => this.fieldAggregationJs(qr, fieldSlug, options),
-      () => this.fieldAggregationSql(qr, fieldSlug, options));
+      () => this.fieldAggregationSql(qr, fieldSlug, options),
+      { user, scope: qr, args: [fieldSlug, options] });
   }
 
   private async fieldAggregationSql(qr: StatsScope, fieldSlug: string, options?: { aggregation?: string; comparePeriod?: boolean; days?: number }) {
@@ -1105,7 +1124,8 @@ export class StatsService {
     if (!qr) return { numerator: 0, denominator: 0, ratio: 0, percentage: 0 };
     return this.dual('field-ratio',
       () => this.fieldRatioCore(user, qr, entitySlug, numeratorField, denominatorField, queryTenantId, options, false),
-      () => this.fieldRatioCore(user, qr, entitySlug, numeratorField, denominatorField, queryTenantId, options, true));
+      () => this.fieldRatioCore(user, qr, entitySlug, numeratorField, denominatorField, queryTenantId, options, true),
+      { user, scope: qr, args: [numeratorField, denominatorField, options], alsoEntities: [options?.denominatorEntitySlug] });
   }
 
   private async fieldRatioCore(
@@ -1242,7 +1262,8 @@ export class StatsService {
     if (!qr) return [];
     return this.dual('field-trend',
       () => this.fieldTrendJs({ ...qr, where: { ...qr.where } }, fieldSlug, options),
-      () => this.fieldTrendSql({ ...qr, where: { ...qr.where } }, fieldSlug, options));
+      () => this.fieldTrendSql({ ...qr, where: { ...qr.where } }, fieldSlug, options),
+      { user, scope: qr, args: [fieldSlug, options] });
   }
 
   /** Regra unica: um ponto por dia local do periodo; dia sem valor = 0. */
@@ -1388,12 +1409,14 @@ export class StatsService {
     if (!result) return [];
     return this.dual('top-records',
       () => this.topRecordsJs(result, options),
-      () => this.topRecordsSql(result, options));
+      () => this.topRecordsSql(result, options),
+      { user, scope: result, args: [options] });
   }
 
   /** Regra unica: 10 por padrao; ordem pelo texto (vazios no fim, data, numero, texto pt-BR). */
   private async topRecordsSql(result: StatsScope, options?: { limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc'; fields?: string[] }) {
-    const limit = Number(options?.limit) || 10;
+    // Teto de 1000 linhas (mini-tabela pede "tudo" com limite 99999)
+    const limit = Math.min(Number(options?.limit) || 10, 1000);
     const sortBy = options?.sortBy || 'createdAt';
     const desc = (options?.sortOrder || 'desc') === 'desc';
     type TopRecord = { id: string; data: unknown; createdAt: Date; updatedAt: Date; parentRecordId: string | null };
@@ -1569,7 +1592,8 @@ export class StatsService {
     if (!qr) return { total: 0 };
     return this.dual('distinct-count',
       () => this.distinctCountJs(qr, fieldSlugs, options),
-      () => this.distinctCountSql(qr, fieldSlugs, options));
+      () => this.distinctCountSql(qr, fieldSlugs, options),
+      { user, scope: qr, args: [fieldSlugs, options] });
   }
 
   /**
@@ -1716,7 +1740,8 @@ export class StatsService {
     if (!qr) return [];
     return this.dual('grouped-data',
       () => this.groupedDataJs(user, qr, groupByFields, queryTenantId, options),
-      () => this.groupedDataSql(user, qr, groupByFields, queryTenantId, options));
+      () => this.groupedDataSql(user, qr, groupByFields, queryTenantId, options),
+      { user, scope: qr, args: [groupByFields, options], alsoEntities: [options?.crossEntityCount?.entitySlug] });
   }
 
   /**
