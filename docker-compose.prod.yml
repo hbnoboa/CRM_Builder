@@ -49,9 +49,12 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: crm-api-prod
     restart: always
+    # Teto de memoria: um pico da API reinicia so a API, em vez de o sistema derrubar o banco.
+    mem_limit: 3g
     environment:
       TZ: America/Sao_Paulo
       NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=2048
       PORT: 3001
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crm_builder}?schema=public
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -193,9 +196,12 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: crm-api-dev
     restart: unless-stopped
+    # Dev divide a maquina com prod: teto menor
+    mem_limit: 1536m
     environment:
       TZ: America/Sao_Paulo
       NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=1024
       PORT: 3001
       DATABASE_URL: postgresql://postgres:CrmBuilderDev2026Pass@postgres-dev:5432/crm_builder_dev?schema=public
       REDIS_URL: redis://:RedisDevPass2026@redis-dev:6379

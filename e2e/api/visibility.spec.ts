@@ -156,3 +156,29 @@ test('[E-16] run_script nao pode ser criado', async ({ request }) => {
     data: { name: 'QA script', trigger: 'MANUAL', actions: [{ type: 'run_script', order: 0, config: { code: 'return 1' } }] },
   });
 });
+
+test('[X-05] estatisticas do painel nao mostram nem deixam deduzir campo oculto', async ({ request }) => {
+  const get = async (session: Session, path: string) =>
+    (await call(request, 'get', `/stats/entity/clientes/${path}`, session, { expected: 200 })).json();
+  const cpfIgual = encodeURIComponent(JSON.stringify([{ fieldSlug: 'cpf', operator: 'equals', value: 'cpf-A', fieldType: 'text' }]));
+
+  // Controle: o dono ve o CPF nos graficos; a Ana agrupa por nome normalmente
+  expect((await get(tenant.owner, 'field-distribution?fieldSlug=cpf')).length).toBeGreaterThan(0);
+  expect((await get(ana, 'field-distribution?fieldSlug=nome')).length).toBeGreaterThan(0);
+
+  // Ana (CPF oculto): agrupar, cruzar, contar distintos, agregar ou ordenar pelo CPF responde vazio
+  expect(await get(ana, 'field-distribution?fieldSlug=cpf')).toEqual([]);
+  expect((await get(ana, 'cross-field-distribution?rowField=nome&columnField=cpf')).rows ?? []).toEqual([]);
+  expect((await get(ana, 'distinct-count?fields=cpf')).count ?? 0).toBe(0);
+  expect(await get(ana, `grouped-data?groupBy=cpf&aggregations=${encodeURIComponent(JSON.stringify([{ type: 'count', alias: 'n' }]))}`)).toEqual([]);
+  expect(await get(ana, 'top-records?fields=nome,cpf')).toEqual([]);
+  // ...nem filtrar pelo CPF para descobrir o valor
+  expect(await get(ana, `field-distribution?fieldSlug=nome&filters=${cpfIgual}`)).toEqual([]);
+
+  // Listas de registros saem sem o campo oculto
+  for (const path of ['top-records?limit=10', 'recent-activity?limit=10']) {
+    const rows = await get(ana, path);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row.data ?? {}).not.toHaveProperty('cpf');
+  }
+});
