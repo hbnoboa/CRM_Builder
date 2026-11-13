@@ -1,15 +1,10 @@
 'use client';
 
-import { Suspense } from 'react';
-import { useParams } from 'next/navigation';
-import { RecordPage } from '@/components/data/record-page';
+import { LegacyRecordRedirect } from '@/components/data/legacy-record-redirect';
 
-/** Novo registro em página própria (?pai= dentro de outro registro, ?voltar= tela de origem). */
-export default function NewRecordPage() {
-  const { entitySlug } = useParams<{ entitySlug: string }>();
-  return (
-    <Suspense>
-      <RecordPage entitySlug={entitySlug} />
-    </Suspense>
-  );
+const toNew = (pathname: string) => pathname.replace(/\/novo\/?$/, '/new');
+
+/** Endereco antigo de criacao: /data/<tabela>/novo -> /data/<tabela>/new */
+export default function LegacyNewRecordPage() {
+  return <LegacyRecordRedirect to={toNew} />;
 }
