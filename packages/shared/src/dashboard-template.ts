@@ -146,10 +146,12 @@ export interface WidgetConfig {
     groupByFields?: string[];
     tableColumns?: string[];
     aggregations?: Array<{
-      type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first';
+      type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first' | 'relatedCount';
       fieldSlug?: string;
       alias: string;
       distinctFields?: string[];
+      /** relatedCount: tabela cujos registros sao contados (filhos, netos ou bisnetos do grupo) */
+      entitySlug?: string;
     }>;
     crossEntityCount?: {
       entitySlug: string;

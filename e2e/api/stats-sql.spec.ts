@@ -116,3 +116,44 @@ test('listagem com periodo do painel (dateStart/dateEnd)', async ({ request }) =
   expect(dentro.meta.total).toBeGreaterThan(0);
   expect(fora.meta.total).toBe(0);
 });
+
+test('registros ligados: conta filhos e netos de cada grupo (operacao -> veiculos -> avarias)', async ({ request }) => {
+  const post = async (path: string, data: unknown) => (await call(request, 'post', path, tenant.owner, { expected: [200, 201], data })).json();
+  const danos = await post('/entities', { name: 'Danos', slug: 'danos', fields: [{ slug: 'peca', name: 'peca', label: 'Peca', type: 'text' }] });
+  const carros = await post('/entities', {
+    name: 'Carros', slug: 'carros', fields: [
+      { slug: 'chassi', name: 'chassi', label: 'Chassi', type: 'text' },
+      { slug: 'danos', name: 'danos', label: 'Danos', type: 'sub-entity', subEntitySlug: 'danos', subEntityId: danos.id },
+    ],
+  });
+  await post('/entities', {
+    name: 'Ops', slug: 'ops', fields: [
+      { slug: 'navio', name: 'navio', label: 'Navio', type: 'text' },
+      { slug: 'carros', name: 'carros', label: 'Carros', type: 'sub-entity', subEntitySlug: 'carros', subEntityId: carros.id },
+    ],
+  });
+  const op = async (navio: string) => (await post('/data/ops', { data: { navio } })).id as string;
+  const carro = async (pai: string) => (await post('/data/carros', { data: { chassi: 'c' }, parentRecordId: pai })).id as string;
+  const dano = (pai: string) => post('/data/danos', { data: { peca: 'porta' }, parentRecordId: pai });
+  const [a, b, c] = [await op('Alfa'), await op('Alfa'), await op('Beta')];
+  const a1 = await carro(a);
+  await carro(a);
+  await carro(b);
+  const c1 = await carro(c);
+  await dano(a1);
+  await dano(a1);
+  await dano(c1);
+
+  const aggs = [
+    { type: 'count', alias: 'ops' },
+    { type: 'relatedCount', entitySlug: 'carros', alias: 'carros' },
+    { type: 'relatedCount', entitySlug: 'danos', alias: 'avarias' },
+  ];
+  const linhas = await (await call(request, 'get',
+    `/stats/entity/ops/grouped-data?groupBy=navio&aggregations=${encodeURIComponent(JSON.stringify(aggs))}&sortBy=navio&sortOrder=asc`,
+    tenant.owner, { expected: 200 })).json();
+  expect(linhas).toEqual([
+    { navio: 'Alfa', ops: 2, carros: 3, avarias: 2 },
+    { navio: 'Beta', ops: 1, carros: 1, avarias: 1 },
+  ]);
+});
