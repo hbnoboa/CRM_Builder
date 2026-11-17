@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import type { DashboardFilterParams } from '@/hooks/use-dashboard-templates';
+import { useEntities } from '@/hooks/use-entities';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -66,6 +67,38 @@ export function WidgetProvider({
   return <WidgetIdentityContext.Provider value={value}>{children}</WidgetIdentityContext.Provider>;
 }
 
+// ─── Arvore das tabelas ─────────────────────────────────────────────────────
+// Filho -> pai (pelos campos sub-entity). Com ela um filtro chega a qualquer nivel:
+// operacao -> veiculo -> NC, em quantas geracoes houver (avo vira "parent.parent.x";
+// neto vira "child.<neto>.x").
+
+type EntityParents = Record<string, string>;
+
+/** Quantos niveis `ancestor` esta acima de `slug` (0 = a mesma tabela; -1 = nao e ancestral). */
+function levelsAbove(parents: EntityParents, slug: string, ancestor: string): number {
+  const seen = new Set<string>(); // trava contra laco na arvore
+  let cur: string | undefined = slug;
+  for (let d = 0; cur && !seen.has(cur); d++) {
+    if (cur === ancestor) return d;
+    seen.add(cur);
+    cur = parents[cur];
+  }
+  return -1;
+}
+
+/**
+ * Campo do filtro (feito na tabela `from`) visto por um widget da tabela `to`; null quando
+ * as tabelas nao sao da mesma linha (pai/filho/neto) na arvore.
+ */
+function relatedFieldSlug(parents: EntityParents, fieldSlug: string, from: string, to: string): string | null {
+  if (from === to) return fieldSlug;
+  const up = levelsAbove(parents, to, from); // filtro numa tabela acima (pai, avo)
+  if (up > 0) return `${'parent.'.repeat(up)}${fieldSlug}`;
+  const down = levelsAbove(parents, from, to); // filtro numa tabela abaixo (filho, neto)
+  if (down > 0) return `child.${from}.${fieldSlug}`;
+  return null;
+}
+
 // ─── Internal Context ───────────────────────────────────────────────────────
 
 // External filters injected from the parent page (e.g. data/page.tsx filter popover)
@@ -78,6 +111,7 @@ export interface ExternalFilter {
 
 interface InternalFilters {
   mainEntitySlug?: string;  // dashboard's primary entity
+  entityParents: EntityParents;
   externalFilters: ExternalFilter[];
   allCrossFilters: CrossFilter[];
   slicerFilters: SlicerFilter[];
@@ -98,6 +132,7 @@ interface InternalFilters {
 const noop = () => {};
 
 const InternalFilterContext = createContext<InternalFilters>({
+  entityParents: {},
   externalFilters: [],
   allCrossFilters: [],
   slicerFilters: [],
@@ -130,6 +165,20 @@ export function DashboardFilterProvider({
   const [slicerFilters, setSlicerFilters] = useState<SlicerFilter[]>([]);
   const [dateRange, setDateRange] = useState<{ start: string; end: string } | undefined>();
   const [drillRecord, setDrillRecord] = useState<DrillRecord | null>(null);
+
+  const { data: entitiesData } = useEntities();
+  const entityParents = useMemo<EntityParents>(() => {
+    const list = (Array.isArray(entitiesData) ? entitiesData : (entitiesData as { data?: unknown[] } | undefined)?.data || []) as Array<{
+      slug: string; fields?: Array<{ type?: string; subEntitySlug?: string }>;
+    }>;
+    const parents: EntityParents = {};
+    for (const e of list) {
+      for (const f of e.fields || []) {
+        if (f.type === 'sub-entity' && f.subEntitySlug && f.subEntitySlug !== e.slug) parents[f.subEntitySlug] = e.slug;
+      }
+    }
+    return parents;
+  }, [entitiesData]);
 
   const openDrillThrough = useCallback((entitySlug: string, recordId: string) => {
     setDrillRecord({ entitySlug, recordId });
@@ -219,6 +268,7 @@ export function DashboardFilterProvider({
   const value = useMemo<InternalFilters>(
     () => ({
       mainEntitySlug,
+      entityParents,
       externalFilters,
       allCrossFilters: crossFilters,
       slicerFilters,
@@ -235,7 +285,7 @@ export function DashboardFilterProvider({
       openDrillThrough,
       closeDrillThrough,
     }),
-    [mainEntitySlug, externalFilters, crossFilters, slicerFilters, dateRange, drillRecord, toggleCrossFilter, addCrossFilter, removeCrossFilter, clearCrossFilters, clearAllFilters, setSlicerFilterFn, removeSlicerFilter, setDateRange, openDrillThrough, closeDrillThrough],
+    [mainEntitySlug, entityParents, externalFilters, crossFilters, slicerFilters, dateRange, drillRecord, toggleCrossFilter, addCrossFilter, removeCrossFilter, clearCrossFilters, clearAllFilters, setSlicerFilterFn, removeSlicerFilter, setDateRange, openDrillThrough, closeDrillThrough],
   );
 
   return <InternalFilterContext.Provider value={value}>{children}</InternalFilterContext.Provider>;
@@ -262,9 +312,13 @@ export function useDashboardFilters(): DashboardFilters {
 
     const result: CrossFilter[] = [];
     for (const f of ctx.allCrossFilters) {
+      // Arvore conhecida: pai/avo/filho/neto em qualquer nivel
+      const related = f.entitySlug ? relatedFieldSlug(ctx.entityParents, f.fieldSlug, f.entitySlug, widgetEntity) : null;
       if (!f.entitySlug) {
         // No entity scope: include as-is (global filter)
         result.push(f);
+      } else if (related !== null) {
+        result.push(related === f.fieldSlug ? f : { ...f, fieldSlug: related });
       } else if (f.entitySlug === widgetEntity) {
         // Same entity: include as-is
         result.push(f);
@@ -278,7 +332,7 @@ export function useDashboardFilters(): DashboardFilters {
       }
     }
     return result;
-  }, [ctx.allCrossFilters, widgetEntity, ctx.mainEntitySlug]);
+  }, [ctx.allCrossFilters, widgetEntity, ctx.mainEntitySlug, ctx.entityParents]);
 
   const toggleCrossFilter = useCallback(
     (fieldSlug: string, value: string) => {
@@ -312,7 +366,14 @@ export function useDashboardFilters(): DashboardFilters {
 
     const result: SlicerFilter[] = [];
     for (const sf of ctx.slicerFilters) {
-      if (!sf.entitySlug) {
+      const related = sf.entitySlug ? relatedFieldSlug(ctx.entityParents, sf.fieldSlug, sf.entitySlug, widgetEntity) : null;
+      // "Tem <tabela>" e da tabela-pai dela: vale para ela e para as de cima (a API sobe ate o avo)
+      const hasChildrenOwner = sf.fieldSlug.startsWith('_hasChildren:') ? ctx.entityParents[sf.fieldSlug.split(':')[1]] : undefined;
+      if (!sf.entitySlug && hasChildrenOwner) {
+        if (levelsAbove(ctx.entityParents, hasChildrenOwner, widgetEntity) >= 0) result.push(sf);
+      } else if (related !== null) {
+        result.push(related === sf.fieldSlug ? sf : { ...sf, fieldSlug: related });
+      } else if (!sf.entitySlug) {
         // No entity scope: check if _hasChildren filter
         if (sf.fieldSlug.startsWith('_hasChildren:')) {
           // _hasChildren only applies to the MAIN entity (parent), skip for sub-entity widgets
@@ -336,15 +397,16 @@ export function useDashboardFilters(): DashboardFilters {
       }
     }
     return result;
-  }, [ctx.slicerFilters, widgetEntity, ctx.mainEntitySlug]);
+  }, [ctx.slicerFilters, widgetEntity, ctx.mainEntitySlug, ctx.entityParents]);
 
   // Auto-resolve prefixed fieldSlugs and inject entitySlug
   const setSlicerFilter = useCallback(
     (fieldSlug: string, operator: string, value: unknown, fieldType?: string) => {
       if (fieldSlug.startsWith('parent.')) {
-        // Parent field: strip prefix, scope to main entity
+        // Parent field: strip prefix, scope to the parent table (or main entity)
         const rawSlug = fieldSlug.slice(7);
-        ctx.setSlicerFilter(rawSlug, operator, value, ctx.mainEntitySlug, fieldType);
+        const parentSlug = widgetEntity ? ctx.entityParents[widgetEntity] : undefined;
+        ctx.setSlicerFilter(rawSlug, operator, value, parentSlug || ctx.mainEntitySlug, fieldType);
       } else if (fieldSlug.startsWith('child.')) {
         // Child field: child.<entitySlug>.<fieldSlug>
         const parts = fieldSlug.split('.');
@@ -361,7 +423,7 @@ export function useDashboardFilters(): DashboardFilters {
         ctx.setSlicerFilter(fieldSlug, operator, value, widgetEntity, fieldType);
       }
     },
-    [ctx.setSlicerFilter, widgetEntity, ctx.mainEntitySlug],
+    [ctx.setSlicerFilter, widgetEntity, ctx.mainEntitySlug, ctx.entityParents],
   );
 
   const removeSlicerFilter = useCallback(

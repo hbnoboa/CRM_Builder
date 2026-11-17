@@ -4,7 +4,7 @@ import { CustomRoleService } from '../custom-role/custom-role.service';
 import { EntityDataQueryService, type BuildWhereResult, type DashboardFilterOptions } from '../../common/services/entity-data-query.service';
 import {
   acceptedFilterValues, comparison, compareGroupValues, compareTopValues, compositeKeySql, dayKeys, fieldSql, optionMeta,
-  cachedStats, parentsSql, periodBounds, relatedCountsSql, runStats, sameStats, scopeSql, serverTimeZone, statsMode, toStr,
+  cachedStats, parentsSql, periodBounds, RELATED_MAX_DEPTH, runStats, sameStats, scopeSql, serverTimeZone, statsMode, toStr,
 } from './stats-sql';
 import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
@@ -34,7 +34,7 @@ type GroupedDataOptions = {
     fieldSlug?: string;
     alias: string;
     distinctFields?: string[];
-    /** relatedCount: tabela cujos registros (filhos, netos ou bisnetos do grupo) sao contados */
+    /** relatedCount: tabela cujos registros (filhos, netos, ... do grupo) sao contados */
     entitySlug?: string;
   }>;
   crossEntityCount?: {
@@ -1750,20 +1750,36 @@ export class StatsService {
   }
 
   /**
-   * Registros da tabela `entitySlug` (no recorte do cargo e no periodo do painel) que sao
-   * filhos, netos ou bisnetos de cada registro. Sem acesso a tabela: null.
+   * Quantos registros da tabela `entitySlug` (no recorte do cargo e no periodo do painel)
+   * pendem de cada registro, em qualquer geracao (filho, neto, ...). Conta os pais diretos e
+   * sobe nivel a nivel so com os totais (poucas linhas por nivel). Sem acesso a tabela: null.
    */
-  private async relatedTargets(
+  private async relatedCounts(
     user: CurrentUser,
     entitySlug: string | undefined,
     queryTenantId: string | undefined,
     options?: GroupedDataOptions,
-  ): Promise<Prisma.Sql | null> {
+  ): Promise<Map<string, number> | null> {
     if (!entitySlug) return null;
     const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, { dateStart: options?.dateStart, dateEnd: options?.dateEnd });
     if (!qr) return null;
     const targets = await scopeSql(this.prisma, qr.where, this.queryService.buildArchivedWhere(qr.where));
-    return relatedCountsSql(targets, qr.effectiveTenantId);
+    const tenantId = qr.effectiveTenantId;
+    const total = new Map<string, number>();
+    let level = await runStats<{ pid: string; n: number }>(this.prisma, Prisma.sql`
+      SELECT "parentRecordId" AS pid, count(*)::int AS n FROM (${targets}) x
+       WHERE "parentRecordId" IS NOT NULL GROUP BY 1`);
+    for (let depth = 0; depth < RELATED_MAX_DEPTH && level.length > 0; depth++) {
+      for (const r of level) total.set(r.pid, (total.get(r.pid) ?? 0) + Number(r.n));
+      level = await runStats<{ pid: string; n: number }>(this.prisma, Prisma.sql`
+        SELECT coalesce(e."parentRecordId", a."parentRecordId") AS pid, sum(l.n)::int AS n
+          FROM unnest(${level.map((r) => r.pid)}::text[], ${level.map((r) => Number(r.n))}::int[]) AS l(id, n)
+          LEFT JOIN "EntityData" e ON e.id = l.id AND e."tenantId" = ${tenantId}
+          LEFT JOIN "ArchivedEntityData" a ON a.id = l.id AND a."tenantId" = ${tenantId}
+         WHERE coalesce(e."parentRecordId", a."parentRecordId") IS NOT NULL
+         GROUP BY 1`);
+    }
+    return total;
   }
 
   /**
@@ -1822,10 +1838,8 @@ export class StatsService {
     for (const [i, agg] of aggregations.entries()) {
       if (agg.type !== 'relatedCount') continue;
       const rc = Prisma.raw(`rc${i}`);
-      const counts = await this.relatedTargets(user, agg.entitySlug, queryTenantId, options);
-      relatedJoins.push(counts
-        ? Prisma.sql`LEFT JOIN (${counts}) ${rc} ON ${rc}.pid = r.id`
-        : Prisma.sql`LEFT JOIN (SELECT NULL::text AS pid, 0 AS n) ${rc} ON false`);
+      const counts = await this.relatedCounts(user, agg.entitySlug, queryTenantId, options) ?? new Map<string, number>();
+      relatedJoins.push(Prisma.sql`LEFT JOIN unnest(${[...counts.keys()]}::text[], ${[...counts.values()]}::int[]) AS ${rc}(pid, n) ON ${rc}.pid = r.id`);
     }
     const matchFields = cross && cross.matchBy !== 'children' ? cross.matchFields ?? [] : [];
     const srcCol = matchFields.length
@@ -1980,13 +1994,11 @@ export class StatsService {
     const aggregations = options?.aggregations || [{ type: 'count' as const, alias: 'total' }];
     const rows: Array<Record<string, unknown>> = [];
 
-    // Registros ligados (filhos, netos, bisnetos) por registro, para as metricas relatedCount
+    // Registros ligados (filhos, netos, ...) por registro, para as metricas relatedCount
     const related = new Map<number, Map<string, number>>();
     for (const [i, agg] of aggregations.entries()) {
       if (agg.type !== 'relatedCount') continue;
-      const counts = await this.relatedTargets(user, agg.entitySlug, queryTenantId, options);
-      const rowsRc = counts ? await runStats<{ pid: string; n: number }>(this.prisma, counts) : [];
-      related.set(i, new Map(rowsRc.map((r) => [r.pid, Number(r.n)])));
+      related.set(i, await this.relatedCounts(user, agg.entitySlug, queryTenantId, options) ?? new Map());
     }
 
     for (const [key, group] of groups) {
