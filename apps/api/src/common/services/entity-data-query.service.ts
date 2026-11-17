@@ -12,6 +12,20 @@ import { ENTITY_QUERY_CACHE_TTL, entityQueryCache } from './entity-query-cache';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
+/** Trava contra laco na arvore: um filtro de pai/filho atravessa quantas geracoes houver, ate aqui. */
+const RELATION_MAX_DEPTH = 50;
+
+/** "parent.parent.navio" -> { depth: 2, slug: 'navio' } (filtro pelo avo). */
+function parentPath(fieldSlug: string): { depth: number; slug: string } {
+  let depth = 0;
+  let slug = fieldSlug;
+  while (slug.startsWith('parent.') && depth < RELATION_MAX_DEPTH) {
+    depth++;
+    slug = slug.slice(7);
+  }
+  return { depth, slug };
+}
+
 export interface GlobalFilter {
   fieldSlug: string;
   fieldName?: string;
@@ -272,11 +286,11 @@ export class EntityDataQueryService {
         const andArray = where.AND as Prisma.EntityDataWhereInput[];
 
         // Collect parent/child field filters to resolve in batch (equals/in operators)
-        const parentFilters: Array<{ slug: string; value: unknown }> = [];
+        const parentFilters: Array<{ slug: string; value: unknown; depth: number }> = [];
         const childFilters: Array<{ entitySlug: string; fieldSlug: string; value: unknown }> = [];
 
         // Collect cross-entity filters for complex operators (contains, gt, between, etc.)
-        const parentComplexFilters: Array<{ slug: string; filter: { fieldType: string; operator: string; value: unknown; value2?: unknown } }> = [];
+        const parentComplexFilters: Array<{ slug: string; depth: number; filter: { fieldType: string; operator: string; value: unknown; value2?: unknown } }> = [];
         const childComplexFilters: Array<{ entitySlug: string; fieldSlug: string; filter: { fieldType: string; operator: string; value: unknown; value2?: unknown } }> = [];
         const hasChildrenFilters: Array<{ subEntitySlug: string; value: boolean }> = [];
 
@@ -290,7 +304,7 @@ export class EntityDataQueryService {
 
             if (filter.fieldSlug.startsWith('parent.')) {
               // Parent field filter — collect for batch resolution
-              parentFilters.push({ slug: filter.fieldSlug.slice(7), value: val });
+              parentFilters.push({ ...parentPath(filter.fieldSlug), value: val });
             } else if (filter.fieldSlug.startsWith('child.')) {
               // Child entity filter: child.<entitySlug>.<fieldSlug>
               const parts = filter.fieldSlug.split('.');
@@ -318,7 +332,7 @@ export class EntityDataQueryService {
             if (filter.fieldSlug.startsWith('parent.')) {
               // Parent multi-select: collect each value as a separate parent filter possibility
               for (const val of values) {
-                parentFilters.push({ slug: filter.fieldSlug.slice(7), value: val });
+                parentFilters.push({ ...parentPath(filter.fieldSlug), value: val });
               }
             } else if (filter.fieldSlug.startsWith('child.')) {
               const parts = filter.fieldSlug.split('.');
@@ -365,7 +379,7 @@ export class EntityDataQueryService {
 
             if (filter.fieldSlug.startsWith('parent.')) {
               parentComplexFilters.push({
-                slug: filter.fieldSlug.slice(7),
+                ...parentPath(filter.fieldSlug),
                 filter: { fieldType: filterFieldType, operator: filter.operator, value: filter.value, value2: (filter as { value2?: unknown }).value2 },
               });
             } else if (filter.fieldSlug.startsWith('child.')) {
@@ -396,10 +410,11 @@ export class EntityDataQueryService {
         // Resolve parent field filters: find parent IDs that match, then filter by parentRecordId.
         // If the entity is NOT a sub-entity (no records with parentRecordId), fall back to
         // applying the filter directly on the field (strip "parent." prefix).
-        if (parentFilters.length > 0) {
+        // Um grupo por nivel (pai, avo, ...): o registro do nivel casa com todas as condicoes do grupo
+        for (const depth of [...new Set(parentFilters.map((pf) => pf.depth))]) {
           // Group by slug: same slug → OR (multi-select), different slugs → AND
           const bySlug = new Map<string, unknown[]>();
-          for (const pf of parentFilters) {
+          for (const pf of parentFilters.filter((f) => f.depth === depth)) {
             if (!bySlug.has(pf.slug)) bySlug.set(pf.slug, []);
             bySlug.get(pf.slug)!.push(pf.value);
           }
@@ -453,8 +468,10 @@ export class EntityDataQueryService {
               ...archivedParents.map((p) => p.id),
             ];
 
+            // Avo/bisavo: desce ate o nivel logo acima deste registro
+            const ids = depth > 1 ? await this.descendantIds(parentIds, depth - 1, tenantId) : parentIds;
             andArray.push({
-              parentRecordId: parentIds.length > 0 ? { in: parentIds } : { equals: '__no_match__' },
+              parentRecordId: ids.length > 0 ? { in: ids } : { equals: '__no_match__' },
             });
           } else {
             // Entity is NOT a sub-entity: strip "parent." prefix and apply as direct field filter
@@ -531,10 +548,11 @@ export class EntityDataQueryService {
                 distinct: ['parentRecordId'],
               }),
             ]);
-            const matchedParentIds = [
+            // Todos os ancestrais dos registros que casam (filtro de neto chega ao avo, e acima)
+            const matchedParentIds = await this.withAncestorIds([
               ...activeChildren.map((c) => c.parentRecordId),
               ...archivedChildren.map((c) => c.parentRecordId),
-            ].filter(Boolean) as string[];
+            ].filter(Boolean) as string[], tenantId);
 
             andArray.push({
               id: matchedParentIds.length > 0 ? { in: matchedParentIds } : { equals: '__no_match__' },
@@ -560,9 +578,10 @@ export class EntityDataQueryService {
           const hasParents = hasParentsActive + hasParentsArchived;
 
           if (hasParents > 0) {
-            // Entity IS a sub-entity: resolve via parentRecordId
+            // Entity IS a sub-entity: resolve via parentRecordId (um grupo por nivel)
+            for (const depth of [...new Set(parentComplexFilters.map((pf) => pf.depth))]) {
             const parentConditions: Prisma.EntityDataWhereInput[] = [];
-            for (const pf of parentComplexFilters) {
+            for (const pf of parentComplexFilters.filter((f) => f.depth === depth)) {
               const clause = buildFilterClause(pf.slug, pf.filter.fieldType, pf.filter.operator, pf.filter.value, pf.filter.value2);
               if (clause) parentConditions.push(clause);
             }
@@ -586,9 +605,11 @@ export class EntityDataQueryService {
                 ...archivedParents.map((p) => p.id),
               ];
 
+              const ids = depth > 1 ? await this.descendantIds(parentIds, depth - 1, tenantId) : parentIds;
               andArray.push({
-                parentRecordId: parentIds.length > 0 ? { in: parentIds } : { equals: '__no_match__' },
+                parentRecordId: ids.length > 0 ? { in: ids } : { equals: '__no_match__' },
               });
+            }
             }
           } else {
             // Entity is NOT a sub-entity: strip prefix and apply as direct field filter
@@ -646,10 +667,11 @@ export class EntityDataQueryService {
                 distinct: ['parentRecordId'],
               }),
             ]);
-            const matchedParentIds = [
+            // Todos os ancestrais dos registros que casam (filtro de neto chega ao avo, e acima)
+            const matchedParentIds = await this.withAncestorIds([
               ...activeChildren.map((c) => c.parentRecordId),
               ...archivedChildren.map((c) => c.parentRecordId),
-            ].filter(Boolean) as string[];
+            ].filter(Boolean) as string[], tenantId);
 
             andArray.push({
               id: matchedParentIds.length > 0 ? { in: matchedParentIds } : { equals: '__no_match__' },
@@ -686,12 +708,13 @@ export class EntityDataQueryService {
                 distinct: ['parentRecordId'],
               }),
             ]);
-            const parentIdsWithChildren = [
+            // Todos os ancestrais: "tem NC" vale tambem para a operacao (avo da NC), e acima
+            const parentIdsWithChildren = await this.withAncestorIds([
               ...new Set([
                 ...activeChildren.map((c) => c.parentRecordId),
                 ...archivedChildren.map((c) => c.parentRecordId),
               ].filter(Boolean)),
-            ] as string[];
+            ] as string[], tenantId);
 
             if (hcf.value) {
               // Has children
@@ -820,14 +843,14 @@ export class EntityDataQueryService {
       if (!Array.isArray(filters) || filters.length === 0) return;
 
       const normalFilters: GlobalFilter[] = [];
-      const parentFilters: Array<{ slug: string; filter: GlobalFilter }> = [];
+      const parentFilters: Array<{ slug: string; depth: number; filter: GlobalFilter }> = [];
       const childFilters: Array<{ entitySlug: string; fieldSlug: string; filter: GlobalFilter }> = [];
       const hasChildrenFilters: Array<{ subEntitySlug: string; value: boolean }> = [];
 
       for (const filter of filters) {
         if (filter.fieldSlug.startsWith('parent.')) {
           parentFilters.push({
-            slug: filter.fieldSlug.slice(7),
+            ...parentPath(filter.fieldSlug),
             filter,
           });
         } else if (filter.fieldSlug.startsWith('child.')) {
@@ -873,14 +896,15 @@ export class EntityDataQueryService {
             : 0;
 
           if (hasParents > 0) {
-            // Build filter clauses for parent records
-            const parentConditions: Prisma.EntityDataWhereInput[] = [];
-            for (const pf of parentFilters) {
-              const clause = buildFilterClause(pf.slug, pf.filter.fieldType, pf.filter.operator, pf.filter.value, pf.filter.value2);
-              if (clause) parentConditions.push(clause);
-            }
+            // Build filter clauses for parent records (um grupo por nivel: pai, avo, ...)
+            for (const depth of [...new Set(parentFilters.map((pf) => pf.depth))]) {
+              const parentConditions: Prisma.EntityDataWhereInput[] = [];
+              for (const pf of parentFilters.filter((f) => f.depth === depth)) {
+                const clause = buildFilterClause(pf.slug, pf.filter.fieldType, pf.filter.operator, pf.filter.value, pf.filter.value2);
+                if (clause) parentConditions.push(clause);
+              }
+              if (parentConditions.length === 0) continue;
 
-            if (parentConditions.length > 0) {
               const parentWhere: Prisma.EntityDataWhereInput = { AND: parentConditions };
               if (tenantId) parentWhere.tenantId = tenantId;
 
@@ -889,8 +913,9 @@ export class EntityDataQueryService {
                 select: { id: true },
               });
               const parentIds = parentRecords.map((p) => p.id);
+              const ids = depth > 1 ? await this.descendantIds(parentIds, depth - 1, tenantId) : parentIds;
               andArray.push({
-                parentRecordId: parentIds.length > 0 ? { in: parentIds } : { equals: '__no_match__' },
+                parentRecordId: ids.length > 0 ? { in: ids } : { equals: '__no_match__' },
               });
             }
           } else {
@@ -941,7 +966,7 @@ export class EntityDataQueryService {
               select: { parentRecordId: true },
               distinct: ['parentRecordId'],
             });
-            const parentIds = childRecords.map((c) => c.parentRecordId).filter(Boolean) as string[];
+            const parentIds = await this.withAncestorIds(childRecords.map((c) => c.parentRecordId).filter(Boolean) as string[], tenantId);
             andArray.push({
               id: parentIds.length > 0 ? { in: parentIds } : { equals: '__no_match__' },
             });
@@ -977,12 +1002,13 @@ export class EntityDataQueryService {
                 distinct: ['parentRecordId'],
               }),
             ]);
-            const parentIdsWithChildren = [
+            // Todos os ancestrais: "tem NC" vale tambem para a operacao (avo da NC), e acima
+            const parentIdsWithChildren = await this.withAncestorIds([
               ...new Set([
                 ...activeChildren.map((c) => c.parentRecordId),
                 ...archivedChildren.map((c) => c.parentRecordId),
               ].filter(Boolean)),
-            ] as string[];
+            ] as string[], tenantId);
 
             if (hcf.value) {
               // Has children
@@ -1002,6 +1028,38 @@ export class EntityDataQueryService {
     } catch (e) {
       this.logger.warn(`Failed to parse filters param: ${e}`);
     }
+  }
+
+  /** Os `ids` mais todos os seus ancestrais (pais, avos, ...; ativos e arquivados). */
+  private async withAncestorIds(ids: string[], tenantId?: string): Promise<string[]> {
+    const all = new Set(ids);
+    const tenant = tenantId ? Prisma.sql`AND "tenantId" = ${tenantId}` : Prisma.empty;
+    let level = [...all];
+    for (let i = 0; i < RELATION_MAX_DEPTH && level.length > 0; i++) {
+      const rows = await this.prisma.$queryRaw<Array<{ pid: string }>>(Prisma.sql`
+        SELECT DISTINCT "parentRecordId" AS pid FROM (
+          SELECT "parentRecordId" FROM "EntityData" WHERE id = ANY(${level}::text[]) ${tenant}
+          UNION ALL
+          SELECT "parentRecordId" FROM "ArchivedEntityData" WHERE id = ANY(${level}::text[]) ${tenant}
+        ) x WHERE "parentRecordId" IS NOT NULL`);
+      level = rows.map((r) => r.pid).filter((id) => !all.has(id));
+      for (const id of level) all.add(id);
+    }
+    return [...all];
+  }
+
+  /** Registros (ativos e arquivados) `levels` niveis abaixo de `ids` (1 = filhos, 2 = netos). */
+  private async descendantIds(ids: string[], levels: number, tenantId?: string): Promise<string[]> {
+    const tenant = tenantId ? Prisma.sql`AND "tenantId" = ${tenantId}` : Prisma.empty;
+    let level = ids;
+    for (let i = 0; i < levels && level.length > 0; i++) {
+      const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id FROM "EntityData" WHERE "parentRecordId" = ANY(${level}::text[]) ${tenant}
+        UNION ALL
+        SELECT id FROM "ArchivedEntityData" WHERE "parentRecordId" = ANY(${level}::text[]) ${tenant}`);
+      level = rows.map((r) => r.id);
+    }
+    return level;
   }
 
   /**

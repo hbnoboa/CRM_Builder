@@ -150,7 +150,7 @@ export interface WidgetConfig {
       fieldSlug?: string;
       alias: string;
       distinctFields?: string[];
-      /** relatedCount: tabela cujos registros sao contados (filhos, netos ou bisnetos do grupo) */
+      /** relatedCount: tabela cujos registros sao contados (filhos, netos, ... do grupo) */
       entitySlug?: string;
     }>;
     crossEntityCount?: {

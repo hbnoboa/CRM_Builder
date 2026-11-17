@@ -1229,7 +1229,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
             if (!field) {
               // Transformed filter (parent.*/child.*) — strip prefix and look up
               let rawSlug = sf.fieldSlug;
-              if (rawSlug.startsWith('parent.')) rawSlug = rawSlug.slice(7);
+              if (rawSlug.startsWith('parent.')) rawSlug = rawSlug.replace(/^(parent\.)+/, '');
               else if (rawSlug.startsWith('child.')) {
                 const parts = rawSlug.split('.');
                 rawSlug = parts.length >= 3 ? parts.slice(2).join('.') : rawSlug;
