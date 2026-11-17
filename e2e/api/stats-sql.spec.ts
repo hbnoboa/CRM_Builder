@@ -157,3 +157,30 @@ test('registros ligados: conta filhos e netos de cada grupo (operacao -> veiculo
     { navio: 'Beta', ops: 1, carros: 1, avarias: 1 },
   ]);
 });
+
+test('filtros atravessam geracoes: neto filtra o avo, avo filtra o neto, "tem" chega ao bisavo', async ({ request }) => {
+  const post = async (path: string, data: unknown) => (await call(request, 'post', path, tenant.owner, { expected: [200, 201], data })).json();
+  // Quarta geracao: fotos dentro dos danos (ops -> carros -> danos -> fotos)
+  await post('/entities', { name: 'Fotos', slug: 'fotos', fields: [{ slug: 'arquivo', name: 'arquivo', label: 'Arquivo', type: 'text' }] });
+  const list = async (ent: string, filtros: unknown[]) => (await (await call(request, 'get',
+    `/data/${ent}?includeChildren=true&limit=100&dashboardFilters=${encodeURIComponent(JSON.stringify(filtros))}`, tenant.owner, { expected: 200 })).json()).meta.total;
+  const danosTodos = (await (await call(request, 'get', '/data/danos?includeChildren=true&limit=100', tenant.owner, { expected: 200 })).json()).data;
+  await post('/data/fotos', { data: { arquivo: 'f1.jpg' }, parentRecordId: danosTodos[0].id });
+
+  // Neto -> avo: operacoes com dano na porta (Alfa tem 2 danos num carro; Beta 1)
+  expect(await list('ops', [{ fieldSlug: 'child.danos.peca', operator: 'equals', value: 'porta' }])).toBe(2);
+  // Bisneto -> bisavo: so a operacao do dano que tem foto
+  expect(await list('ops', [{ fieldSlug: '_hasChildren:fotos', operator: 'equals', value: true }])).toBe(1);
+  expect(await list('ops', [{ fieldSlug: '_hasChildren:danos', operator: 'equals', value: true }])).toBe(2);
+  // Avo -> neto: danos das operacoes do navio Beta
+  expect(await list('danos', [{ fieldSlug: 'parent.parent.navio', operator: 'equals', value: 'Beta' }])).toBe(1);
+  expect(await list('danos', [{ fieldSlug: 'parent.parent.navio', operator: 'contains', value: 'Alf', fieldType: 'text' }])).toBe(2);
+  // Bisavo -> bisneto e contagem de 3 geracoes abaixo
+  expect(await list('fotos', [{ fieldSlug: 'parent.parent.parent.navio', operator: 'equals', value: 'Beta' }])
+    + await list('fotos', [{ fieldSlug: 'parent.parent.parent.navio', operator: 'equals', value: 'Alfa' }])).toBe(1);
+  const aggs = [{ type: 'relatedCount', entitySlug: 'fotos', alias: 'fotos' }];
+  const linhas = await (await call(request, 'get',
+    `/stats/entity/ops/grouped-data?groupBy=navio&aggregations=${encodeURIComponent(JSON.stringify(aggs))}&sortBy=navio&sortOrder=asc`,
+    tenant.owner, { expected: 200 })).json();
+  expect(linhas.reduce((n: number, l: { fotos: number }) => n + l.fotos, 0)).toBe(1);
+});
