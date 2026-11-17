@@ -303,9 +303,11 @@ function GroupByFieldsConfig({ entityFields, selected, onChange }: {
   );
 }
 
-function AggregationsConfig({ aggregations, entityFields, onChange }: {
-  aggregations: Array<{ type: string; fieldSlug?: string; alias: string; distinctFields?: string[] }>;
+function AggregationsConfig({ aggregations, entityFields, entities = [], onChange }: {
+  aggregations: Array<{ type: string; fieldSlug?: string; alias: string; distinctFields?: string[]; entitySlug?: string }>;
   entityFields: EntityField[];
+  /** Tabelas para "Registros ligados" */
+  entities?: EntityLike[];
   onChange: (aggs: typeof aggregations) => void;
 }) {
   const usableFields = entityFields.filter((f) =>
@@ -329,6 +331,7 @@ function AggregationsConfig({ aggregations, entityFields, onChange }: {
                 <SelectItem value="max">Máximo</SelectItem>
                 <SelectItem value="distinctCount">Contagem distinta</SelectItem>
                 <SelectItem value="first">Primeiro valor</SelectItem>
+                {entities.length > 0 && <SelectItem value="relatedCount">Registros ligados (filhos e netos)</SelectItem>}
               </SelectContent>
             </Select>
             <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0"
@@ -343,6 +346,16 @@ function AggregationsConfig({ aggregations, entityFields, onChange }: {
               <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Campo" /></SelectTrigger>
               <SelectContent>
                 {usableFields.map((f) => <SelectItem key={f.slug} value={f.slug}>{f.label || f.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {agg.type === 'relatedCount' && (
+            <Select value={agg.entitySlug || ''} onValueChange={(v) => {
+              const n = [...aggregations]; n[idx] = { ...n[idx], entitySlug: v }; onChange(n);
+            }}>
+              <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Tabela ligada" /></SelectTrigger>
+              <SelectContent>
+                {entities.map((e) => <SelectItem key={e.slug} value={e.slug}>{e.name}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
@@ -790,7 +803,7 @@ function PropertiesPanel({
             <>
               <GroupByFieldsConfig entityFields={entityFields} selected={config.config.groupByFields || []}
                 onChange={(v) => updateField('groupByFields', v)} />
-              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields}
+              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields} entities={allEntities}
                 onChange={(v) => updateField('aggregations', v)} />
               <CrossEntityCountConfig value={config.config.crossEntityCount} allEntities={allEntities} subEntities={subEntities}
                 onChange={(v) => updateField('crossEntityCount', v)} />
@@ -885,7 +898,7 @@ function PropertiesPanel({
             <>
               <GroupByFieldsConfig entityFields={entityFields} selected={config.config.groupByFields || []}
                 onChange={(v) => updateField('groupByFields', v)} />
-              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields}
+              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields} entities={allEntities}
                 onChange={(v) => updateField('aggregations', v)} />
               <CrossEntityCountConfig value={config.config.crossEntityCount} allEntities={allEntities} subEntities={subEntities}
                 onChange={(v) => updateField('crossEntityCount', v)} />
@@ -1169,7 +1182,7 @@ function PropertiesPanel({
           {isGroupedStacked ? (
             <>
               <GroupByFieldsConfig entityFields={entityFields} selected={config.config.groupByFields || []} onChange={(f) => updateField('groupByFields', f)} />
-              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields} onChange={(a) => updateField('aggregations', a)} />
+              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields} entities={allEntities} onChange={(a) => updateField('aggregations', a)} />
               <CrossEntityCountConfig value={config.config.crossEntityCount} allEntities={allEntities} subEntities={subEntities} onChange={(v) => updateField('crossEntityCount', v)} />
               <GroupedSortConfig config={config.config} updateField={updateField} />
             </>
@@ -1315,7 +1328,7 @@ function PropertiesPanel({
                   if (config.config.crossEntityCount?.alias) aliases.push(config.config.crossEntityCount.alias);
                   updateField('tableColumns', [...v, ...aliases]);
                 }} />
-              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields}
+              <AggregationsConfig aggregations={config.config.aggregations || []} entityFields={entityFields} entities={allEntities}
                 onChange={(v) => {
                   updateField('aggregations', v);
                   // Auto-update tableColumns

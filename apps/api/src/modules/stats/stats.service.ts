@@ -4,7 +4,7 @@ import { CustomRoleService } from '../custom-role/custom-role.service';
 import { EntityDataQueryService, type BuildWhereResult, type DashboardFilterOptions } from '../../common/services/entity-data-query.service';
 import {
   acceptedFilterValues, comparison, compareGroupValues, compareTopValues, compositeKeySql, dayKeys, fieldSql, optionMeta,
-  cachedStats, parentsSql, periodBounds, runStats, sameStats, scopeSql, serverTimeZone, statsMode, toStr,
+  cachedStats, parentsSql, periodBounds, relatedCountsSql, runStats, sameStats, scopeSql, serverTimeZone, statsMode, toStr,
 } from './stats-sql';
 import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
@@ -30,10 +30,12 @@ type HomeSettings = { titleField?: string; statusField?: string; doneValues?: st
 
 type GroupedDataOptions = {
   aggregations?: Array<{
-    type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first';
+    type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first' | 'relatedCount';
     fieldSlug?: string;
     alias: string;
     distinctFields?: string[];
+    /** relatedCount: tabela cujos registros (filhos, netos ou bisnetos do grupo) sao contados */
+    entitySlug?: string;
   }>;
   crossEntityCount?: {
     entitySlug: string;
@@ -1741,7 +1743,27 @@ export class StatsService {
     return this.dual('grouped-data',
       () => this.groupedDataJs(user, qr, groupByFields, queryTenantId, options),
       () => this.groupedDataSql(user, qr, groupByFields, queryTenantId, options),
-      { user, scope: qr, args: [groupByFields, options], alsoEntities: [options?.crossEntityCount?.entitySlug] });
+      { user, scope: qr, args: [groupByFields, options], alsoEntities: [
+        options?.crossEntityCount?.entitySlug,
+        ...(options?.aggregations ?? []).map((a) => (a.type === 'relatedCount' ? a.entitySlug : undefined)),
+      ] });
+  }
+
+  /**
+   * Registros da tabela `entitySlug` (no recorte do cargo e no periodo do painel) que sao
+   * filhos, netos ou bisnetos de cada registro. Sem acesso a tabela: null.
+   */
+  private async relatedTargets(
+    user: CurrentUser,
+    entitySlug: string | undefined,
+    queryTenantId: string | undefined,
+    options?: GroupedDataOptions,
+  ): Promise<Prisma.Sql | null> {
+    if (!entitySlug) return null;
+    const qr = await this.buildEntityWhere(user, entitySlug, queryTenantId, { dateStart: options?.dateStart, dateEnd: options?.dateEnd });
+    if (!qr) return null;
+    const targets = await scopeSql(this.prisma, qr.where, this.queryService.buildArchivedWhere(qr.where));
+    return relatedCountsSql(targets, qr.effectiveTenantId);
   }
 
   /**
@@ -1775,6 +1797,7 @@ export class StatsService {
         case 'avg': return Prisma.sql`coalesce(avg(stats_num(${field})), 0)::float8 AS ${col}`;
         case 'min': return Prisma.sql`coalesce(min(stats_num(${field})), 0)::float8 AS ${col}`;
         case 'max': return Prisma.sql`coalesce(max(stats_num(${field})), 0)::float8 AS ${col}`;
+        case 'relatedCount': return Prisma.sql`coalesce(sum(${Prisma.raw(`rc${i}`)}.n), 0)::int AS ${col}`;
         default: return Prisma.sql`0 AS ${col}`;
       }
     });
@@ -1794,6 +1817,16 @@ export class StatsService {
         kidsCol = Prisma.sql`, coalesce(sum(kc.n), 0)::int AS kids`;
       }
     }
+    // Contagem de registros ligados: um LEFT JOIN (1 linha por registro) por metrica
+    const relatedJoins: Prisma.Sql[] = [];
+    for (const [i, agg] of aggregations.entries()) {
+      if (agg.type !== 'relatedCount') continue;
+      const rc = Prisma.raw(`rc${i}`);
+      const counts = await this.relatedTargets(user, agg.entitySlug, queryTenantId, options);
+      relatedJoins.push(counts
+        ? Prisma.sql`LEFT JOIN (${counts}) ${rc} ON ${rc}.pid = r.id`
+        : Prisma.sql`LEFT JOIN (SELECT NULL::text AS pid, 0 AS n) ${rc} ON false`);
+    }
     const matchFields = cross && cross.matchBy !== 'children' ? cross.matchFields ?? [] : [];
     const srcCol = matchFields.length
       ? Prisma.sql`, (array_agg(${compositeKeySql(matchFields.map((m) => m.source))} ${recent}))[1] AS src`
@@ -1803,7 +1836,7 @@ export class StatsService {
     const groups = await runStats<Record<string, unknown>>(this.prisma, Prisma.sql`
       ${ctes}${kidsCte}
       SELECT ${Prisma.join([...keyCols, ...aggCols], ', ')} ${kidsCol} ${srcCol}
-        FROM recs r ${kidsJoin}
+        FROM recs r ${kidsJoin} ${relatedJoins.length ? Prisma.join(relatedJoins, ' ') : Prisma.empty}
        ${groupBy}`);
 
     // "Mais frequente" por grupo: maior contagem; empate -> o que aparece primeiro (mais recente)
@@ -1947,6 +1980,15 @@ export class StatsService {
     const aggregations = options?.aggregations || [{ type: 'count' as const, alias: 'total' }];
     const rows: Array<Record<string, unknown>> = [];
 
+    // Registros ligados (filhos, netos, bisnetos) por registro, para as metricas relatedCount
+    const related = new Map<number, Map<string, number>>();
+    for (const [i, agg] of aggregations.entries()) {
+      if (agg.type !== 'relatedCount') continue;
+      const counts = await this.relatedTargets(user, agg.entitySlug, queryTenantId, options);
+      const rowsRc = counts ? await runStats<{ pid: string; n: number }>(this.prisma, counts) : [];
+      related.set(i, new Map(rowsRc.map((r) => [r.pid, Number(r.n)])));
+    }
+
     for (const [key, group] of groups) {
       const groupRecords = group.records;
       const firstData = groupRecords[0];
@@ -1958,8 +2000,11 @@ export class StatsService {
       }
 
       // Compute each aggregation
-      for (const agg of aggregations) {
-        if (agg.type === 'count') {
+      for (const [i, agg] of aggregations.entries()) {
+        if (agg.type === 'relatedCount') {
+          const counts = related.get(i);
+          row[agg.alias] = group.recordIds.reduce((n, rid) => n + (counts?.get(rid) ?? 0), 0);
+        } else if (agg.type === 'count') {
           row[agg.alias] = groupRecords.length;
         } else if (agg.type === 'first') {
           row[agg.alias] = agg.fieldSlug ? this.normalizeFieldValue(groupRecords[0]?.[agg.fieldSlug]) : null;
