@@ -44,6 +44,7 @@ export function DonutChartWidget({ entitySlug, config, title, isEditMode }: Donu
     groupField = (config.groupByFields || [])[0] || '';
     // Determine which field to use as the count value
     const countAlias = config.crossEntityCount?.alias
+      || config.aggregations?.find((a) => a.type === 'relatedCount')?.alias
       || config.aggregations?.find((a) => a.type === 'count')?.alias
       || 'total';
     chartData = groupedData.data

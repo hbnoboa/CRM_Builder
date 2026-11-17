@@ -71,10 +71,12 @@ export interface RecentActivityItem {
 }
 
 export interface AggregationDef {
-  type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first';
+  type: 'count' | 'sum' | 'avg' | 'min' | 'max' | 'distinctCount' | 'mode' | 'first' | 'relatedCount';
   fieldSlug?: string;
   alias: string;
   distinctFields?: string[];
+  /** relatedCount (so no servidor): tabela dos registros ligados */
+  entitySlug?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────

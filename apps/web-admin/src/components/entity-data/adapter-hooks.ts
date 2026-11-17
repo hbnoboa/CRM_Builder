@@ -410,7 +410,7 @@ export function useAdaptedGroupedData(
   entitySlug: string | undefined,
   groupBy: string[] | undefined,
   options?: {
-    aggregations?: Array<{ type: string; fieldSlug?: string; alias: string; distinctFields?: string[] }>;
+    aggregations?: Array<{ type: string; fieldSlug?: string; alias: string; distinctFields?: string[]; entitySlug?: string }>;
     crossEntityCount?: { entitySlug: string; matchFields?: Array<{ source: string; target: string }>; matchBy?: 'fields' | 'children'; alias: string };
     limit?: number;
     sortBy?: string;
@@ -419,8 +419,9 @@ export function useAdaptedGroupedData(
   entitySlugOverride?: string,
 ) {
   const ctx = useEntityDataOptional();
-  // Cross-entity count sempre server-side
-  const useClient = !!ctx && !entitySlugOverride && ctx.isFullDataset && ctx.entity?.slug === entitySlug && !options?.crossEntityCount;
+  // Contagem cruzada e registros ligados sempre no servidor
+  const useClient = !!ctx && !entitySlugOverride && ctx.isFullDataset && ctx.entity?.slug === entitySlug && !options?.crossEntityCount
+    && !options?.aggregations?.some((a) => a.type === 'relatedCount');
   const effectiveSlug = entitySlugOverride || entitySlug;
 
   const clientData = useMemo(() => {

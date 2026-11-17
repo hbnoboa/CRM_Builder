@@ -234,7 +234,7 @@ export const entityStatsService = {
     entitySlug: string,
     groupBy: string[],
     options?: {
-      aggregations?: Array<{ type: string; fieldSlug?: string; alias: string; distinctFields?: string[] }>;
+      aggregations?: Array<{ type: string; fieldSlug?: string; alias: string; distinctFields?: string[]; entitySlug?: string }>;
       crossEntityCount?: { entitySlug: string; matchFields?: Array<{ source: string; target: string }>; matchBy?: 'fields' | 'children'; alias: string };
       limit?: number;
       sortBy?: string;

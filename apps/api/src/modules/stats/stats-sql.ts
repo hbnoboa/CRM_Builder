@@ -94,6 +94,30 @@ export async function scopeSql(
      WHERE "tenantId" = ${tenantId} AND "entityId" = ${entityId} AND id = ANY(${archivedIds}::text[])`;
 }
 
+/**
+ * Contagem de registros ligados: para cada pai, avo e bisavo dos registros do recorte
+ * `targets`, quantos deles pendem dele. Devolve linhas (pid, n), uma por ancestral.
+ * Conta por nivel e sobe so com os totais (poucas linhas), buscando o pai pela chave.
+ */
+export function relatedCountsSql(targets: Prisma.Sql, tenantId: string): Prisma.Sql {
+  const up = (from: string, col: string) => Prisma.sql`
+    SELECT coalesce(e."parentRecordId", a."parentRecordId") AS pid, sum(${Prisma.raw(from)}.n)::int AS n
+      FROM ${Prisma.raw(from)}
+      LEFT JOIN "EntityData" e ON e.id = ${Prisma.raw(`${from}.${col}`)} AND e."tenantId" = ${tenantId}
+      LEFT JOIN "ArchivedEntityData" a ON a.id = ${Prisma.raw(`${from}.${col}`)} AND a."tenantId" = ${tenantId}
+     GROUP BY 1`;
+  return Prisma.sql`
+    WITH g1 AS (SELECT "parentRecordId" AS pid, count(*)::int AS n FROM (${targets}) x
+                 WHERE "parentRecordId" IS NOT NULL GROUP BY 1),
+    g2 AS (${up('g1', 'pid')}),
+    g3 AS (${up('g2', 'pid')})
+    SELECT pid, sum(n)::int AS n FROM (
+      SELECT pid, n FROM g1
+      UNION ALL SELECT pid, n FROM g2 WHERE pid IS NOT NULL
+      UNION ALL SELECT pid, n FROM g3 WHERE pid IS NOT NULL) z
+     GROUP BY pid`;
+}
+
 /** Registros-pai (ativos + arquivados) da mesma empresa, para campos "parent.x". */
 export function parentsSql(tenantId: string): Prisma.Sql {
   return Prisma.sql`
