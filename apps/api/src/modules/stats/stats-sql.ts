@@ -257,7 +257,7 @@ export function acceptedFilterValues(target: string): string[] {
 // parametros. Gravar numa tabela muda a versao dela e descarta o que estava guardado
 // (ninguem ve numero velho depois de salvar). Alem do aviso "dados alterados", toda
 // gravacao de registro pelo Prisma (automacoes, importacao, arquivamento...) muda a
-// versao da empresa inteira (bumpStatsTenant). So na memoria desta API.
+// versao das empresas atingidas (bumpStatsTenant; ver PrismaService). So na memoria desta API.
 
 export const STATS_CACHE_TTL_MS = Number(process.env.STATS_CACHE_TTL_MS ?? 10_000);
 const STATS_CACHE_MAX = 1000;
@@ -274,7 +274,7 @@ export function bumpStatsVersion(tenantId: string, entitySlug: string): void {
 const tenantVersions = new Map<string, number>();
 let globalVersion = 0;
 
-/** Gravacao de registro sem tabela conhecida: descarta o cache da empresa (ou de todas). */
+/** Gravacao de registro sem tabela conhecida: descarta o cache da empresa (null = de todas, so quando nao da para saber qual). */
 export function bumpStatsTenant(tenantId: string | null): void {
   if (tenantId) tenantVersions.set(tenantId, (tenantVersions.get(tenantId) ?? 0) + 1);
   else globalVersion++;
