@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { API, PASSWORD, call, createTenant, listRoles, ownerStaff, type Session, type Tenant } from './helpers';
 
 // Dominio proprio do site. A API de teste roda com DOMAIN_DNS_CHECK=mock (conta como
-// apontado o endereco terminado em ".ok.test") e DOMAIN_REGISTRAR=mock (registrador de
+// apontado o endereco terminado em ".ok.test"; sem o TXT de dono os que tem ".semdono.") e DOMAIN_REGISTRAR=mock (registrador de
 // teste: "ocupado" no nome = indisponivel, "falha" = o registro falha).
 
 const CPF_VALIDO = '529.982.247-25';
@@ -45,6 +45,25 @@ test.describe.serial('dominio proprio do site', () => {
     expect(overview.domains).toHaveLength(2);
     // Outra empresa nao ve os dominios desta
     expect((await (await call(request, 'get', '/site-domains', other.owner, { expected: 200 })).json()).domains).toHaveLength(0);
+  });
+
+  test('prova de dono: apontar nao basta na primeira vez; pedido sem prova nao trava o endereco', async ({ request }) => {
+    // Aponta para a plataforma, mas sem o TXT: continua pendente e mostra o registro a criar
+    const host = `www.loja${suffix}.semdono.ok.test`;
+    const semDono = await (await call(request, 'post', '/site-domains', tenant.owner, { expected: [200, 201], data: { hostname: host } })).json();
+    expect(semDono).toMatchObject({ status: 'pending_dns' });
+    expect(semDono.lastError).toContain('TXT');
+    expect(semDono.ownership.name).toBe(`_crm-verificacao.${host}`);
+    expect(semDono.ownership.value).toMatch(/^crm-verificacao=[0-9a-f]{32}$/);
+    expect(semDono).not.toHaveProperty('verifyToken');
+    expect((await request.get(`${API}/public/domains/resolve?host=${host}`)).status()).toBe(404);
+
+    // Outra empresa que prove ser dona fica com o endereco (o pedido sem prova sai)
+    const tomado = await (await call(request, 'post', '/site-domains', other.owner, { expected: [200, 201], data: { hostname: host } })).json();
+    expect(tomado.ownership.value).not.toBe(semDono.ownership.value);
+    const dele = (await (await call(request, 'get', '/site-domains', tenant.owner, { expected: 200 })).json()).domains;
+    expect(dele.map((d: { hostname: string }) => d.hostname)).not.toContain(host);
+    await call(request, 'delete', `/site-domains/${tomado.id}`, other.owner, { expected: 200 });
   });
 
   test('o site responde no dominio: resolucao publica, certificado e links das paginas', async ({ request }) => {

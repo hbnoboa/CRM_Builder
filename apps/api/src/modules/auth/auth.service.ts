@@ -1,6 +1,7 @@
 import { tenantIdForHost } from '../../common/utils/custom-domain';
 import { Injectable, UnauthorizedException, ConflictException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { isSolutionOwnerEmail } from '@crm-builder/shared';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
@@ -110,6 +111,9 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto, client: ClientInfo = {}) {
+    if (isSolutionOwnerEmail(dto.email)) {
+      throw new BadRequestException('Este e-mail é reservado. Use outro e-mail para criar a conta.');
+    }
     const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existingUser) {
       throw new ConflictException('Email ja esta em uso');
@@ -515,6 +519,18 @@ export class AuthService {
     return { message: 'Senha alterada com sucesso' };
   }
 
+  /** Endereco do dominio proprio para o link de nova senha, ou null para o da plataforma. */
+  private async resetLinkHost(host: string, userId: string): Promise<string | null> {
+    const tenantId = await tenantIdForHost(this.prisma, host);
+    if (!tenantId) return null;
+    const hostname = host.split(':')[0].toLowerCase();
+    const [domain, membership] = await Promise.all([
+      this.prisma.tenantDomain.findUnique({ where: { hostname }, select: { tenantId: true, status: true } }),
+      this.prisma.userTenantAccess.findFirst({ where: { userId, tenantId, status: Status.ACTIVE, deletedAt: null }, select: { id: true } }),
+    ]);
+    return domain?.tenantId === tenantId && domain.status === 'active' && membership ? `https://${hostname}` : null;
+  }
+
   async forgotPassword(dto: ForgotPasswordDto, host?: string) {
     // Email e global -> nao filtra por tenant.
     const user = await this.prisma.user.findFirst({
@@ -535,9 +551,10 @@ export class AuthService {
       data: { resetToken, resetTokenExpires: resetExpires },
     });
 
-    // Pedido feito pelo dominio proprio de uma empresa: o link volta para ele
-    const domainTenantId = host ? await tenantIdForHost(this.prisma, host) : null;
-    const base = domainTenantId && host ? `https://${host.split(':')[0].toLowerCase()}` : appUrl();
+    // Pedido feito pelo dominio proprio de uma empresa: o link volta para ele, mas so se
+    // a pessoa e dessa empresa e o dominio esta ativo (DNS conferido). Senao o dono de um
+    // dominio poderia receber no servidor dele o link de gente de outra empresa.
+    const base = (host && await this.resetLinkHost(host, user.id)) ?? appUrl();
     const url = `${base}/pt-BR/reset-password?token=${resetToken}`;
     const { html, text } = transactionalEmail({
       title: 'Redefinir sua senha',

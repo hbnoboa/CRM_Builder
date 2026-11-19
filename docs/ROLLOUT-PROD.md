@@ -14,6 +14,7 @@ Scripts em `apps/api/prisma/data-migration/` (todos sem `DELETE`/`DROP TABLE` de
 | `2026-07_redesign_rollout.sql` | Etapas **A** (colunas e tabelas novas), **B** (acessos por empresa, nível, acesso total dos admins) e **C** (remove colunas antigas, cria únicos globais). |
 | `2026-11_prod_backfill.sql` | O que o rollout não cobre: coringa `'*'` nos cargos antigos, escopos inválidos, dono da empresa, cargo padrão. Termina em `ROLLBACK`. |
 | `2026-11_funcoes_baseline.sql` | Funções e triggers do modelo novo (o `migrate diff` não compara isso). Gerado por `gerar-funcoes-baseline.py`. Reaplicável. |
+| `2026-11_dados_pos_baseline.sql` | Dados das 3 migrations absorvidas pelo baseline (destinatário das mensagens do bot, cópia sem campos ocultos para o app e publicação do PowerSync, cartões antigos do chat). Reaplicável. |
 | `2026-11_prod_post_deploy.sql` | Põe todas as tabelas na fila de recálculo de visibilidade do app. |
 
 ## Ensaio (cópia de prod, sem tocar na produção)
@@ -38,6 +39,10 @@ Scripts em `apps/api/prisma/data-migration/` (todos sem `DELETE`/`DROP TABLE` de
    (cria as extensões `pg_trgm`/`unaccent`, remove triggers antigos e deixa exatamente os do
    baseline). Em seguida, as funções da migration do portal (o baseline traz a versão anterior):
    `sed -n '/^CREATE OR REPLACE FUNCTION/,$p' prisma/migrations/20261129000000_client_portal/migration.sql | psql "$ENSAIO" -v ON_ERROR_STOP=1`
+8b. **Dados das migrations absorvidas pelo baseline**: `psql "$ENSAIO" -v ON_ERROR_STOP=1 -f 2026-11_dados_pos_baseline.sql`.
+   Sem isso, cargos com campo oculto sincronizam o app sem nenhum registro (`EntityDataMasked`
+   vazia e fora da publicação `powersync`). Conferir: `SELECT count(*) FROM "EntityDataMasked";`
+   maior que zero nas empresas com campo oculto.
 9. **Migrations**: o alinhamento já levou o schema até a última; marcar **todas** como aplicadas:
    `for m in $(ls prisma/migrations | grep -v toml); do DATABASE_URL="$ENSAIO" npx prisma migrate resolve --applied $m; done`
    e conferir com `npx prisma migrate status` ("Database schema is up to date").
@@ -47,6 +52,12 @@ Scripts em `apps/api/prisma/data-migration/` (todos sem `DELETE`/`DROP TABLE` de
     relatório de cargos e donos.
 10. **API e web de `develop`** apontando para o ensaio (porta separada, sem tocar nos
     containers de prod), depois `2026-11_prod_post_deploy.sql`.
+10b. **Arquivos privados** (anexos e relatórios do chat, PDFs gerados, arquivamento e auditoria
+    saem do endereço público). Com GCS, criar antes um bucket **sem acesso público** e pôr em
+    `GCS_PRIVATE_BUCKET`; sem ele, os arquivos vão para o volume `uploads-private` da API.
+    Simular e depois aplicar, dentro do container da API:
+    `node dist/prisma/move-private-files.js` → `node dist/prisma/move-private-files.js --aplicar`.
+    Conferido um anexo antigo abrindo no chat, rodar de novo com `--aplicar --apagar-originais`.
 11. **Validação** (ver abaixo). Anotar o tempo de cada etapa: é a janela de manutenção.
 12. Problema → corrigir os scripts e repetir do passo 1.
 

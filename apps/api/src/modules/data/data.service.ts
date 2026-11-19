@@ -388,21 +388,10 @@ export class DataService {
     // Verificar permissao de leitura na entidade
     await this.checkEntityPermission(currentUser, entitySlug, 'canRead');
 
-    // Campo oculto para o cargo nao filtra nem ordena (senao daria para deduzir o valor)
+    // Campo oculto para o cargo nao ordena (senao daria para deduzir o valor). Filtro e
+    // busca por campo oculto ja sao barrados no buildWhere.
     const hiddenForRole = hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, currentUser.tenantId));
-    if (hiddenForRole.size > 0) {
-      const slugsOf = (json?: string): string[] => {
-        if (!json) return [];
-        try {
-          const parsed = JSON.parse(json) as unknown;
-          return Array.isArray(parsed) ? parsed.map((f) => (f && typeof f === 'object' ? String((f as { fieldSlug?: unknown }).fieldSlug ?? '') : '')) : [];
-        } catch { return []; }
-      };
-      if ([...slugsOf(query.filters), ...slugsOf(query.dashboardFilters)].some((f) => hiddenForRole.has(f))) {
-        query = { ...query, recordIds: JSON.stringify(['__campo_oculto__']) }; // nenhum registro
-      }
-      if (query.sortBy && hiddenForRole.has(query.sortBy)) query = { ...query, sortBy: 'createdAt' };
-    }
+    if (query.sortBy && hiddenForRole.has(query.sortBy)) query = { ...query, sortBy: 'createdAt' };
 
     // Parse parameters
     const isDashboardAll = query.all === 'true';

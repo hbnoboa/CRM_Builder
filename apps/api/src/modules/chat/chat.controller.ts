@@ -1,5 +1,6 @@
 import { RequireFeature } from '../../common/decorators/require-feature.decorator';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,18 +10,26 @@ import {
   Post,
   Put,
   Query,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { NoClientPortalGuard } from '../../common/guards/no-client-portal.guard';
+import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 
+
+/** Tamanho maximo de uma pergunta ao bot (vai inteira para a IA). */
+const BOT_MESSAGE_MAX = 4000;
 @ApiTags('Chat')
 @RequireFeature('chat')
 @Controller('chat')
@@ -237,13 +246,19 @@ export class ChatController {
   }
 
   @Post('channels/:id/bot')
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiOperation({ summary: 'Pergunta ao bot (read-only, as_user)' })
   async askBot(
     @Param('id') id: string,
     @Body() body: { message: string },
     @CurrentUser() user: CurrentUserType,
   ) {
-    return this.chatService.askBot(user, id, body.message || '');
+    const message = typeof body?.message === 'string' ? body.message : '';
+    if (message.length > BOT_MESSAGE_MAX) {
+      throw new BadRequestException(`A pergunta ao bot pode ter até ${BOT_MESSAGE_MAX} caracteres.`);
+    }
+    return this.chatService.askBot(user, id, message);
   }
 
   @Get('channels/:id/messages')
@@ -266,6 +281,27 @@ export class ChatController {
     @CurrentUser() user: CurrentUserType,
   ) {
     return this.chatService.searchMessages(user, id, q || '');
+  }
+
+  @Get('channels/:id/messages/:messageId/file')
+  @ApiOperation({ summary: 'Baixa o anexo ou o relatório de uma mensagem (só quem participa do canal)' })
+  async messageFile(
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @Query('i') i: string | undefined,
+    @CurrentUser() user: CurrentUserType,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const file = await this.chatService.getMessageFile(user, id, messageId, Math.max(0, parseInt(i || '0', 10) || 0));
+    const inline = /^(image\/(jpeg|png|gif|webp)|video\/|application\/pdf)/.test(file.mime);
+    res.set({
+      'Content-Type': file.mime,
+      'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+      'Cache-Control': 'private, max-age=300',
+    });
+    return new StreamableFile(file.buffer);
   }
 
   @Post('channels/:id/attachments')

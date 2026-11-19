@@ -51,7 +51,19 @@ async function bootstrap() {
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
-  app.useStaticAssets(uploadsDir, { prefix: '/uploads/' });
+  // Arquivamento e auditoria antigos (gravados ali antes de irem para o privado): nunca por URL
+  app.use('/uploads', (req: { path: string }, res: { status: (n: number) => { end: () => void } }, next: () => void) => {
+    if (/^\/[^/]+\/(archives|audit-logs)\//.test(req.path)) return res.status(404).end();
+    return next();
+  });
+  app.useStaticAssets(uploadsDir, {
+    prefix: '/uploads/',
+    // Arquivo enviado nunca roda como pagina na origem da API (SVG com script, etc.)
+    setHeaders: (res) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox");
+    },
+  });
 
   // Prefixo global
   app.setGlobalPrefix('api/v1');

@@ -594,6 +594,29 @@ export class ChatService {
     return messages.map((m) => ({ ...m, senderName: m.senderId ? (nameById.get(m.senderId) ?? null) : null }));
   }
 
+  /**
+   * Arquivo de uma mensagem (anexo ou relatório), só para quem participa do canal e
+   * vê a mensagem. Os arquivos ficam privados: não há endereço público para eles.
+   */
+  async getMessageFile(user: CurrentUser, channelId: string, messageId: string, index = 0) {
+    await this.assertAccess(user, channelId);
+    const message = await this.prisma.message.findFirst({
+      where: { id: messageId, channelId, tenantId: user.tenantId, ...this.visibleTo(user) },
+      select: { type: true, meta: true },
+    });
+    const meta = (message?.meta ?? {}) as { attachments?: Array<{ key?: string; name?: string; mime?: string }>; fileKey?: string; filename?: string; contentType?: string };
+    let file: { key: string; name: string; mime: string } | null = null;
+    if (message?.type === 'attachment') {
+      const a = meta.attachments?.[index];
+      if (a?.key) file = { key: a.key, name: a.name || 'arquivo', mime: a.mime || 'application/octet-stream' };
+    } else if (message?.type === 'report' && meta.fileKey) {
+      file = { key: meta.fileKey, name: meta.filename || 'relatorio', mime: meta.contentType || 'application/octet-stream' };
+    }
+    // A chave tem que ser da pasta desta empresa (meta veio do banco, mas nao custa conferir)
+    if (!file || !file.key.startsWith(`${user.tenantId}/`)) throw new NotFoundException('Arquivo não encontrado');
+    return { ...file, buffer: await this.uploadService.readPrivate(file.key) };
+  }
+
   /** Mensagens do canal + as privadas desta pessoa (resultado de /consulta, @bot). */
   private visibleTo(user: CurrentUser): Prisma.MessageWhereInput {
     return { OR: [{ recipientId: null }, { recipientId: user.id }] };
@@ -689,7 +712,9 @@ export class ChatService {
   async postAttachment(user: CurrentUser, channelId: string, file: Express.Multer.File | undefined, caption?: string) {
     await this.assertAccess(user, channelId);
     if (!file) throw new BadRequestException('Escolha um arquivo para enviar.');
-    const uploaded = await this.uploadService.uploadFile(file, user.tenantId, 'chat');
+    await this.uploadService.assertUploadable(file, user.tenantId);
+    // Privado: so quem participa do canal baixa (getMessageFile)
+    const { key } = await this.uploadService.savePrivate(file.buffer, { tenantId: user.tenantId, folder: 'chat', mimeType: file.mimetype });
     const kind = /^image\//.test(file.mimetype) ? 'image' : /^video\//.test(file.mimetype) ? 'video' : 'file';
     const name = Buffer.from(file.originalname || 'arquivo', 'latin1').toString('utf8').slice(0, 160);
     const text = (caption || '').trim().slice(0, 2000);
@@ -702,7 +727,7 @@ export class ChatService {
         content: text || `${kind === 'image' ? '📷' : kind === 'video' ? '🎬' : '📎'} ${name}`,
         meta: {
           caption: text || null,
-          attachments: [{ url: uploaded.publicUrl || uploaded.url, name, size: file.size, mime: file.mimetype, kind }],
+          attachments: [{ key, name, size: file.size, mime: file.mimetype, kind }],
         } as Prisma.InputJsonValue,
       },
     });
@@ -1271,10 +1296,6 @@ export class ChatService {
 
     const title = entity?.name || entitySlug;
     let buffer: Buffer | undefined;
-    // Caminho leve: relatorios de template ja sao enviados ao storage (GCS/disco).
-    // Em vez de trafegar o PDF como base64 no JSON (pico de memoria enorme com
-    // relatorios grandes), devolvemos a URL de download.
-    let fileUrl: string | undefined;
     let contentType: string;
     let ext: string;
     if (format === 'json') {
@@ -1322,39 +1343,32 @@ export class ChatService {
           recordIds = data.map((r) => r.id).slice(0, REPORT_RECORD_CEILING);
         }
         if (recordIds.length === 0) throw new NotFoundException('Nenhum registro para gerar o relatório.');
-        const gen = await this.pdfGenerator.generateBatch(chosenTemplate, recordIds, user, true, user.tenantId);
-        // Se subiu pro storage, devolve a URL e descarta o buffer (nao segura o
-        // PDF grande em memoria nem base64ifica). Fallback: base64 do buffer.
-        if (gen.fileUrl) fileUrl = gen.fileUrl;
-        else buffer = gen.buffer;
+        buffer = (await this.pdfGenerator.generateBatch(chosenTemplate, recordIds, user, true, user.tenantId)).buffer;
       } else {
         buffer = await this.generateTablePdf(title, `${total} registro(s)`, cols, tableRows);
       }
       contentType = 'application/pdf'; ext = 'pdf';
     }
     const filename = `${tpl.slug}-${total}.${ext}`;
-    // Sobe TODO relatório pro storage e guarda a URL na mensagem. Assim o download
-    // não é forçado só pra quem gerou: o relatório vira um card no chat e qualquer
-    // participante baixa quando clicar. (Templates de PDF já sobem no generateBatch.)
-    if (!fileUrl && buffer) {
-      try {
-        const uploaded = await this.uploadService.uploadBuffer(buffer, filename, contentType, user.tenantId, 'relatorios');
-        fileUrl = uploaded.publicUrl;
-      } catch {
-        /* upload falhou: cai no base64 abaixo (download só imediato) */
-      }
+    // Guarda o relatório (privado) e vira um card no chat: quem gerou baixa quando
+    // clicar, pela rota que confere o acesso (getMessageFile).
+    let fileKey: string | null = null;
+    try {
+      fileKey = (await this.uploadService.savePrivate(buffer as Buffer, { tenantId: user.tenantId, folder: 'relatorios', mimeType: contentType })).key;
+    } catch {
+      /* gravacao falhou: cai no base64 abaixo (download só imediato) */
     }
-    const file = fileUrl
-      ? { url: fileUrl, contentType, filename }
-      : { base64: (buffer as Buffer).toString('base64'), contentType, filename };
     const message = await this.prisma.message.create({
       data: {
         tenantId: user.tenantId, channelId, senderId: user.id, type: 'report',
         recipientId: user.id,
         content: `Relatório /${tpl.slug} — ${format.toUpperCase()} (${total} registro(s))`,
-        meta: { templateSlug: tpl.slug, entitySlug, total, format, filename, contentType, ...(fileUrl ? { url: fileUrl } : {}) } as Prisma.InputJsonValue,
+        meta: { templateSlug: tpl.slug, entitySlug, total, format, filename, contentType, ...(fileKey ? { fileKey } : {}) } as Prisma.InputJsonValue,
       },
     });
+    const file = fileKey
+      ? { path: `/chat/channels/${channelId}/messages/${message.id}/file`, contentType, filename }
+      : { base64: (buffer as Buffer).toString('base64'), contentType, filename };
     return { message, total, file };
   }
 

@@ -88,11 +88,22 @@ const records = (page: Page, entity = 'clientes'): Promise<void> => go(page, `/d
 const row = (page: Page, name: string): Locator => page.locator('tbody tr').filter({ hasText: name });
 const toast = (page: Page, text: string | RegExp): Locator => page.locator('[data-sonner-toast]').filter({ hasText: text });
 
+/** Criar registro abre a pagina /data/<tabela>/new (antes era um dialogo). */
 async function openCreate(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: 'Criar', exact: true }).first().click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByRole('heading', { name: /Novo Registro/ })).toBeVisible();
-  return dialog;
+  await page.waitForURL(/\/data\/[^/]+\/new/);
+  const form = page.getByTestId('record-page');
+  await expect(form.getByRole('heading', { name: 'Novo Registro' })).toBeVisible();
+  return form;
+}
+
+/** Editar pelo menu da linha abre a pagina /data/<tabela>/<id>/edit. */
+async function openEdit(page: Page, name: string): Promise<Locator> {
+  await rowMenu(page, name, 'Editar');
+  await page.waitForURL(/\/data\/[^/]+\/[^/]+\/edit/);
+  const form = page.getByTestId('record-page');
+  await expect(form).toBeVisible();
+  return form;
 }
 
 async function pickStatus(page: Page, dialog: Locator, label: string): Promise<void> {
@@ -108,7 +119,9 @@ async function createViaForm(page: Page, data: { nome: string; email?: string; v
   if (data.vip) await dialog.locator('#vip').click();
   await dialog.getByRole('button', { name: 'Criar', exact: true }).click();
   await expect(toast(page, 'Registro criado com sucesso').first()).toBeVisible();
-  await expect(dialog).toHaveCount(0);
+  // Clientes tem a sub-tabela Visitas: depois de criar, a tela segue para a pagina do registro
+  await page.waitForURL(/\/data\/[^/]+\/[^/]+\/edit/);
+  await records(page);
 }
 
 async function rowMenu(page: Page, name: string, item: string): Promise<void> {
@@ -189,10 +202,10 @@ test.describe('Administracao', () => {
     await expect(canvas.getByText('Nome').first()).toBeVisible();
     const before = await canvas.locator('.react-grid-item').count();
 
-    await page.getByRole('button', { name: 'Campo', exact: true }).click();
+    await page.getByTestId('add-field-button').click();
     const picker = page.getByRole('dialog');
-    await picker.getByPlaceholder('Buscar campos...').fill('texto');
-    await picker.getByRole('button', { name: /Texto/ }).first().click();
+    await picker.getByPlaceholder(/Buscar: foto, data/).fill('texto');
+    await picker.getByTestId('field-kind-text').click();
     await expect(canvas.locator('.react-grid-item')).toHaveCount(before + 1);
 
     await page.getByTestId('entity-tab-rules').click();
@@ -221,10 +234,11 @@ test.describe('Administracao', () => {
     for (const field of ['Nome', 'Email', 'Telefone', 'Status', 'VIP', 'CPF', 'Visitas']) {
       await expect(canvas.getByText(field).first(), field).toBeVisible();
     }
-    await expect(page.getByText('Selecione um campo no canvas para editar.')).toBeVisible();
+    const hint = page.getByText('Clique num campo para mudar o nome, o tipo e as opções.');
+    await expect(hint).toBeVisible();
     // O rotulo fica sob a camada de arrasto: o clique vale no cartao do campo.
     await canvas.locator('.react-grid-item').filter({ hasText: 'Nome' }).first().click({ position: { x: 8, y: 8 } });
-    await expect(page.getByText('Selecione um campo no canvas para editar.')).toHaveCount(0);
+    await expect(hint).toHaveCount(0);
     expect(saved).toEqual([]);
   });
 
@@ -289,24 +303,27 @@ test.describe('Administracao', () => {
     await expect(page.getByText(mail('gil')).first()).toBeVisible();
   });
 
+  /** Assistente "Novo modelo de PDF": tabela, tipo, nome e (em "Mais opções") o código interno. */
   async function fillPdfForm(page: Page, name: string, templateSlug: string): Promise<void> {
     await go(page, '/gestao/pdf-templates/new');
-    await page.getByPlaceholder('Ex: Relatorio de Veiculo').fill(name);
-    await page.getByPlaceholder('relatorio-veiculo').fill(templateSlug);
-    await expect(page.getByRole('combobox').nth(0)).toContainText('Individual');
-    await radixPick(page, page.getByRole('combobox').nth(1), 'Clientes');
-    await expect(page.getByRole('combobox').nth(2)).toContainText('A4');
+    await page.getByTestId('pdf-entity-picker').getByRole('button', { name: 'Clientes', exact: true }).click();
+    await expect(page.getByTestId('pdf-type-single')).toHaveAttribute('aria-pressed', 'true');
+    await page.getByTestId('pdf-name-input').fill(name);
+    await page.getByText('Mais opções (papel, orientação, descrição)').click();
+    await page.getByLabel('Código interno').fill(templateSlug);
+    await expect(page.getByRole('combobox').first()).toContainText('A4');
   }
 
   test('[E-11/2] slug com maiuscula e recusado', async ({ browser }) => {
     const page = await as(browser, 'dora');
     const saved = writes(page, /\/pdf-templates/);
     await go(page, '/gestao/pdf-templates/new');
-    await page.getByPlaceholder('Ex: Relatorio de Veiculo').fill(`UI Slug ${RUN}`);
-    await expect(page.getByPlaceholder('relatorio-veiculo')).toHaveValue(`ui-slug-${RUN}`);
-    await page.getByPlaceholder('relatorio-veiculo').fill('Slug-Com-Maiuscula');
-    await page.getByRole('button', { name: 'Criar e Continuar' }).click();
-    await expect(page.getByText('Slug deve conter apenas letras minusculas', { exact: false })).toBeVisible();
+    await page.getByTestId('pdf-name-input').fill(`UI Slug ${RUN}`);
+    await page.getByText('Mais opções (papel, orientação, descrição)').click();
+    await expect(page.getByLabel('Código interno')).toHaveValue(`ui-slug-${RUN}`);
+    await page.getByLabel('Código interno').fill('Slug-Com-Maiuscula');
+    await page.getByTestId('pdf-create-button').click();
+    await expect(page.getByText('Código interno: só letras minúsculas, números e hífens')).toBeVisible();
     await expect(page).toHaveURL(/\/pdf-templates\/new$/);
     expect(saved).toEqual([]);
   });
@@ -316,18 +333,17 @@ test.describe('Administracao', () => {
     const name = `UI Ficha ${RUN}`;
     await fillPdfForm(page, name, `ui-ficha-${RUN}`);
     const created = page.waitForResponse((r) => r.request().method() === 'POST' && /\/pdf-templates$/.test(new URL(r.url()).pathname));
-    await page.getByRole('button', { name: 'Criar e Continuar' }).click();
+    await page.getByTestId('pdf-create-button').click();
     expect((await created).ok()).toBeTruthy();
     await page.waitForURL(/\/pdf-templates\/(?!new)[^/]+$/, { timeout: 30_000 });
     await go(page, '/gestao/pdf-templates');
-    const card = page.locator('div.rounded-xl, div[class*="rounded"]').filter({ hasText: name }).filter({ has: page.getByRole('link', { name: 'Editar' }) }).last();
+    const card = page.locator('div.rounded-xl, div[class*="rounded"]').filter({ hasText: name }).filter({ has: page.getByRole('button', { name: 'Editar' }) }).last();
     await expect(card).toContainText('Rascunho');
-    await expect(card).toContainText('Individual');
+    await expect(card).toContainText('Um PDF por registro');
     await expect(card).toContainText('A4');
     await expect(card).toContainText('Clientes');
-    await card.getByRole('link', { name: 'Editar' }).click();
+    await card.getByRole('link').filter({ hasText: 'Editar' }).click();
     await page.waitForURL(new RegExp(`/pt-BR/${slug}/gestao/pdf-templates/[^/]+$`));
-    await expect(page.getByText('Informacoes do Template')).toBeVisible();
     await expect(page.locator(`input[value="${name}"]`).first()).toBeVisible();
     // Exclui pela tela; a limpeza cobre se este passo nao chegar aqui.
     const session = await dora(request);
@@ -335,15 +351,13 @@ test.describe('Administracao', () => {
     if (template) await call(request, 'delete', `/pdf-templates/${template.id}`, session, { expected: [200, 204] });
   });
 
-  test('[E-11/1 editor] Criar e Continuar abre o editor', async ({ browser }) => {
-    // BUG: gestao/pdf-templates/new/page.tsx:4 usa o useRouter de next/navigation e a linha 109 faz
-    // push('/gestao/pdf-templates/:id') sem idioma e empresa. A URL vira /gestao/pdf-templates/:id
-    // e a tela fica em branco. O modelo e criado; o editor abre pela lista.
+  test('[E-11/1 editor] Criar e abrir o editor leva ao editor', async ({ browser }) => {
     const page = await as(browser, 'dora');
-    await fillPdfForm(page, `UI Ficha editor ${RUN}`, `ui-ficha-editor-${RUN}`);
-    await page.getByRole('button', { name: 'Criar e Continuar' }).click();
-    await page.waitForURL(/\/pdf-templates\/(?!new)[^/]+$/, { timeout: 30_000 });
-    await expect(page).toHaveURL(new RegExp(`/pt-BR/${slug}/gestao/pdf-templates/`));
+    const name = `UI Ficha editor ${RUN}`;
+    await fillPdfForm(page, name, `ui-ficha-editor-${RUN}`);
+    await page.getByTestId('pdf-create-button').click();
+    await page.waitForURL(new RegExp(`/pt-BR/${slug}/gestao/pdf-templates/(?!new)[^/]+$`), { timeout: 30_000 });
+    await expect(page.locator(`input[value="${name}"]`).first()).toBeVisible();
   });
 
   test('[E-19 data final] filtrar ate hoje mantem os logs de hoje', async ({ browser }) => {
@@ -352,19 +366,19 @@ test.describe('Administracao', () => {
     // Medido em dev: sem data 51 logs, ate hoje 0, ate amanha 51.
     const page = await as(browser, 'dora');
     await go(page, '/gestao/audit-logs');
-    await expect(page.getByText('Nenhum log encontrado')).toHaveCount(0);
+    await expect(page.getByText('Nada encontrado')).toHaveCount(0);
     const filtered = page.waitForResponse((r) => r.url().includes('/audit-logs') && r.url().includes('dateTo=') && r.ok());
     await page.locator('input[type="date"]').nth(1).fill(new Date().toISOString().slice(0, 10));
     await filtered;
     await page.waitForLoadState('networkidle');
-    await expect(page.getByText('Nenhum log encontrado')).toHaveCount(0);
+    await expect(page.getByText('Nada encontrado')).toHaveCount(0);
   });
 
   test('[E-12/4] template de dashboard sem nome', async ({ browser }) => {
     const page = await as(browser, 'dora');
     const saved = writes(page, /\/dashboard-templates/);
     await go(page, '/gestao/dashboard-templates');
-    await page.getByRole('link', { name: /Novo Template/ }).click();
+    await page.getByRole('link', { name: /Novo painel/ }).first().click();
     await page.waitForURL(/\/dashboard-templates\/new$/);
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -414,16 +428,16 @@ test.describe('Administracao', () => {
   test('[E-19] auditoria: filtros e exportar com os mesmos filtros', async ({ browser }) => {
     const page = await as(browser, 'dora');
     await go(page, '/gestao/audit-logs');
-    await expect(page.getByRole('heading', { name: 'Logs de Auditoria' })).toBeVisible();
-    await expect(page.getByText('Nenhum log encontrado')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Auditoria', level: 1 })).toBeVisible();
+    await expect(page.getByText('Nada encontrado')).toHaveCount(0);
 
     const filtered = page.waitForResponse((r) => r.url().includes('/audit-logs') && r.url().includes('action=create') && r.ok());
     await radixPick(page, page.getByRole('combobox').nth(0), 'Criar');
     await filtered;
-    await expect(page.getByText('Deletar', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Excluir', { exact: true })).toHaveCount(0);
 
     const byResource = page.waitForResponse((r) => r.url().includes('/audit-logs') && r.url().includes('resource=entity_data') && r.ok());
-    await radixPick(page, page.getByRole('combobox').nth(1), 'Registros');
+    await radixPick(page, page.getByRole('combobox').nth(1), 'Registro');
     await byResource;
 
     const today = new Date().toISOString().slice(0, 10);
@@ -432,7 +446,7 @@ test.describe('Administracao', () => {
 
     const exportRequest = page.waitForRequest((r) => r.url().includes('/audit-logs/export'));
     const download = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Exportar JSON' }).click();
+    await page.getByRole('button', { name: 'Baixar histórico' }).click();
     const url = new URL((await exportRequest).url());
     expect(url.searchParams.get('action')).toBe('create');
     expect(url.searchParams.get('resource')).toBe('entity_data');
@@ -444,10 +458,10 @@ test.describe('Administracao', () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((log) => log.action === 'create' && log.resource === 'entity_data')).toBeTruthy();
 
-    await page.getByRole('button', { name: 'Limpar Filtros' }).click();
+    await page.getByRole('button', { name: 'Limpar filtros' }).click();
     await page.waitForLoadState('networkidle');
-    await page.getByPlaceholder('Buscar por ID do recurso...').fill('id-que-nao-existe');
-    await expect(page.getByText('Nenhum log encontrado')).toBeVisible();
+    await page.getByPlaceholder('Buscar...').fill('id-que-nao-existe');
+    await expect(page.getByText('Nada encontrado')).toBeVisible();
   });
 });
 
@@ -527,7 +541,6 @@ test.describe('Operacao', () => {
     const dialog = await openCreate(page);
     await dialog.getByRole('button', { name: 'Criar', exact: true }).click();
     await expect(dialog.getByText('Nome é obrigatório')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Cancelar' }).click();
   });
 
   test('[O-06/2] email invalido', async ({ browser }) => {
@@ -538,7 +551,6 @@ test.describe('Operacao', () => {
     await dialog.locator('#email').fill('abc@x');
     await dialog.getByRole('button', { name: 'Criar', exact: true }).click();
     await expect(dialog.getByText('Email inválido')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Cancelar' }).click();
   });
 
 
@@ -559,11 +571,11 @@ test.describe('Operacao', () => {
   test('[O-06/6] editar A1 troca o Status', async ({ browser }) => {
     const page = await as(browser, 'ana');
     await records(page);
-    await rowMenu(page, A1, 'Editar');
-    const dialog = page.getByRole('dialog');
+    const dialog = await openEdit(page, A1);
     await pickStatus(page, dialog, 'Em contato');
     await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect(toast(page, 'Registro atualizado com sucesso')).toBeVisible();
+    await page.waitForURL(/\/data(\?|$)/);
     await expect(row(page, A1)).toContainText('contato');
   });
 
@@ -584,7 +596,6 @@ test.describe('Operacao', () => {
     await dialog.getByRole('button', { name: 'Criar', exact: true }).click();
     await expect(page.getByText(/único|unico|já existe|ja existe|já está|ja esta|duplicad/i).first()).toBeVisible();
     await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: 'Cancelar' }).click();
   });
 
   test('[O-06/8] Dora cria D1 e Ana nao ve', async ({ browser }) => {
@@ -603,7 +614,6 @@ test.describe('Operacao', () => {
     await records(page);
     const dialog = await openCreate(page);
     await expect(dialog.getByText('Salve o registro primeiro para adicionar Visitas')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Cancelar' }).click();
   });
 
   test('[O-07/3] excluir visita: lixeira e Desfazer', async ({ browser, request }) => {
@@ -612,8 +622,7 @@ test.describe('Operacao', () => {
     await createRecord(request, '', { resumo: `UI visita O07 ${RUN}` }, id, 'visitas');
     const page = await as(browser, 'dora');
     await records(page);
-    await rowMenu(page, name, 'Editar');
-    const dialog = page.getByRole('dialog');
+    const dialog = await openEdit(page, name);
     await dialog.getByTitle('Tabela', { exact: true }).click(); // abre em Cards
     const visit = dialog.locator('tr').filter({ hasText: `UI visita O07 ${RUN}` });
     await expect(visit).toBeVisible();
@@ -631,10 +640,10 @@ test.describe('Operacao', () => {
   test('[O-08] busca por A1', async ({ browser }) => {
     const page = await as(browser, 'ana');
     await records(page);
-    await expect(page.getByText('Cliente A', { exact: true })).toBeVisible();
+    await expect(page.getByRole('table').getByText('Cliente A', { exact: true })).toBeVisible();
     await page.getByPlaceholder('Buscar registros...').fill('A1');
     await expect(row(page, A1)).toHaveCount(1);
-    await expect(page.getByText('Cliente A', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('table').getByText('Cliente A', { exact: true })).toHaveCount(0);
   });
 
   test('[O-08] filtro Status Igual a Novo e limpar', async ({ browser }) => {
@@ -648,7 +657,7 @@ test.describe('Operacao', () => {
     await radixPick(page, combos.nth(2), 'Novo');
     await page.getByRole('button', { name: 'Adicionar Filtro' }).click();
     await expect(page.getByText(/Status igual a/i).first()).toBeVisible();
-    await expect(page.getByText('Cliente A', { exact: true })).toBeVisible();
+    await expect(page.getByRole('table').getByText('Cliente A', { exact: true })).toBeVisible();
     await expect(row(page, A1)).toHaveCount(0);
     await page.getByRole('button', { name: 'Limpar filtros' }).click();
     await expect(page.getByText(/Status igual a/i)).toHaveCount(0);
@@ -748,20 +757,20 @@ test.describe('Operacao', () => {
     await page.getByRole('button', { name: 'Clientes', exact: true }).click();
     await opened;
     await expect(page.locator('header').getByText('Clientes', { exact: true })).toBeVisible();
-    await expect(page.getByPlaceholder('Escreva uma mensagem… ou /comando')).toBeVisible();
+    await expect(page.getByTestId('chat-input')).toBeVisible();
   });
 
   test('[O-12/2-3] Ana ve o canal e a mensagem chega para a Dora', async ({ browser }) => {
     const doraPage = await as(browser, 'dora');
     await go(doraPage, '/chat');
     await doraPage.getByRole('button', { name: 'Clientes', exact: true }).click();
-    await expect(doraPage.getByPlaceholder('Escreva uma mensagem… ou /comando')).toBeVisible();
+    await expect(doraPage.getByTestId('chat-input')).toBeVisible();
 
     const page = await as(browser, 'ana');
     await go(page, '/chat');
     await page.getByRole('button', { name: 'Clientes', exact: true }).click();
     const text = `UI oi time ${RUN}`;
-    await page.getByPlaceholder('Escreva uma mensagem… ou /comando').fill(text);
+    await page.getByTestId('chat-input').fill(text);
     await page.keyboard.press('Enter');
     await expect(page.getByText(text)).toBeVisible();
     await expect(doraPage.getByText(text)).toBeVisible({ timeout: 6_000 });
@@ -774,7 +783,7 @@ test.describe('Operacao', () => {
     await page.waitForURL(/\/chat\?thread=clientes:/);
     await expect(page.getByRole('button', { name: A1 })).toBeVisible();
     await expect(page.getByRole('main').getByText('Registros', { exact: true })).toBeVisible();
-    await expect(page.getByPlaceholder('Escreva uma mensagem… ou /comando')).toBeVisible();
+    await expect(page.getByTestId('chat-input')).toBeVisible();
   });
 
   test('[O-12/5] Novo chat: tabela e registro', async ({ browser }) => {
@@ -782,14 +791,14 @@ test.describe('Operacao', () => {
     await records(page);
     await createViaForm(page, { nome: A3, email: `ui.a3.${RUN}@example.com` });
     await go(page, '/chat');
-    await page.getByRole('button', { name: 'Novo chat' }).click();
+    await page.getByRole('button', { name: 'Conversa em grupo' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.locator('select').selectOption('clientes');
     await dialog.getByPlaceholder('Buscar em Clientes…').fill(A3);
     await dialog.getByRole('button', { name: A3 }).click();
     await expect(dialog).toHaveCount(0);
     await expect(page.getByRole('button', { name: A3 })).toBeVisible();
-    await expect(page.getByPlaceholder('Escreva uma mensagem… ou /comando')).toBeVisible();
+    await expect(page.getByTestId('chat-input')).toBeVisible();
   });
 
   test('[O-12/9] conversa direta Ana e Gil', async ({ browser }) => {
@@ -800,7 +809,7 @@ test.describe('Operacao', () => {
     await page.getByRole('dialog').getByRole('button', { name: /Gil/ }).click();
     await expect(page.locator('aside').getByRole('button', { name: 'Gil', exact: true })).toBeVisible();
     const text = `UI direta ${RUN}`;
-    await page.getByPlaceholder('Escreva uma mensagem… ou /comando').fill(text);
+    await page.getByTestId('chat-input').fill(text);
     await page.keyboard.press('Enter');
     await expect(page.getByText(text)).toBeVisible();
 
@@ -927,11 +936,11 @@ test.describe('Operacao', () => {
     try {
       await page.goto(`/en/${slug}/settings`);
       await page.waitForLoadState('networkidle');
-      await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 1 })).toContainText('Settings');
     } finally {
       await go(page, '/settings');
     }
-    await expect(page.getByRole('heading', { name: 'Configurações', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Configurações');
   });
 
   test('[O-16] tema claro, escuro e sistema', async ({ browser }) => {

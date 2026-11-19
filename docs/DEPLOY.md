@@ -220,7 +220,9 @@ As 50 migrations antigas foram trocadas por `apps/api/prisma/migrations/00000000
 
 - **Banco novo (CI, máquina nova, recuperação):** `npx prisma migrate deploy` cria tudo.
 - **Dev:** já marcado como aplicado. Nada a fazer.
-- **Prod (fazer no release, com backup antes):**
+- **Prod:** seguir `docs/ROLLOUT-PROD.md` (ensaio numa cópia antes). O resumo abaixo não basta
+  sozinho: o `migrate diff` não compara funções, triggers, publicação do PowerSync nem dados.
+- **Resumo (fazer no release, com backup antes):**
   1. Backup do banco de prod.
   2. Comparar o schema real de prod com o baseline:
      `npx prisma migrate diff --from-url "$PROD_URL" --to-migrations prisma/migrations --shadow-database-url "$SHADOW_URL" --script`

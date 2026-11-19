@@ -7,11 +7,14 @@ import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { AuditService } from '../audit/audit.service';
 import { PlatformAuditService } from '../platform/platform-audit.service';
 import type { PlatformStaffPrincipal } from '../platform/platform-permissions';
-import { checkDns, dnsTarget } from './dns-check';
+import { checkDns, checkOwnership, dnsTarget, ownershipRecord } from './dns-check';
+import { randomBytes } from 'crypto';
 import { SEARCH_TLDS, domainLabel, isApex, isPlatformHost, normalizeHostname, tldOf, validDocument } from './domain-utils';
 import { createRegistrar, type DomainRegistrar, type Registrant } from './registrar';
 
 const MAX_DOMAINS = 5;
+/** Dominio ligado sem prova de dono e liberado depois deste prazo. */
+const PENDING_TTL_DAYS = 14;
 
 /**
  * Dominios proprios das empresas: ligar um dominio que o cliente ja tem (ele aponta o
@@ -39,13 +42,20 @@ export class SiteDomainsService {
     ]);
     const target = dnsTarget();
     return {
-      domains: domains.map((d) => ({ ...d, apex: isApex(d.hostname) })),
+      domains: domains.map((d) => this.present(d)),
       orders,
       dns: { cname: target.cname, ips: target.ips },
       purchase: this.registrar
         ? { enabled: true, testMode: this.registrar.testMode, tlds: SEARCH_TLDS }
         : { enabled: false, testMode: false, tlds: [] },
     };
+  }
+
+  /** Dominio para a tela: sem o codigo cru, com o TXT a criar enquanto falta a prova de dono. */
+  private present<T extends { hostname: string; kind: string; verifiedAt: Date | null; verifyToken: string | null }>(d: T) {
+    const { verifyToken, ...rest } = d;
+    const needsOwnership = d.kind === 'connected' && !d.verifiedAt && !!verifyToken;
+    return { ...rest, apex: isApex(d.hostname), ownership: needsOwnership ? ownershipRecord(d.hostname, verifyToken!) : null };
   }
 
   /** Liga um dominio que o cliente ja tem. Fica pendente ate o DNS apontar para nos. */
@@ -58,10 +68,16 @@ export class SiteDomainsService {
       throw new BadRequestException(`Cada empresa pode ligar até ${MAX_DOMAINS} domínios.`);
     }
     const existing = await this.prisma.tenantDomain.findUnique({ where: { hostname } });
+    if (existing?.tenantId === tenantId) throw new ConflictException('Esse domínio já está ligado à sua empresa.');
+    if (existing?.verifiedAt) throw new ConflictException('Esse domínio já está ligado a outra empresa. Se ele é seu, fale com o suporte.');
+    // Outra empresa pediu o endereco mas nunca provou que e dela: quem provar primeiro fica
     if (existing) {
-      throw new ConflictException(existing.tenantId === tenantId ? 'Esse domínio já está ligado à sua empresa.' : 'Esse domínio já está ligado a outra empresa. Se ele é seu, fale com o suporte.');
+      await this.prisma.tenantDomain.delete({ where: { id: existing.id } });
+      this.logger.log(`Dominio ${hostname}: pedido sem prova de dono da empresa ${existing.tenantId} substituido por ${tenantId}`);
     }
-    const domain = await this.prisma.tenantDomain.create({ data: { tenantId, hostname, kind: 'connected', createdById: user.id } });
+    const domain = await this.prisma.tenantDomain.create({
+      data: { tenantId, hostname, kind: 'connected', createdById: user.id, verifyToken: randomBytes(16).toString('hex') },
+    });
     await this.audit.log(user, { action: 'create', resource: 'site_domain', resourceId: domain.id, newData: { hostname } }).catch(() => undefined);
     return this.verifyRecord(domain.id, tenantId);
   }
@@ -75,6 +91,18 @@ export class SiteDomainsService {
     const domain = await this.prisma.tenantDomain.findFirst({ where: { id, tenantId } });
     if (!domain) throw new NotFoundException('Domínio não encontrado');
     const result = await checkDns(domain.hostname);
+    // Primeira vez de um dominio ligado: alem de apontar, precisa provar que e da empresa
+    if (result.ok && domain.kind === 'connected' && !domain.verifiedAt) {
+      const token = domain.verifyToken ?? randomBytes(16).toString('hex');
+      if (!domain.verifyToken) await this.prisma.tenantDomain.update({ where: { id }, data: { verifyToken: token } });
+      const owner = await checkOwnership(domain.hostname, token);
+      if (!owner.ok) {
+        const pending = await this.prisma.tenantDomain.update({
+          where: { id }, data: { status: 'pending_dns', lastCheckAt: new Date(), lastError: owner.error ?? null },
+        });
+        return { ...this.present(pending), found: result.found };
+      }
+    }
     const hasPrimary = await this.prisma.tenantDomain.count({ where: { tenantId, isPrimary: true, id: { not: id } } });
     const updated = await this.prisma.tenantDomain.update({
       where: { id },
@@ -83,7 +111,7 @@ export class SiteDomainsService {
         // Ja ativo e o DNS saiu do ar: avisa, mas so desliga se nunca foi verificado
         : { status: domain.status === 'active' ? 'error' : 'pending_dns', lastCheckAt: new Date(), lastError: result.error ?? null },
     });
-    return { ...updated, apex: isApex(updated.hostname), found: result.found };
+    return { ...this.present(updated), found: result.found };
   }
 
   /** Dominio principal: o usado nos links do site. So um ativo pode ser principal. */
@@ -238,15 +266,27 @@ export class SiteDomainsService {
 
   /**
    * Confere sozinho, a cada 10 minutos, os dominios ainda esperando o DNS (e os que
-   * deram erro), para a pessoa nao precisar clicar em "Conferir agora".
+   * deram erro), para a pessoa nao precisar clicar em "Conferir agora". Os ativos sao
+   * reconferidos a cada hora: dominio que deixou de apontar para a plataforma vira
+   * "erro" e para de receber links de nova senha.
    */
   @Cron('*/10 * * * *', { name: 'site-domains-recheck', timeZone: 'America/Sao_Paulo' })
   async recheckPending() {
     const due = new Date(Date.now() - 9 * 60 * 1000);
+    const activeDue = new Date(Date.now() - 60 * 60 * 1000);
     const list = await this.prisma.tenantDomain.findMany({
-      where: { status: { in: ['pending_dns', 'error'] }, OR: [{ lastCheckAt: null }, { lastCheckAt: { lt: due } }] },
+      where: {
+        OR: [
+          { status: { in: ['pending_dns', 'error'] }, OR: [{ lastCheckAt: null }, { lastCheckAt: { lt: due } }] },
+          { status: 'active', OR: [{ lastCheckAt: null }, { lastCheckAt: { lt: activeDue } }] },
+        ],
+      },
       orderBy: { lastCheckAt: 'asc' }, take: 50, select: { id: true, tenantId: true },
     });
+    // Pedido que nunca provou ser do dono libera o endereco
+    const expired = new Date(Date.now() - PENDING_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const dropped = await this.prisma.tenantDomain.deleteMany({ where: { status: 'pending_dns', verifiedAt: null, kind: 'connected', createdAt: { lt: expired } } });
+    if (dropped.count) this.logger.log(`Dominios sem prova de dono liberados: ${dropped.count}`);
     for (const d of list) {
       try {
         await this.verifyRecord(d.id, d.tenantId);

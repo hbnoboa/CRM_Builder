@@ -17,6 +17,8 @@ export interface SiteDomain {
   lastCheckAt: string | null;
   lastError: string | null;
   found?: string[];
+  /** Registro TXT que prova que o domínio é da empresa (só enquanto falta a prova). */
+  ownership?: { name: string; value: string } | null;
 }
 
 export interface SiteDomainOrder {

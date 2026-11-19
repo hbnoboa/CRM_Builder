@@ -138,5 +138,5 @@ export {
 export type { FormatFieldOptions } from './formatters';
 
 // Modelos de solucao (pagina inicial / cadastro com modelo)
-export { SOLUTION_CATALOG, SOLUTION_SLUGS, solutionOwnerEmail } from './solutions';
+export { SOLUTION_CATALOG, SOLUTION_SLUGS, solutionOwnerEmail, isSolutionOwnerEmail } from './solutions';
 export type { SolutionCatalogItem } from './solutions';

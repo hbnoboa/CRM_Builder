@@ -35,7 +35,7 @@ COPY --chown=nestjs:nodejs apps/api/dist ./dist
 COPY --chown=nestjs:nodejs apps/api/src/i18n ./dist/src/i18n
 
 # Criar diretorio de uploads
-RUN mkdir -p /app/uploads && chown nestjs:nodejs /app/uploads
+RUN mkdir -p /app/uploads /app/uploads-private && chown nestjs:nodejs /app/uploads /app/uploads-private
 
 USER nestjs
 

@@ -17,6 +17,7 @@ import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
 import { assertAssignableRole, loadManagedMember } from '../../common/utils/member-governance';
 import { assertPasswordPolicy } from '../../common/utils/password-policy';
+import { hasFullTenantAccess } from '../../common/utils/platform-access';
 
 // Identidade global (#10): "usuarios de um tenant" = usuarios COM membership nele.
 // O cargo exibido e o da membership naquele tenant.
@@ -69,6 +70,15 @@ export class UserService {
     return { clientEntityId: entity.id, clientRecordId: record.id };
   }
 
+  /** Cliente do portal nao recebe cargo de acesso total (administraria a empresa inteira). */
+  private async assertRoleFitsClientLink(tenantId: string, customRoleId: string | undefined, linked: boolean) {
+    if (!linked || !customRoleId) return;
+    const role = await this.prisma.customRole.findFirst({ where: { id: customRoleId, tenantId }, select: { modulePermissions: true } });
+    if (role && hasFullTenantAccess(role.modulePermissions)) {
+      throw new BadRequestException('Quem entra como cliente não pode ter cargo de acesso total. Escolha outro cargo.');
+    }
+  }
+
   async create(dto: CreateUserDto, currentUser: CurrentUser) {
     const targetTenantId = getEffectiveTenantId(currentUser);
     await assertAssignableRole(this.prisma, currentUser, dto.customRoleId);
@@ -85,6 +95,7 @@ export class UserService {
 
     const { customRoleId, clientEntitySlug, clientRecordId, ...userData } = dto;
     const clientLink = await this.resolveClientLink(targetTenantId, clientEntitySlug, clientRecordId);
+    await this.assertRoleFitsClientLink(targetTenantId, customRoleId, !!clientLink.clientRecordId);
     if (userData.cpf) userData.cpf = userData.cpf.replace(/\D/g, '') || undefined;
     if (userData.cnpj) userData.cnpj = userData.cnpj.replace(/\D/g, '') || undefined;
     if (userData.phone) userData.phone = userData.phone.replace(/\D/g, '') || undefined;
@@ -335,6 +346,13 @@ export class UserService {
 
     // customRoleId (e o vinculo de cliente) nao moram no User -> vao para a membership.
     const { customRoleId, clientEntitySlug, clientRecordId, ...userData } = dto;
+    if (customRoleId || (clientRecordId && !target.isSelf)) {
+      const current = await this.prisma.userTenantAccess.findUnique({
+        where: { id: target.membership.id }, select: { customRoleId: true, clientRecordId: true },
+      });
+      const linked = clientRecordId !== undefined && !target.isSelf ? !!clientRecordId : !!current?.clientRecordId;
+      await this.assertRoleFitsClientLink(currentUser.tenantId, customRoleId ?? current?.customRoleId, linked);
+    }
     // A propria pessoa nunca troca o proprio vinculo de cliente (o pedido e ignorado)
     if (clientRecordId !== undefined && !target.isSelf) {
       const clientLink = await this.resolveClientLink(currentUser.tenantId, clientEntitySlug, clientRecordId);

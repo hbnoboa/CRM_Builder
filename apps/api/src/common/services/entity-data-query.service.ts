@@ -8,6 +8,7 @@ import { hasFullTenantAccess } from '../utils/platform-access';
 import { getEffectiveTenantId } from '../utils/tenant.util';
 import { buildFilterClause } from '../utils/build-filter-clause';
 import { creatorFilter } from '../utils/team-scope';
+import { hiddenFieldSlugs } from '../utils/field-permissions';
 import { ENTITY_QUERY_CACHE_TTL, entityQueryCache } from './entity-query-cache';
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
@@ -24,6 +25,20 @@ function parentPath(fieldSlug: string): { depth: number; slug: string } {
     slug = slug.slice(7);
   }
   return { depth, slug };
+}
+
+/** Campos citados num JSON de filtros ([{ fieldSlug, ... }]). */
+function filterFieldSlugs(json?: string): string[] {
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.map((f) => (f && typeof f === 'object' ? (f as { fieldSlug?: unknown }).fieldSlug : undefined))
+        .filter((f): f is string => typeof f === 'string' && f.length > 0)
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 export interface GlobalFilter {
@@ -181,12 +196,77 @@ export class EntityDataQueryService {
       await this.applyDashboardFilters(where, dashboardFilters, effectiveTenantId);
     }
 
-    // 12. Busca textual
+    // 12. Campo oculto para o cargo nao filtra nem e buscado (senao daria para deduzir
+    // o valor). Vale para o campo da tabela, do pai/avo (parent.x) e de baixo (child.<t>.x).
+    let hidden = new Set<string>();
+    if (!skipScope && (filters || dashboardFilters?.filters || search)) {
+      hidden = await this.hiddenFieldsFor(user, entitySlug, effectiveTenantId);
+      const used = [...filterFieldSlugs(filters), ...filterFieldSlugs(dashboardFilters?.filters)];
+      if (used.length > 0 && await this.touchesHiddenField(user, entity, effectiveTenantId, used, hidden)) {
+        if (!where.AND) where.AND = [];
+        (where.AND as Prisma.EntityDataWhereInput[]).push({ id: { in: [] } }); // nenhum registro
+      }
+    }
+
+    // 13. Busca textual
     if (search) {
-      this.applySearchClause(where, search, entity);
+      this.applySearchClause(where, search, entity, hidden);
     }
 
     return { where, entity, effectiveTenantId };
+  }
+
+  /** Campos que o cargo nao ve na tabela (vazio para acesso total). */
+  async hiddenFieldsFor(user: CurrentUser, entitySlug: string, tenantId: string): Promise<Set<string>> {
+    return hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(user.id, entitySlug, tenantId));
+  }
+
+  /**
+   * Algum dos campos citados e oculto para o cargo? Campo da propria tabela,
+   * `parent.x` / `parent.parent.x` (oculto no pai, no avo...) ou `child.<tabela>.x`
+   * (oculto naquela tabela de baixo, em qualquer geracao).
+   */
+  async touchesHiddenField(
+    user: CurrentUser,
+    entity: { id: string; slug: string },
+    tenantId: string,
+    fieldSlugs: string[],
+    ownHidden?: Set<string>,
+  ): Promise<boolean> {
+    const hiddenBySlug = new Map<string, Set<string>>();
+    const hiddenOf = async (slug: string) => {
+      if (slug === entity.slug && ownHidden) return ownHidden;
+      if (!hiddenBySlug.has(slug)) hiddenBySlug.set(slug, await this.hiddenFieldsFor(user, slug, tenantId));
+      return hiddenBySlug.get(slug)!;
+    };
+
+    let tenantEntities: Array<{ id: string; slug: string; fields: unknown }> | null = null;
+    const ancestorSlug = async (depth: number): Promise<string | null> => {
+      tenantEntities ??= await this.prisma.entity.findMany({ where: { tenantId, deletedAt: null }, select: { id: true, slug: true, fields: true } });
+      let current: { id: string; slug: string } = entity;
+      for (let i = 0; i < depth; i++) {
+        const parent = tenantEntities.find((e) => ((e.fields as Array<{ type?: string; subEntityId?: string; subEntitySlug?: string }>) || [])
+          .some((f) => f.type === 'sub-entity' && (f.subEntityId === current.id || f.subEntitySlug === current.slug)));
+        if (!parent) return null;
+        current = parent;
+      }
+      return current.slug;
+    };
+
+    for (const fieldSlug of fieldSlugs) {
+      if (fieldSlug.startsWith('parent.')) {
+        const { depth, slug } = parentPath(fieldSlug);
+        // Tabela sem pai: o filtro cai no proprio campo (ver applyDashboardFilters)
+        const owner = (await ancestorSlug(depth)) ?? entity.slug;
+        if ((await hiddenOf(owner)).has(slug)) return true;
+      } else if (fieldSlug.startsWith('child.')) {
+        const [, owner, ...rest] = fieldSlug.split('.');
+        if (owner && rest.length > 0 && (await hiddenOf(owner)).has(rest.join('.'))) return true;
+      } else if ((await hiddenOf(entity.slug)).has(fieldSlug)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -1069,9 +1149,15 @@ export class EntityDataQueryService {
     where: Prisma.EntityDataWhereInput,
     search: string,
     entity: Entity,
+    hidden: Set<string> = new Set(),
   ): void {
     const settings = entity.settings as { searchFields?: string[] } | null;
-    const searchFields = settings?.searchFields || [];
+    const configured = settings?.searchFields || [];
+    const searchFields = configured.filter((f) => !hidden.has(f));
+    if (configured.length > 0 && searchFields.length === 0) {
+      where.OR = [{ id: { in: [] } }]; // so havia campo oculto para buscar
+      return;
+    }
 
     if (searchFields.length > 0) {
       const searchVariants = [search];

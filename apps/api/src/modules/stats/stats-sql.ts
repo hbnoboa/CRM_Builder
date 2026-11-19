@@ -255,7 +255,9 @@ export function acceptedFilterValues(target: string): string[] {
 // ─── Cache curto das estatisticas (fase 4) ─────────────────────────────────────
 // Resultado guardado por STATS_CACHE_TTL_MS por empresa + usuario + estatistica +
 // parametros. Gravar numa tabela muda a versao dela e descarta o que estava guardado
-// (ninguem ve numero velho depois de salvar). So na memoria desta API.
+// (ninguem ve numero velho depois de salvar). Alem do aviso "dados alterados", toda
+// gravacao de registro pelo Prisma (automacoes, importacao, arquivamento...) muda a
+// versao da empresa inteira (bumpStatsTenant). So na memoria desta API.
 
 export const STATS_CACHE_TTL_MS = Number(process.env.STATS_CACHE_TTL_MS ?? 10_000);
 const STATS_CACHE_MAX = 1000;
@@ -269,9 +271,22 @@ export function bumpStatsVersion(tenantId: string, entitySlug: string): void {
   tableVersions.set(k, (tableVersions.get(k) ?? 0) + 1);
 }
 
+const tenantVersions = new Map<string, number>();
+let globalVersion = 0;
+
+/** Gravacao de registro sem tabela conhecida: descarta o cache da empresa (ou de todas). */
+export function bumpStatsTenant(tenantId: string | null): void {
+  if (tenantId) tenantVersions.set(tenantId, (tenantVersions.get(tenantId) ?? 0) + 1);
+  else globalVersion++;
+}
+
 export async function cachedStats<T>(parts: { tenantId: string; entitySlugs: string[]; userId: string; name: string; args: unknown }, compute: () => Promise<T>): Promise<T> {
   if (STATS_CACHE_TTL_MS <= 0) return compute();
-  const versions = parts.entitySlugs.map((e) => tableVersions.get(`${parts.tenantId}:${e}`) ?? 0).join(',');
+  const versions = [
+    globalVersion,
+    tenantVersions.get(parts.tenantId) ?? 0,
+    ...parts.entitySlugs.map((e) => tableVersions.get(`${parts.tenantId}:${e}`) ?? 0),
+  ].join(',');
   const key = `${parts.tenantId}|${parts.userId}|${parts.name}|${versions}|${JSON.stringify(parts.args)}`;
   const hit = statsCache.get(key);
   if (hit && Date.now() - hit.at < STATS_CACHE_TTL_MS) return hit.value as T;

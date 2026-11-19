@@ -73,4 +73,30 @@ test.describe.serial('automacoes', () => {
     await expect.poll(() => resumo(aberto.id), { timeout: 15_000, intervals: [500] }).toBe('Pedido P-2');
     expect(await resumo(entregue.id)).toBeNull();
   });
+
+  test('e-mail de automacao: no maximo 20 destinatarios e teto diario por empresa', async ({ request }) => {
+    const emails = (n: number, tag: string) => Array.from({ length: n }, (_, i) => `qa-${tag}-${i}@example.com`).join(',');
+    const executions = async (automationId: string) => {
+      const body = await (await call(request, 'get', `/entities/${entityId}/automations/${automationId}/executions?limit=100`, tenant.owner, { expected: 200 })).json();
+      return (body.data ?? body) as Array<{ status: string; errorMessage: string | null }>;
+    };
+    const create = async (name: string, to: string) => (await (await call(request, 'post', `/entities/${entityId}/automations`, tenant.owner, {
+      expected: [200, 201],
+      data: { name, trigger: 'ON_CREATE', conditions: [{ field: 'numero', operator: 'equals', value: name }], actions: [{ order: 0, type: 'send_email', config: { to, subject: 'Aviso', body: 'Pedido {{numero}}' } }] },
+    })).json()).id as string;
+
+    // Destinatarios demais numa vez: a execucao falha com o motivo
+    const muitos = await create('MUITOS', emails(21, 'muitos'));
+    await call(request, 'post', '/data/pedidos', tenant.owner, { expected: [200, 201], data: { data: { numero: 'MUITOS', status: 'aberto' } } });
+    await expect.poll(async () => (await executions(muitos)).map((e) => e.errorMessage ?? '').join(' '), { timeout: 15_000, intervals: [500] })
+      .toContain('no máximo 20');
+
+    // 20 por registro: o 16o registro passa dos 300 do dia
+    const lote = await create('LOTE', emails(20, 'lote'));
+    for (let i = 0; i < 16; i++) {
+      await call(request, 'post', '/data/pedidos', tenant.owner, { expected: [200, 201], data: { data: { numero: 'LOTE', status: 'aberto' } } });
+    }
+    await expect.poll(async () => (await executions(lote)).filter((e) => (e.errorMessage ?? '').includes('Limite diário')).length, { timeout: 30_000, intervals: [1000] })
+      .toBeGreaterThan(0);
+  });
 });

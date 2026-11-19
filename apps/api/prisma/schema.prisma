@@ -1765,6 +1765,8 @@ model TenantDomain {
   /// Dominio principal: usado nos links do site (acompanhamento, menu).
   isPrimary   Boolean   @default(false)
   verifiedAt  DateTime?
+  /// Prova de dono (dominio ligado): TXT _crm-verificacao.<hostname> = crm-verificacao=<codigo>
+  verifyToken String?
   lastCheckAt DateTime?
   lastError   String?
   orderId     String?

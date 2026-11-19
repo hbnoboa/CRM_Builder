@@ -33,19 +33,27 @@ function copy(text: string) {
 /** O que o cliente precisa criar no DNS de onde comprou o domínio. */
 function DnsInstructions({ domain, dns }: { domain: SiteDomain; dns: SiteDomainsInfo['dns'] }) {
   const name = domain.apex ? '@ (o próprio domínio)' : domain.hostname.split('.')[0];
-  const rows = domain.apex
+  const pointing = domain.apex
     ? dns.ips.map((ip) => ({ type: 'A', name, value: ip }))
     : [{ type: 'CNAME', name, value: dns.cname }];
+  // TXT: prova que o domínio é da empresa (o nome é relativo ao domínio principal)
+  const apex = domain.apex ? domain.hostname : domain.hostname.split('.').slice(1).join('.');
+  const ownership = domain.ownership
+    ? [{ type: 'TXT', name: domain.ownership.name.replace(new RegExp(`\\.${apex.replace(/\./g, '\\.')}$`), ''), value: domain.ownership.value }]
+    : [];
+  const rows = pointing.length ? [...pointing, ...ownership] : [];
   return (
     <div className="space-y-2 rounded-md border border-dashed p-3 text-sm" data-testid="domain-dns-help">
-      <p className="font-medium">Para conectar, crie este registro no DNS de onde você comprou o domínio (Registro.br, GoDaddy, Hostinger…):</p>
+      <p className="font-medium">
+        Para conectar, crie {rows.length > 1 ? 'estes registros' : 'este registro'} no DNS de onde você comprou o domínio (Registro.br, GoDaddy, Hostinger…):
+      </p>
       {rows.length ? (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="text-muted-foreground"><tr><th className="py-1 pr-3">Tipo</th><th className="py-1 pr-3">Nome</th><th className="py-1">Valor / destino</th></tr></thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.value} className="border-t">
+                <tr key={`${r.type}-${r.value}`} className="border-t">
                   <td className="py-1.5 pr-3 font-mono">{r.type}</td>
                   <td className="py-1.5 pr-3 font-mono">{r.name}</td>
                   <td className="py-1.5 font-mono">
@@ -63,6 +71,7 @@ function DnsInstructions({ domain, dns }: { domain: SiteDomain; dns: SiteDomains
           Por enquanto, ligue a versão com www (ex.: <span className="font-mono">www.{domain.hostname}</span>), que usa CNAME.
         </p>
       )}
+      {ownership.length > 0 && <p className="text-xs text-muted-foreground">O registro TXT confirma que o domínio é da sua empresa. Ele só é conferido na primeira conexão.</p>}
       <p className="text-xs text-muted-foreground">Depois de criar, pode levar de alguns minutos a algumas horas para valer. Clique em “Conferir agora” para testar.</p>
       {!!domain.found?.length && <p className="text-xs text-muted-foreground">Encontramos hoje: <span className="font-mono">{domain.found.join(' · ')}</span></p>}
     </div>
@@ -74,12 +83,14 @@ function DomainRow({ domain, dns, onlyOne }: { domain: SiteDomain; dns: SiteDoma
   const primary = usePrimaryDomain();
   const remove = useRemoveDomain();
   const [last, setLast] = useState<SiteDomain | null>(null);
-  const current = last && last.id === domain.id ? { ...domain, found: last.found } : domain;
+  const current = last && last.id === domain.id ? { ...domain, found: last.found, ownership: last.ownership ?? domain.ownership } : domain;
   const status = current.status === 'active'
     ? { icon: CheckCircle2, label: 'Conectado', className: 'text-emerald-600' }
     : current.status === 'error'
       ? { icon: TriangleAlert, label: 'O DNS parou de apontar para o site', className: 'text-red-600' }
-      : { icon: Clock, label: 'Aguardando o DNS', className: 'text-amber-600' };
+      : current.ownership && current.lastError?.includes('TXT')
+        ? { icon: Clock, label: 'Falta confirmar que o domínio é seu', className: 'text-amber-600' }
+        : { icon: Clock, label: 'Aguardando o DNS', className: 'text-amber-600' };
   const Icon = status.icon;
   return (
     <div className="space-y-2 rounded-lg border p-3" data-testid="site-domain">

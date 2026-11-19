@@ -69,14 +69,14 @@ export class CustomRoleService {
     if (tenantId) {
       const m = await this.prisma.userTenantAccess.findUnique({
         where: { userId_tenantId: { userId, tenantId } },
-        select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, customRole: { select: sel } },
+        select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, clientRecordId: true, customRole: { select: sel } },
       });
       // Com empresa informada, vale so o vinculo com ela: nunca o cargo de outra empresa.
       return m && m.status === 'ACTIVE' && m.deletedAt === null ? m : null;
     }
     const list = await this.prisma.userTenantAccess.findMany({
       where: { userId, status: 'ACTIVE', deletedAt: null },
-      select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, customRole: { select: sel } },
+      select: { tenantId: true, customRoleId: true, status: true, deletedAt: true, clientRecordId: true, customRole: { select: sel } },
       orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
       take: 1,
     });
@@ -657,16 +657,19 @@ export class CustomRoleService {
   ): Promise<'all' | 'own' | 'team' | 'client' | null> {
     const m = await this.resolveMembershipRole(userId, tenantId);
     if (!m || !m.customRole) return null;
+    // Quem entra como cliente (portal) so ve o que e do cliente, qualquer que seja o cargo
+    const asClient = !!m.clientRecordId;
 
     // Acesso total ao tenant vê tudo.
     if (hasFullTenantAccess(m.customRole.modulePermissions)) {
-      return 'all';
+      return asClient ? 'client' : 'all';
     }
 
     const entry = this.findEntityPerm<{
       entitySlug: string; canRead?: boolean; scope?: 'all' | 'own' | 'team' | 'client';
     }>(m.customRole.permissions, entitySlug);
     if (!entry || entry.canRead !== true) return null;
+    if (asClient) return 'client';
     return entry.scope === 'own' || entry.scope === 'team' || entry.scope === 'client' ? entry.scope : 'all';
   }
 
