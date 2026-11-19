@@ -3,12 +3,21 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { OpsMonitorService } from '../common/services/ops-monitor.service';
 import { bumpStatsTenant } from '../modules/stats/stats-sql';
 
-/** Empresa de uma gravacao (data.tenantId ou where.tenantId), se der para saber. */
-function tenantOfWrite(args: { data?: unknown; where?: unknown } | undefined): string | null {
-  const pick = (o: unknown) => (o && typeof o === 'object' && typeof (o as { tenantId?: unknown }).tenantId === 'string'
-    ? (o as { tenantId: string }).tenantId : null);
-  const data = Array.isArray(args?.data) ? args?.data[0] : args?.data;
-  return pick(data) ?? pick(args?.where) ?? pick((args as { create?: unknown } | undefined)?.create);
+type WriteArgs = { data?: unknown; where?: unknown; create?: unknown; select?: Record<string, unknown> } | undefined;
+
+/** tenantId (texto) de um objeto, ou de `tenant: { connect: { id } }`. */
+function tenantIdOf(o: unknown): string | null {
+  if (!o || typeof o !== 'object') return null;
+  const r = o as { tenantId?: unknown; tenant?: { connect?: { id?: unknown } } };
+  if (typeof r.tenantId === 'string') return r.tenantId;
+  return typeof r.tenant?.connect?.id === 'string' ? r.tenant.connect.id : null;
+}
+
+/** Empresas citadas no proprio pedido de gravacao (data, where, create). */
+function tenantsOfArgs(args: WriteArgs): string[] {
+  const datas = Array.isArray(args?.data) ? args.data : [args?.data];
+  return [...new Set([...datas.map(tenantIdOf), tenantIdOf(args?.where), tenantIdOf(args?.create)]
+    .filter((t): t is string => !!t))];
 }
 
 @Injectable()
@@ -66,8 +75,22 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         }
       }
       if (model && STATS_MODELS.has(model) && WRITE_OPS.has(params.action)) {
+        // So o cache das empresas atingidas: pelo pedido, pelo registro gravado ou, em lote
+        // sem empresa no pedido, consultando antes (depois de apagar nao da mais).
+        const args = params.args as WriteArgs;
+        let tenants = tenantsOfArgs(args);
+        const isBatch = params.action === 'updateMany' || params.action === 'deleteMany';
+        const selectHidesTenant = !!args?.select && !args.select.tenantId;
+        if (tenants.length === 0 && (isBatch || (selectHidesTenant && params.action !== 'create'))) {
+          tenants = await this.tenantsOfRecords(model, args?.where);
+        }
         const result = await next(params);
-        bumpStatsTenant(tenantOfWrite(params.args));
+        if (tenants.length === 0) {
+          const own = tenantIdOf(result);
+          if (own) tenants = [own];
+        }
+        if (tenants.length > 0) tenants.forEach((t) => bumpStatsTenant(t));
+        else if (!isBatch) bumpStatsTenant(null); // nao deu para saber: descarta tudo
         return result;
       }
       return next(params);
@@ -81,6 +104,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       if (isDev && e.duration > 100) this.logger.warn(`Slow query (${e.duration}ms): ${e.query}`);
       if (e.duration >= slowMs) OpsMonitorService.current?.recordSlowQuery(e.duration, e.query);
     });
+  }
+
+  /** Empresas dos registros que um filtro atinge (para descartar so o cache delas). */
+  private async tenantsOfRecords(model: string, where: unknown): Promise<string[]> {
+    type GroupByTenant = { groupBy: (a: { by: ['tenantId']; where: unknown }) => Promise<Array<{ tenantId: string }>> };
+    const delegate = (model === 'EntityData' ? this.entityData : this.archivedEntityData) as unknown as GroupByTenant;
+    const rows = await delegate.groupBy({ by: ['tenantId'], where: where ?? {} });
+    return rows.map((r) => r.tenantId);
   }
 
   async onModuleInit() {
