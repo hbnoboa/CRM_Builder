@@ -57,7 +57,11 @@ Scripts em `apps/api/prisma/data-migration/` (todos sem `DELETE`/`DROP TABLE` de
     `GCS_PRIVATE_BUCKET`; sem ele, os arquivos vão para o volume `uploads-private` da API.
     Simular e depois aplicar, dentro do container da API:
     `node dist/prisma/move-private-files.js` → `node dist/prisma/move-private-files.js --aplicar`.
-    Conferido um anexo antigo abrindo no chat, rodar de novo com `--aplicar --apagar-originais`.
+    O script só mexe nos arquivos das empresas do banco em que roda (dev e prod dividem o
+    bucket `crm-builder-bucket`). Conferido um anexo antigo abrindo no chat, rodar de novo com
+    `--aplicar --apagar-originais --bucket-so-deste-ambiente`, e só se o bucket público não for
+    dividido com outro ambiente: empresas copiadas de prod para dev apontam para os mesmos
+    arquivos. Em dev, com o bucket dividido, nunca apagar os originais.
 11. **Validação** (ver abaixo). Anotar o tempo de cada etapa: é a janela de manutenção.
 12. Problema → corrigir os scripts e repetir do passo 1.
 
