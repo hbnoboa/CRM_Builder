@@ -88,3 +88,60 @@ Mesma sequência, com janela de manutenção avisada: backup imediatamente antes
 3 a 9 no banco de prod, merge `develop` → `main`, deploy de prod (o `migrate deploy` do
 deploy não terá nada pendente), passo 10 e validação rápida. Plano de volta: restaurar o
 backup do passo 1 e fazer deploy da `main` anterior.
+
+## Release de 19/11/2026 (develop → main: #94, #95, #96, #97)
+
+Prod já está no modelo novo (baseline aplicado em 12/11); da develop só falta a migration
+`20261203000000_domain_ownership` (uma coluna, `ADD COLUMN IF NOT EXISTS`), que o deploy aplica.
+O que pede passo manual: os arquivos que saem do endereço público (#94) e uma pendência
+anterior encontrada ao preparar esta release (publicação do PowerSync).
+
+Estado de prod conferido em 19/11 (só leitura):
+- 296 PDFs gerados com link público; nenhum anexo nem relatório do chat público.
+- Nenhum domínio próprio; nenhum cliente do portal com cargo de acesso total; nenhuma
+  automação de e-mail ativa (os limites novos do #94 não atingem ninguém hoje).
+- `DOMAIN_REGISTRAR` vazio: compra de domínio desligada (só ligar domínio existente). Fica assim.
+- Dados do passo 8b já presentes (cópia sem campos ocultos preenchida, destinatário das
+  mensagens do bot, nenhum cartão antigo), **exceto a publicação do PowerSync**: tem 6 das 13
+  tabelas do baseline e o `crm-powersync` roda desde 06/05 com as regras daquela época.
+
+### A. Antes do deploy (sem janela)
+1. **Bucket privado de prod** (dev já tem o seu, `crm-builder-dev-private`):
+   `gcloud storage buckets create gs://crm-builder-prod-private --project=ios-forms-299fb --location=US --uniform-bucket-level-access --public-access-prevention`
+   e `gcloud storage buckets add-iam-policy-binding gs://crm-builder-prod-private --member=serviceAccount:35661851099-compute@developer.gserviceaccount.com --role=roles/storage.objectAdmin`.
+   Testar gravar/ler/apagar um arquivo com as credenciais da API de prod; acesso anônimo deve dar 403.
+2. No `.env` da VM: `GCS_PRIVATE_BUCKET=crm-builder-prod-private` (só a API de prod lê esta
+   variável; a de dev lê `GCS_PRIVATE_BUCKET_DEV`). O código atual de prod ignora a variável:
+   passa a valer no deploy.
+3. **Backup** do banco de prod (`pg_dump -Fc`) logo antes do deploy.
+
+### B. Deploy
+4. PR `develop` → `main`, merge, deploy de prod. Conferir: saúde da API, log sem erro,
+   `domain_ownership` aplicada, `docker exec crm-api-prod printenv GCS_PRIVATE_BUCKET`.
+5. Teste rápido: gerar um PDF (o histórico grava `private:<chave>` e o download sai pela
+   API); um PDF antigo continua abrindo pelo link antigo (o código novo aceita os dois).
+
+### C. Arquivos antigos (depois do deploy, sem pressa)
+6. Simular: `docker exec crm-api-prod node dist/prisma/move-private-files.js`. Esperado:
+   destino `bucket crm-builder-prod-private`, ~296 PDFs mais as pastas de arquivamento e
+   auditoria das empresas de prod, `faltando: 0`.
+7. Aplicar: `... move-private-files.js --aplicar`. Conferir que nenhum `PdfGeneration.fileUrl`
+   ficou sem `private:` e abrir um PDF antigo pela tela.
+8. **Não** rodar `--apagar-originais`: o bucket público `crm-builder-bucket` é dividido com
+   dev e 4 empresas existem nos dois bancos (mesmos arquivos). O script recusa sem
+   `--bucket-so-deste-ambiente`. Apagar os originais só depois de separar os buckets.
+
+### D. PowerSync (pendência anterior, com aviso aos usuários do app)
+9. Publicação: `psql ... -v ON_ERROR_STOP=1 -f apps/api/prisma/data-migration/2026-11_powersync_publicacao.sql`
+   (acrescenta `Channel`, `ChannelMember`, `CommandTemplate`, `EntityDataMasked`,
+   `EntityFieldRule`, `Message`, `TeamAccessKey`; reaplicável; testado no ensaio).
+10. Reiniciar `crm-powersync` fora do horário de uso, para ler a publicação e as regras atuais
+    (`apps/mobile/powersync.yaml`). O app re-sincroniza. Conferir o log do PowerSync e o login
+    e a sincronização de um usuário de teste (inclusive de um cargo com campo oculto).
+
+### Volta
+- Antes do passo 7: deploy da `main` anterior (`b16409aa`); nada a desfazer no banco.
+- Depois do passo 7: o código antigo não entende `private:<chave>`. Voltar o código exige
+  restaurar o backup do passo 3 (perde o que foi gravado depois) ou reescrever os
+  `PdfGeneration.fileUrl` para o link público (os originais continuam no bucket).
+- Passo 9: `ALTER PUBLICATION powersync DROP TABLE ...` das tabelas acrescentadas.
