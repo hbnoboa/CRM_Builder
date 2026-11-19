@@ -61,6 +61,9 @@ interface OptionLabelScope {
   subEntityByField: Map<string, string>;
 }
 
+/** fileUrl de PDF guardado como arquivo privado (baixado pela API, nao por URL publica). */
+export const PRIVATE_FILE_PREFIX = 'private:';
+
 @Injectable()
 export class PdfGeneratorService {
   private readonly logger = new Logger(PdfGeneratorService.name);
@@ -110,6 +113,13 @@ export class PdfGeneratorService {
       ...active,
       ...archived.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null, deletedAt: null })),
     ].map((r) => ({ ...r, data: omitFields(r.data, hidden) }));
+  }
+
+  /** Campos que o cargo nao ve numa tabela (por id); vazio para acesso total. */
+  private async hiddenFieldsOf(entityId: string, currentUser: CurrentUser, tenantId: string): Promise<Set<string>> {
+    const entity = await this.prisma.entity.findFirst({ where: { id: entityId, tenantId }, select: { slug: true } });
+    if (!entity) return new Set();
+    return hiddenFieldSlugs(await this.customRoleService.getFieldPermissions(currentUser.id, entity.slug, tenantId));
   }
 
   /**
@@ -174,6 +184,7 @@ export class PdfGeneratorService {
       template.sourceEntity?.fields as Array<{ slug: string; type: string; subEntityId?: string }>,
       record.id,
       targetTenantId,
+      currentUser,
     );
 
     // Aplicar override se fornecido
@@ -202,16 +213,15 @@ export class PdfGeneratorService {
         : `${template.slug}-${recordId.substring(0, 8)}.pdf`;
     }
 
-    // Upload para GCS na pasta relatorios
+    // Guarda o PDF (privado): o historico baixa pela rota generations/:id/download
     let fileUrl: string | null = null;
     try {
-      const uploaded = await this.uploadService.uploadBuffer(
-        buffer, fileName, 'application/pdf', targetTenantId, 'relatorios',
-      );
-      fileUrl = uploaded.publicUrl;
-      this.logger.log(`PDF enviado para GCS: ${fileUrl}`);
+      const saved = await this.uploadService.savePrivate(buffer, {
+        tenantId: targetTenantId, folder: 'relatorios', mimeType: 'application/pdf',
+      });
+      fileUrl = `${PRIVATE_FILE_PREFIX}${saved.key}`;
     } catch (error) {
-      this.logger.error('Erro ao enviar PDF para GCS:', error);
+      this.logger.error('Erro ao guardar o PDF gerado:', error);
     }
 
     // Registrar geracao
@@ -298,10 +308,13 @@ export class PdfGeneratorService {
           orderBy: { createdAt: 'asc' },
         }),
       ]);
+      const hidden = hiddenFieldSlugs(
+        await this.customRoleService.getFieldPermissions(currentUser.id, entitySlug, targetTenantId),
+      );
       records = [
         ...activeRecords,
         ...archivedRecords.map((r) => ({ ...r, parentRecordId: r.parentRecordId ?? null })),
-      ];
+      ].map((r) => ({ ...r, data: omitFields(r.data, hidden) }));
     } else {
       records = await this.loadReadableRecords(recordIds, template.sourceEntityId, currentUser, targetTenantId);
     }
@@ -340,11 +353,12 @@ export class PdfGeneratorService {
           }),
         ]);
         const children = [...activeChildren, ...archivedChildren];
+        const hiddenChild = await this.hiddenFieldsOf(subField.subEntityId!, currentUser, targetTenantId);
         for (const child of children) {
           const key = `${child.parentRecordId}_${subField.slug}`;
           if (!subData[key]) subData[key] = [];
           subData[key].push({
-            ...(child.data as Record<string, unknown>),
+            ...omitFields(child.data as Record<string, unknown>, hiddenChild),
             id: child.id,
             createdAt: child.createdAt,
             updatedAt: child.updatedAt,
@@ -489,16 +503,15 @@ export class PdfGeneratorService {
       fileName = `${template.slug}-lote-${records.length}-registros.pdf`;
     }
 
-    // Upload para GCS na pasta relatorios
+    // Guarda o PDF (privado): o historico baixa pela rota generations/:id/download
     let fileUrl: string | null = null;
     try {
-      const uploaded = await this.uploadService.uploadBuffer(
-        buffer, fileName, 'application/pdf', targetTenantId, 'relatorios',
-      );
-      fileUrl = uploaded.publicUrl;
-      this.logger.log(`PDF batch enviado para GCS: ${fileUrl}`);
+      const saved = await this.uploadService.savePrivate(buffer, {
+        tenantId: targetTenantId, folder: 'relatorios', mimeType: 'application/pdf',
+      });
+      fileUrl = `${PRIVATE_FILE_PREFIX}${saved.key}`;
     } catch (error) {
-      this.logger.error('Erro ao enviar PDF batch para GCS:', error);
+      this.logger.error('Erro ao guardar o PDF em lote:', error);
     }
 
     // Registrar geracao
@@ -649,6 +662,7 @@ export class PdfGeneratorService {
           template.sourceEntity?.fields as Array<{ slug: string; type: string; subEntityId?: string }>,
           record.id,
           targetTenantId,
+          currentUser,
         );
       }
     }
@@ -2728,6 +2742,7 @@ export class PdfGeneratorService {
     fields: Array<{ slug: string; type: string; subEntityId?: string }> | null,
     recordId: string,
     tenantId: string,
+    currentUser?: CurrentUser,
   ): Promise<Record<string, unknown>> {
     if (!fields) return data;
 
@@ -2755,9 +2770,12 @@ export class PdfGeneratorService {
           }),
         ]);
         const childRecords = [...activeChildren, ...archivedChildren];
+        // Com usuario: some com os campos que o cargo nao ve na tabela filha.
+        // Sem usuario (link de acompanhamento): o modelo publicado decide o que aparece.
+        const hidden = currentUser ? await this.hiddenFieldsOf(field.subEntityId, currentUser, tenantId) : new Set<string>();
 
         enrichedData[field.slug] = childRecords.map((r) => ({
-          ...(r.data as Record<string, unknown>),
+          ...omitFields(r.data as Record<string, unknown>, hidden),
           id: r.id,
           createdAt: r.createdAt,
           updatedAt: r.updatedAt,

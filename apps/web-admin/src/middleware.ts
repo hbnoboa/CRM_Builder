@@ -31,19 +31,27 @@ function isPlatformHost(host: string) {
 const cache = new Map<string, { tenant: string | null; until: number }>();
 const TTL_FOUND = 5 * 60 * 1000;
 const TTL_MISSING = 60 * 1000;
+const CACHE_MAX = 5000; // enderecos inventados nao enchem a memoria
 
-async function tenantForHost(host: string): Promise<string | null> {
+async function tenantForHost(host: string, visitorIp: string | null): Promise<string | null> {
   const hit = cache.get(host);
   if (hit && hit.until > Date.now()) return hit.tenant;
   const api = process.env.INTERNAL_API_URL;
   if (!api) return null;
   let tenant: string | null = null;
   try {
-    const res = await fetch(`${api.replace(/\/$/, '')}/public/domains/resolve?host=${encodeURIComponent(host)}`, { cache: 'no-store' });
+    // IP de quem visita: o limite da API vale por visitante, nao para o site todo
+    const res = await fetch(`${api.replace(/\/$/, '')}/public/domains/resolve?host=${encodeURIComponent(host)}`, {
+      cache: 'no-store',
+      headers: visitorIp ? { 'X-Real-IP': visitorIp } : undefined,
+    });
     if (res.ok) tenant = ((await res.json()) as { tenant?: string }).tenant ?? null;
+    // So "nao existe" vira resposta guardada; limite (429) ou erro nao derrubam o dominio
+    else if (res.status !== 404) return hit?.tenant ?? null;
   } catch {
     return hit?.tenant ?? null; // API fora do ar: usa o que ja sabia
   }
+  if (cache.size >= CACHE_MAX) cache.clear();
   cache.set(host, { tenant, until: Date.now() + (tenant ? TTL_FOUND : TTL_MISSING) });
   return tenant;
 }
@@ -89,7 +97,8 @@ export async function middleware(request: NextRequest) {
   if (match && !RESERVED_SUBDOMAINS.has(match[1])) return rewrite(request, match[1]);
   if (isPlatformHost(host)) return NextResponse.next();
 
-  const tenant = await tenantForHost(host);
+  const visitorIp = request.headers.get('x-real-ip') || request.headers.get('x-forwarded-for')?.split(',')[0].trim() || null;
+  const tenant = await tenantForHost(host, visitorIp);
   if (tenant) return customDomain(request, tenant);
   return new NextResponse('Este endereço ainda não está ligado a nenhum site.', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 }

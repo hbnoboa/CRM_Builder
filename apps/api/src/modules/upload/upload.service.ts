@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,12 +17,46 @@ export interface UploadedFile {
   path: string;
 }
 
+
+/** Pasta dos arquivos privados no disco (nao e servida como /uploads). */
+const PRIVATE_DIR = path.join(process.cwd(), 'uploads-private');
+
+/** Chave de arquivo privado sem truques de caminho (".." ou barra no inicio). */
+function privateKey(key: string): string {
+  const parts = key.split('/').filter(Boolean);
+  if (parts.length < 2 || parts.some((p) => p === '.' || p === '..' || p.includes('\\'))) {
+    throw new BadRequestException('Arquivo inválido');
+  }
+  return parts.join('/');
+}
+
+/** Tipos aceitos no envio de arquivos e a extensao gravada para cada um. */
+const EXTENSION_BY_MIME: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/svg+xml': '.svg',
+  'video/mp4': '.mp4',
+  'video/quicktime': '.mov',
+  'video/webm': '.webm',
+  'video/mpeg': '.mpeg',
+  'application/pdf': '.pdf',
+  'application/msword': '.doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.ms-excel': '.xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'text/csv': '.csv',
+  'text/plain': '.txt',
+};
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
   private storage: Storage | null;
   private bucket: string;
   private baseUrl: string;
+  /** Bucket sem acesso publico para arquivos privados (vazio = disco local, fora do /uploads). */
+  private privateBucket: string;
 
   constructor(
     private readonly configService: ConfigService,
@@ -34,6 +68,7 @@ export class UploadService {
     const credentials = this.configService.get<string>('GCS_CREDENTIALS');
     
     this.bucket = this.configService.get<string>('GCS_BUCKET') || 'crm-builder-uploads';
+    this.privateBucket = this.configService.get<string>('GCS_PRIVATE_BUCKET') || '';
     this.baseUrl = this.configService.get<string>('GCS_BASE_URL') || 
       `https://storage.googleapis.com/${this.bucket}`;
 
@@ -61,38 +96,14 @@ export class UploadService {
     }
   }
 
-  async uploadFile(
-    file: Express.Multer.File,
-    tenantId: string,
-    folder: string = 'uploads',
-    // uploadMultipleFiles ja checou o lote inteiro.
-    skipStorageCheck = false,
-  ): Promise<UploadedFile> {
+  /** Tipo aceito, ate 100 MB e espaco no plano (envio de arquivo pelo usuario). */
+  async assertUploadable(file: Express.Multer.File | undefined, tenantId: string, skipStorageCheck = false): Promise<void> {
     if (!file) {
       throw new BadRequestException('Nenhum arquivo enviado');
     }
 
     // Validar tipo de arquivo
-    const allowedMimeTypes = [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'image/svg+xml',
-      'video/mp4',
-      'video/quicktime',
-      'video/webm',
-      'video/mpeg',
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/csv',
-      'text/plain',
-    ];
-
-    if (!allowedMimeTypes.includes(file.mimetype)) {
+    if (!EXTENSION_BY_MIME[file.mimetype]) {
       throw new BadRequestException(
         `Tipo de arquivo não permitido: ${file.mimetype}`,
       );
@@ -107,8 +118,20 @@ export class UploadService {
     }
 
     if (!skipStorageCheck) await this.tenantPlan.assertCanAddStorage(tenantId, file.size);
+  }
 
-    const ext = path.extname(file.originalname);
+  async uploadFile(
+    file: Express.Multer.File,
+    tenantId: string,
+    folder: string = 'uploads',
+    // uploadMultipleFiles ja checou o lote inteiro.
+    skipStorageCheck = false,
+  ): Promise<UploadedFile> {
+    await this.assertUploadable(file, tenantId, skipStorageCheck);
+
+    // Extensao pelo tipo aceito, nunca pelo nome enviado: um .html declarado como
+    // imagem vira .png e e servido como imagem.
+    const ext = EXTENSION_BY_MIME[file.mimetype];
     const fileName = `${uuidv4()}${ext}`;
     const filePath = `${tenantId}/${folder}/${fileName}`;
 
@@ -146,6 +169,8 @@ export class UploadService {
       await blob.save(file.buffer, {
         metadata: {
           contentType: file.mimetype,
+          // SVG aberto direto no navegador roda script: so baixa (em <img> continua aparecendo)
+          ...(file.mimetype === 'image/svg+xml' ? { contentDisposition: 'attachment' } : {}),
           metadata: {
             tenantId,
             originalName: file.originalname,
@@ -235,6 +260,44 @@ export class UploadService {
       this.logger.error('Erro ao gerar URL assinada:', error);
       throw new BadRequestException('Erro ao gerar URL assinada');
     }
+  }
+
+  // ── Arquivos privados ────────────────────────────────────────────────────
+  // Anexos do chat, relatorios, PDFs gerados, arquivamento e auditoria: nunca ficam num
+  // endereco publico. Vao para o bucket GCS_PRIVATE_BUCKET (sem acesso publico) ou para
+  // uploads-private/ no disco (fora do /uploads servido pela API). A leitura passa por
+  // uma rota que confere quem pede (ex.: GET /chat/channels/:id/messages/:mid/file).
+
+  /** Grava um arquivo privado e devolve a chave (`<tenantId>/<pasta>/<nome>`). */
+  async savePrivate(
+    buffer: Buffer,
+    opts: { tenantId: string; folder: string; mimeType: string; fileName?: string; countStorage?: boolean },
+  ): Promise<{ key: string; size: number }> {
+    const name = opts.fileName ?? `${uuidv4()}${EXTENSION_BY_MIME[opts.mimeType] ?? ''}`;
+    const key = privateKey(`${opts.tenantId}/${opts.folder}/${name}`);
+    if (this.storage && this.privateBucket) {
+      await this.storage.bucket(this.privateBucket).file(key).save(buffer, {
+        metadata: { contentType: opts.mimeType, metadata: { tenantId: opts.tenantId, uploadedAt: new Date().toISOString() } },
+      });
+    } else {
+      const localPath = path.join(PRIVATE_DIR, key);
+      fs.mkdirSync(path.dirname(localPath), { recursive: true });
+      fs.writeFileSync(localPath, buffer);
+    }
+    if (opts.countStorage !== false) await this.tenantPlan.addStorage(opts.tenantId, buffer.length);
+    return { key, size: buffer.length };
+  }
+
+  /** Le um arquivo privado pela chave. Quem chama ja conferiu se a pessoa pode ver. */
+  async readPrivate(rawKey: string): Promise<Buffer> {
+    const key = privateKey(rawKey);
+    if (this.storage && this.privateBucket) {
+      const [buffer] = await this.storage.bucket(this.privateBucket).file(key).download();
+      return buffer;
+    }
+    const localPath = path.join(PRIVATE_DIR, key);
+    if (!fs.existsSync(localPath)) throw new NotFoundException('Arquivo não encontrado');
+    return fs.readFileSync(localPath);
   }
 
   /**

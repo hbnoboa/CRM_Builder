@@ -9,6 +9,7 @@ import { isPlatformHost, normalizeHostname } from '../../modules/site-domains/do
  */
 const cache = new Map<string, { tenantId: string | null; until: number }>();
 const TTL = 60_000;
+const CACHE_MAX = 5000;
 
 export function requestHost(req: { headers?: Record<string, unknown> } | undefined): string {
   const raw = req?.headers?.host;
@@ -22,6 +23,7 @@ export async function tenantIdForHost(prisma: PrismaService, rawHost: string): P
   if (hit && hit.until > Date.now()) return hit.tenantId;
   const domain = await prisma.tenantDomain.findUnique({ where: { hostname: host }, select: { tenantId: true, status: true } });
   const tenantId = domain && domain.status !== 'pending_dns' ? domain.tenantId : null;
+  if (cache.size >= CACHE_MAX) cache.clear(); // enderecos inventados nao enchem a memoria
   cache.set(host, { tenantId, until: Date.now() + TTL });
   return tenantId;
 }

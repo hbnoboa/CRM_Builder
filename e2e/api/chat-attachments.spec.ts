@@ -35,7 +35,9 @@ test.describe.serial('anexos no chat', () => {
     expect(msg.type).toBe('attachment');
     expect(msg.content).toBe('Olha o bolo de hoje');
     expect(msg.meta.attachments[0]).toMatchObject({ name: 'foto do bolo.png', kind: 'image', mime: 'image/png' });
-    expect(msg.meta.attachments[0].url).toContain(`${tenant.id}/chat/`);
+    // Privado: so a chave fica na mensagem, sem endereco publico
+    expect(msg.meta.attachments[0].key).toContain(`${tenant.id}/chat/`);
+    expect(msg.meta.attachments[0].url).toBeUndefined();
 
     const pdf = await send(request, tenant.owner.token, { name: 'cardapio.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%%EOF') });
     expect(pdf.status()).toBe(201);
@@ -44,6 +46,19 @@ test.describe.serial('anexos no chat', () => {
     const list = await (await call(request, 'get', `/chat/channels/${channelId}/messages`, tenant.owner, { expected: 200 })).json();
     const items = (list.data ?? list.messages ?? list) as Array<{ type: string }>;
     expect(items.filter((m) => m.type === 'attachment')).toHaveLength(2);
+  });
+
+  test('arquivo so baixa quem participa do canal', async ({ request }) => {
+    const sent = await (await send(request, tenant.owner.token, { name: 'nota.png', mimeType: 'image/png', buffer: PNG })).json();
+    const path = `/chat/channels/${channelId}/messages/${sent.id}/file`;
+    const ok = await call(request, 'get', path, tenant.owner, { expected: 200 });
+    expect(ok.headers()['content-type']).toContain('image/png');
+    expect(Buffer.from(await ok.body()).equals(PNG)).toBeTruthy();
+    // Sem login, de outra empresa ou por um endereco publico: nada
+    await call(request, 'get', path, null, { expected: 401 });
+    await call(request, 'get', path, other.owner, { expected: [403, 404] });
+    const publico = await request.get(`${API.replace(/\/api\/v1$/, '')}/uploads/${sent.meta.attachments[0].key}`);
+    expect(publico.status()).toBe(404);
   });
 
   test('tipo nao aceito e outra empresa sao recusados', async ({ request }) => {

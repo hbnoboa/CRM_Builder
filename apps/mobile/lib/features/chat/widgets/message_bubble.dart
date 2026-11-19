@@ -1,8 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:crm_mobile/core/config/env.dart';
+import 'package:crm_mobile/core/network/api_client.dart';
 import 'package:crm_mobile/core/theme/app_colors_extension.dart';
 import 'package:crm_mobile/core/theme/app_typography.dart';
 import 'package:crm_mobile/features/chat/widgets/chat_format.dart';
@@ -396,8 +402,14 @@ class MessageBubble extends StatelessWidget {
     final label = meta['filename']?.toString() ??
         (message['content'] as String?) ??
         'Relatório';
+    // Relatório novo fica privado (fileKey): baixa pela API com o login
+    final privatePath = meta['fileKey'] != null
+        ? '/chat/channels/${message['channelId']}/messages/${message['id']}/file'
+        : null;
     return InkWell(
-      onTap: () => _openReport(context, url),
+      onTap: () => privatePath != null
+          ? _openPrivateReport(context, privatePath, label, meta['contentType']?.toString())
+          : _openReport(context, url),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.download_rounded, size: 18, color: colors.info),
         const SizedBox(width: 6),
@@ -410,6 +422,31 @@ class MessageBubble extends StatelessWidget {
         ),
       ],),
     );
+  }
+
+  Future<void> _openPrivateReport(
+    BuildContext context,
+    String path,
+    String filename,
+    String? mimeType,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final dio = ProviderScope.containerOf(context, listen: false).read(apiClientProvider);
+    try {
+      final res = await dio.get<List<int>>(
+        path,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final dir = await getTemporaryDirectory();
+      final safeName = filename.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+      final file = File('${dir.path}/$safeName');
+      await file.writeAsBytes(res.data ?? const []);
+      await Share.shareXFiles([XFile(file.path, mimeType: mimeType)]);
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Não foi possível baixar o relatório.')),
+      );
+    }
   }
 
   Future<void> _openReport(BuildContext context, String? url) async {

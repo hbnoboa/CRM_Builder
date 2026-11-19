@@ -9,6 +9,7 @@ import { ConditionEvaluator } from './condition-evaluator';
 import { ExecutionContextService, ExecutionContext, LoopDetectedException, MaxDepthExceededException } from './execution-context.service';
 import { CircuitBreakerService, CircuitOpenException } from './circuit-breaker.service';
 import { TenantPlanService } from '../../common/services/tenant-plan.service';
+import { RedisService } from '../../common/services/redis.service';
 import { safeFetch } from '../../common/utils/safe-fetch';
 
 interface ActionConfig {
@@ -40,6 +41,10 @@ interface StepResult {
   duration: number;
 }
 
+
+/** E-mails de automacao: destinatarios por envio e total por empresa por dia. */
+const AUTOMATION_EMAIL_MAX_RECIPIENTS = Number(process.env.AUTOMATION_EMAIL_MAX_RECIPIENTS ?? 20);
+const AUTOMATION_EMAIL_DAILY_LIMIT = Number(process.env.AUTOMATION_EMAIL_DAILY_LIMIT ?? 300);
 @Injectable()
 export class AutomationExecutorService {
   private readonly logger = new Logger(AutomationExecutorService.name);
@@ -54,7 +59,30 @@ export class AutomationExecutorService {
     @Optional() @Inject(NotificationService)
     private readonly notificationService?: NotificationService,
     @Optional() private readonly emailService?: EmailService,
+    @Optional() private readonly redis?: RedisService,
   ) {}
+
+  /**
+   * Teto de e-mails de automacao por empresa e por dia (a automacao manda para
+   * enderecos tirados dos registros: sem teto, um laco ou uma importacao grande
+   * dispararia milhares). Contado no Redis, vale para todas as instancias da API.
+   */
+  private async assertEmailQuota(tenantId: string, recipients: number): Promise<void> {
+    if (!this.redis) return;
+    const day = new Date().toISOString().slice(0, 10);
+    const key = `automation-email:${tenantId}:${day}`;
+    try {
+      const used = await this.redis.client.incrby(key, recipients);
+      if (used === recipients) await this.redis.client.expire(key, 2 * 24 * 60 * 60);
+      if (used > AUTOMATION_EMAIL_DAILY_LIMIT) {
+        await this.redis.client.decrby(key, recipients); // o que nao saiu nao conta
+        throw new Error(`Limite diário de ${AUTOMATION_EMAIL_DAILY_LIMIT} e-mails de automação da empresa atingido. Os envios voltam amanhã.`);
+      }
+    } catch (err) {
+      if ((err as Error).message.startsWith('Limite diário')) throw err;
+      this.logger.warn(`Contagem de e-mails de automacao indisponivel: ${(err as Error).message}`);
+    }
+  }
 
   /**
    * Executa uma automação por ID (usado pela fila)
@@ -430,6 +458,10 @@ export class AutomationExecutorService {
     const rawTo = this.replaceStringPlaceholders((config.to as string) || context.user?.email || '', context);
     const to = rawTo.split(/[,;\s]+/).map((v) => v.trim()).filter((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v));
     if (to.length === 0) throw new Error(`Nenhum e-mail valido para enviar (destino: "${rawTo || 'vazio'}")`);
+    if (to.length > AUTOMATION_EMAIL_MAX_RECIPIENTS) {
+      throw new Error(`Uma automação envia para no máximo ${AUTOMATION_EMAIL_MAX_RECIPIENTS} e-mails de cada vez (pedido: ${to.length}).`);
+    }
+    await this.assertEmailQuota(context.tenantId, to.length);
 
     let subject: string;
     let html: string;

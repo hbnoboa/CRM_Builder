@@ -74,6 +74,7 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-https://iossystem.com.br}
       GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
       GCS_BUCKET: ${GCS_BUCKET:-}
+      GCS_PRIVATE_BUCKET: ${GCS_PRIVATE_BUCKET:-}
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
@@ -99,6 +100,7 @@ services:
       start_period: 40s
     volumes:
       - api_uploads:/app/uploads
+      - api_uploads_private:/app/uploads-private
     networks:
       - crm-network
 
@@ -219,6 +221,7 @@ services:
       CORS_ORIGIN: https://dev.iossystem.com.br
       GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
       GCS_BUCKET: ${GCS_BUCKET:-}
+      GCS_PRIVATE_BUCKET: ${GCS_PRIVATE_BUCKET:-}
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
@@ -259,6 +262,7 @@ services:
       start_period: 40s
     volumes:
       - api_uploads_dev:/app/uploads
+      - api_uploads_private_dev:/app/uploads-private
     networks:
       - crm-network
 
@@ -293,6 +297,8 @@ volumes:
   redis_data_dev:
   api_uploads:
   api_uploads_dev:
+  api_uploads_private:
+  api_uploads_private_dev:
 
 networks:
   crm-network:

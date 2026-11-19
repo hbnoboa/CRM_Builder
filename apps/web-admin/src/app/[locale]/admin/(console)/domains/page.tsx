@@ -120,14 +120,21 @@ export default function ConsoleDomainsPage() {
                 <div className="sm:col-span-2"><span className="text-muted-foreground">Titular: </span>{o.registrant.name} · {doc(o.registrant.document)} · {o.registrant.email} · {o.registrant.phone}</div>
                 {o.paidAt && <div><span className="text-muted-foreground">Pago: </span>{new Date(o.paidAt).toLocaleDateString('pt-BR')}{o.paidByStaff ? ` (marcado por ${o.paidByStaff})` : ''}</div>}
                 {o.expiresAt && <div><span className="text-muted-foreground">Vence: </span>{new Date(o.expiresAt).toLocaleDateString('pt-BR')}</div>}
-                <div><span className="text-muted-foreground">Registrador: </span>{o.provider === 'mock' ? 'Teste (nada é registrado de verdade)' : o.provider}</div>
+                <div><span className="text-muted-foreground">Registrador: </span>{o.provider === 'mock' ? 'Teste (nada é registrado de verdade)' : o.provider === 'manual' ? 'Manual (registro feito pela equipe)' : o.provider}</div>
                 {o.notes && <div className="sm:col-span-3"><span className="text-muted-foreground">Observações: </span>{o.notes}</div>}
                 {o.lastError && <div className="text-red-700 sm:col-span-3">Erro: {o.lastError}</div>}
               </div>
+              {o.provider === 'manual' && ['awaiting_payment', 'failed'].includes(o.status) && (
+                <p className="rounded-md bg-muted/60 p-2.5 text-xs text-muted-foreground" data-testid="domain-manual-help">
+                  Depois do pagamento, registre <span className="font-mono">{o.hostname}</span> no painel do Registro.br (ou da revenda) no CPF/CNPJ do titular,
+                  por {o.years} ano(s), com o DNS apontando para a plataforma (CNAME do www e registro A do domínio), e só então marque como registrado.
+                  O sistema confere na consulta pública que o domínio já não está livre.
+                </p>
+              )}
               {can('domains.manage') && ['awaiting_payment', 'failed'].includes(o.status) && (
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => setActing({ order: o, action: 'pay' })} data-testid="domain-mark-paid">
-                    <CheckCircle2 className="mr-1.5 h-4 w-4" /> {o.status === 'failed' ? 'Tentar registrar de novo' : 'Marcar como pago e registrar'}
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" /> {o.status === 'failed' ? 'Tentar registrar de novo' : o.provider === 'manual' ? 'Marcar como pago e registrado' : 'Marcar como pago e registrar'}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setActing({ order: o, action: 'cancel' })}>
                     <XCircle className="mr-1.5 h-4 w-4" /> Cancelar pedido

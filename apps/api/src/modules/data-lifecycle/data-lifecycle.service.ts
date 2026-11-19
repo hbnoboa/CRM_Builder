@@ -86,13 +86,10 @@ export class DataLifecycleService {
         const fileName = `${ym}-${first.getTime()}.json`;
 
         const buffer = Buffer.from(JSON.stringify(batch, null, 2), 'utf-8');
-        await this.uploadService.uploadBuffer(
-          buffer,
-          fileName,
-          'application/json',
-          'platform',
-          'audit-logs/cold',
-        );
+        // Privado: dados da empresa nunca ficam num endereco publico
+        await this.uploadService.savePrivate(buffer, {
+          tenantId: 'platform', folder: 'audit-logs/cold', mimeType: 'application/json', fileName, countStorage: false,
+        });
 
         const ids = batch.map((r) => r.id);
         const del = await this.prisma.archivedAuditLog.deleteMany({

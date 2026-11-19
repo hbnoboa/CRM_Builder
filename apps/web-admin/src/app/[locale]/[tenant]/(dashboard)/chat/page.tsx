@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { RecordFormDialog } from '@/components/data/record-form-dialog';
 import { QuickCaptureForm } from '@/components/chat/quick-capture-form';
-import { QueryRunner, triggerDownload, resolveFileUrl } from '@/components/chat/query-runner';
+import { QueryRunner, triggerDownload, resolveFileUrl, downloadPrivateFile, usePrivateFileUrl } from '@/components/chat/query-runner';
 import { RecordEditForm } from '@/components/chat/record-edit-form';
 import { CommandManager } from '@/components/chat/command-manager';
 import { CommandPickerDialog } from '@/components/chat/command-picker-dialog';
@@ -71,7 +71,8 @@ function Thumb({ url }: { url: string }) {
 
 // ── Anexos ───────────────────────────────────────────────────────────────
 
-type Attachment = { url: string; name: string; size?: number; mime?: string; kind?: 'image' | 'video' | 'file' };
+/** `key`: arquivo privado (baixado pela API); `url`: anexos antigos, com endereço público. */
+type Attachment = { key?: string; url?: string; name: string; size?: number; mime?: string; kind?: 'image' | 'video' | 'file' };
 
 const MAX_ATTACHMENT = 25 * 1024 * 1024;
 /** Mesmos tipos que o servidor aceita (upload.service). */
@@ -81,33 +82,47 @@ const ACCEPTED_MIME = /^(image\/(jpeg|png|gif|webp)|video\/(mp4|quicktime|webm)|
 const fileSize = (n?: number) => (!n ? '' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} MB`);
 
 /** Imagens, videos e arquivos de uma mensagem. */
-function AttachmentView({ items }: { items: Attachment[] }) {
+function AttachmentView({ items, filePath }: { items: Attachment[]; filePath: string }) {
   return (
     <div className="space-y-1.5" data-testid="chat-attachment">
-      {items.map((a) => {
-        const src = resolveFileUrl(a.url);
-        if (a.kind === 'image') {
-          return (
-            <a key={a.url} href={src || '#'} target="_blank" rel="noreferrer" className="block">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src || ''} alt={a.name} className="max-h-72 max-w-full rounded-lg object-contain" loading="lazy" />
-            </a>
-          );
-        }
-        if (a.kind === 'video') return <video key={a.url} src={src || ''} controls className="max-h-72 max-w-full rounded-lg" />;
-        return (
-          <button key={a.url} type="button" onClick={() => src && triggerDownload(src, a.name)}
-            className="flex w-full min-w-[220px] items-center gap-2 rounded-lg border bg-background/60 p-2 text-left text-foreground hover:bg-background">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><FileText className="h-4 w-4" /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-medium">{a.name}</span>
-              <span className="block text-[10px] text-muted-foreground">{[a.name.split('.').pop()?.toUpperCase(), fileSize(a.size)].filter(Boolean).join(' · ')} · toque para baixar</span>
-            </span>
-            <Download className="h-4 w-4 text-muted-foreground" />
-          </button>
-        );
-      })}
+      {items.map((a, i) => (
+        <AttachmentItem key={a.key || a.url || i} item={a} path={a.key ? `${filePath}?i=${i}` : null} />
+      ))}
     </div>
+  );
+}
+
+function AttachmentItem({ item: a, path }: { item: Attachment; path: string | null }) {
+  // Anexo novo: arquivo privado, buscado com o login; antigo: endereço público
+  const privateSrc = usePrivateFileUrl(path && a.kind !== 'file' ? path : null);
+  const src = path ? privateSrc : a.url ? resolveFileUrl(a.url) : null;
+  const download = () => {
+    if (path) downloadPrivateFile(path, a.name).catch(() => toast.error('Não foi possível baixar o arquivo.'));
+    else if (src) triggerDownload(src, a.name);
+  };
+  if (a.kind === 'image') {
+    if (!src) return <div className="flex h-40 w-56 items-center justify-center rounded-lg bg-black/5 text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>;
+    return (
+      <a href={src} target="_blank" rel="noreferrer" className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={a.name} className="max-h-72 max-w-full rounded-lg object-contain" loading="lazy" />
+      </a>
+    );
+  }
+  if (a.kind === 'video') {
+    if (!src) return <div className="flex h-40 w-56 items-center justify-center rounded-lg bg-black/5 text-muted-foreground"><Film className="h-5 w-5" /></div>;
+    return <video src={src} controls className="max-h-72 max-w-full rounded-lg" />;
+  }
+  return (
+    <button type="button" onClick={download}
+      className="flex w-full min-w-[220px] items-center gap-2 rounded-lg border bg-background/60 p-2 text-left text-foreground hover:bg-background">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><FileText className="h-4 w-4" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-medium">{a.name}</span>
+        <span className="block text-[10px] text-muted-foreground">{[a.name.split('.').pop()?.toUpperCase(), fileSize(a.size)].filter(Boolean).join(' · ')} · toque para baixar</span>
+      </span>
+      <Download className="h-4 w-4 text-muted-foreground" />
+    </button>
   );
 }
 
@@ -869,10 +884,16 @@ export default function ChatPage() {
                           </div>
                         ) : isReport ? (
                           (() => {
-                            const reportUrl = m.meta?.url ? resolveFileUrl(String(m.meta.url)) : null;
+                            // Relatório novo: arquivo privado (fileKey); antigo: endereço público
+                            const filename = String(m.meta?.filename || 'relatorio');
+                            const privatePath = m.meta?.fileKey ? `/chat/channels/${active.id}/messages/${m.id}/file` : null;
+                            const reportUrl = privatePath || (m.meta?.url ? resolveFileUrl(String(m.meta.url)) : null);
                             return (
                               <button type="button" disabled={!reportUrl}
-                                onClick={() => reportUrl && triggerDownload(reportUrl, String(m.meta?.filename || 'relatorio'))}
+                                onClick={() => {
+                                  if (privatePath) downloadPrivateFile(privatePath, filename).catch(() => toast.error('Não foi possível baixar o relatório.'));
+                                  else if (reportUrl) triggerDownload(reportUrl, filename);
+                                }}
                                 className="flex w-full items-center gap-2 text-left disabled:cursor-default disabled:opacity-60">
                                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-500/15 text-emerald-600"><Download className="h-4 w-4" /></div>
                                 <div className="min-w-0">
@@ -884,7 +905,7 @@ export default function ChatPage() {
                           })()
                         ) : attachments.length > 0 ? (
                           <div>
-                            <AttachmentView items={attachments} />
+                            <AttachmentView items={attachments} filePath={`/chat/channels/${active.id}/messages/${m.id}/file`} />
                             {m.meta?.caption ? <div className="mt-1 whitespace-pre-line">{String(m.meta.caption)}</div> : null}
                           </div>
                         ) : (

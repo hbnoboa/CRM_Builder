@@ -221,13 +221,10 @@ export class ArchiveService {
         const buffer = Buffer.from(jsonContent, 'utf-8');
         const fileName = `${entitySlug}-${yearMonth}.json`;
 
-        await this.uploadService.uploadBuffer(
-          buffer,
-          fileName,
-          'application/json',
-          tenantId,
-          'archives/entity-data',
-        );
+        // Privado: dados da empresa nunca ficam num endereco publico
+        await this.uploadService.savePrivate(buffer, {
+          tenantId: tenantId, folder: 'archives/entity-data', mimeType: 'application/json', fileName,
+        });
 
         this.logger.log(
           `[${tenantName}/${entitySlug}] Backup GCS: archives/entity-data/${fileName} (${archived} registros)`,

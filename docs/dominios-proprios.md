@@ -32,7 +32,8 @@ Há dois caminhos, ambos em **Administração › Páginas para clientes › Dom
 |---|---|---|---|---|
 | `SITE_DOMAIN_CNAME` | API | Destino do CNAME que o cliente cria (`www` → isto) | `dev.iossystem.com.br` | `iossystem.com.br` |
 | `SITE_DOMAIN_IPS` | API | IPs para o registro A de domínios sem `www` (separados por vírgula). Vazio = a tela recomenda usar `www` | vazio | vazio |
-| `DOMAIN_REGISTRAR` | API | `mock` = registrador de teste. Vazio = compra desligada (só ligar domínio existente) | `mock` | vazio |
+| `DOMAIN_REGISTRAR` | API | `mock` = registrador de teste. `manual` = disponibilidade real pela consulta pública RDAP (Registro.br e Verisign) e registro feito pela equipe no painel do Registro.br/revenda; o console confere que o domínio já não está livre antes de marcar como registrado. Vazio = compra desligada (só ligar domínio existente) | `mock` | vazio |
+| `DOMAIN_PRICES_CENTS` | API | Preço de venda por ano, em centavos, por extensão (JSON). Ex.: `{"com.br":6000,"net.br":6000,"com":9900,"net":10900}`. O que faltar usa o preço de teste | vazio | definir |
 | `DOMAIN_DNS_CHECK` | API | `mock` só nos testes automáticos | — | — |
 | `INTERNAL_API_URL` | Web | Endereço interno da API, para o web descobrir a empresa pelo domínio | `http://api-dev:3001/api/v1` | `http://api:3001/api/v1` |
 | `PLATFORM_HOSTS` | API e Web | Outros endereços da própria plataforma, além de `*.iossystem.com.br` (opcional) | — | — |

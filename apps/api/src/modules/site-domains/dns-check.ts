@@ -58,3 +58,24 @@ export async function checkDns(host: string): Promise<DnsResult> {
     return { ok: false, found, error: `Não foi possível consultar o DNS agora (${(err as Error).message}).` };
   }
 }
+
+// ── Prova de dono ───────────────────────────────────────────────────────────
+// Apontar o DNS nao prova que o endereco e da empresa (um dominio que outra empresa
+// desligou continua apontando para nos). Na primeira vez, o dominio ligado precisa de um
+// registro TXT com o codigo da empresa. DOMAIN_DNS_CHECK=mock: falta o TXT so nos
+// enderecos com ".semdono.".
+
+export const OWNERSHIP_PREFIX = '_crm-verificacao';
+
+/** Registro TXT que a empresa cria para provar que o dominio e dela. */
+export function ownershipRecord(host: string, token: string): { name: string; value: string } {
+  return { name: `${OWNERSHIP_PREFIX}.${host}`, value: `crm-verificacao=${token}` };
+}
+
+export async function checkOwnership(host: string, token: string): Promise<{ ok: boolean; error?: string }> {
+  const missing = 'O domínio aponta para o site, mas falta o registro TXT que confirma que ele é da sua empresa.';
+  if (process.env.DOMAIN_DNS_CHECK === 'mock') return host.includes('.semdono.') ? { ok: false, error: missing } : { ok: true };
+  const { name, value } = ownershipRecord(host, token);
+  const records = await dns.resolveTxt(name).catch(() => [] as string[][]);
+  return records.some((parts) => parts.join('').trim() === value) ? { ok: true } : { ok: false, error: missing };
+}

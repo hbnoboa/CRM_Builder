@@ -85,6 +85,41 @@ export function resolveFileUrl(url: string): string {
   }
 }
 
+/**
+ * Arquivo privado da API (anexo ou relatório do chat): vem com o login da pessoa e vira
+ * um endereço local do navegador. Não existe endereço público para esses arquivos.
+ */
+export async function fetchPrivateFile(path: string): Promise<string> {
+  const res = await api.get(path, { responseType: 'blob' });
+  return URL.createObjectURL(res.data as Blob);
+}
+
+/** Baixa um arquivo privado da API com o nome dado. */
+export async function downloadPrivateFile(path: string, filename: string): Promise<void> {
+  const href = await fetchPrivateFile(path);
+  triggerDownload(href, filename, () => setTimeout(() => URL.revokeObjectURL(href), 60_000));
+}
+
+/** Endereço local de um arquivo privado para <img>/<video> (null enquanto carrega ou se falhar). */
+export function usePrivateFileUrl(path: string | null): string | null {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!path) return;
+    let href: string | null = null;
+    let cancelled = false;
+    fetchPrivateFile(path).then((h) => {
+      href = h;
+      if (cancelled) URL.revokeObjectURL(h);
+      else setSrc(h);
+    }).catch(() => setSrc(null));
+    return () => {
+      cancelled = true;
+      if (href) URL.revokeObjectURL(href);
+    };
+  }, [path]);
+  return src;
+}
+
 /** Roda um comando de consulta/relatório: monta os filtros e escolhe o formato. */
 export function QueryRunner({ channelId, cmd, entity, scopeParentId, onDone, onCancel }: {
   channelId: string;

@@ -80,8 +80,9 @@ test.describe('Plataforma', () => {
     await page.waitForURL(new RegExp(`/${slug}/home`), { timeout: 30_000 });
     await expect(page.getByText(/impersonando/i)).toBeVisible();
     await records(page);
-    await expect(page.getByText('Cliente B').first()).toBeVisible();
-    await expect(page.getByText('Cliente C')).toHaveCount(0);
+    // A lista tem a tabela e os cartoes (celular, escondidos): confere na tabela
+    await expect(page.getByRole('table').getByText('Cliente B').first()).toBeVisible();
+    await expect(page.getByRole('table').getByText('Cliente C')).toHaveCount(0);
     await page.getByRole('button', { name: /Sair da impersona/i }).click();
     await page.waitForURL(/\/admin\/tenants\//, { timeout: 30_000 });
   });
@@ -138,8 +139,9 @@ test.describe('Administracao', () => {
 test.describe('Operacao', () => {
   test('[O-01/O-02/O-03] Operador so ve o operacional', async ({ browser }) => {
     const page = await asUser(browser, 'ana');
-    await expect(page.getByText('Operacional').first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Administração' })).toHaveCount(0);
+    // Barra lateral do operador: so a parte operacional, sem a entrada da Administracao
+    await expect(page.getByRole('link', { name: 'Início' }).first()).toBeVisible();
+    await expect(page.getByText('Administração', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Lixeira' })).toHaveCount(0);
     for (const card of ['Templates PDF', 'Dashboards', 'Links Públicos', 'Auditoria', 'Usuários', 'Cargos', 'Nova Tabela']) {
       await expect(page.getByRole('link', { name: new RegExp(card) }), card).toHaveCount(0);
@@ -165,7 +167,7 @@ test.describe('Operacao', () => {
       const page = await asUser(browser, nick);
       await records(page);
       for (const name of ['Cliente A', 'Cliente B', 'Cliente C', 'Cliente D']) {
-        await expect(page.getByText(name, { exact: true }), `${nick} / ${name}`).toHaveCount(visible.includes(name) ? 1 : 0, { timeout: 15_000 });
+        await expect(page.getByRole('table').getByText(name, { exact: true }), `${nick} / ${name}`).toHaveCount(visible.includes(name) ? 1 : 0, { timeout: 15_000 });
       }
       await page.context().close();
     }
@@ -174,17 +176,21 @@ test.describe('Operacao', () => {
   test('[O-06/3] Operador ve os campos, menos o CPF', async ({ browser }) => {
     const page = await asUser(browser, 'ana');
     await records(page);
-    await expect(page.getByText('Cliente A', { exact: true })).toBeVisible();
-    await expect(page.getByText('cliente.a.', { exact: false }).first()).toBeVisible();
+    const table = page.getByRole('table');
+    await expect(table.getByText('Cliente A', { exact: true })).toBeVisible();
+    await expect(table.getByText('cliente.a.', { exact: false }).first()).toBeVisible();
     await expect(page.getByText('CPF', { exact: true })).toHaveCount(0);
-    await expect(page.getByText('Não', { exact: true }).first()).toBeVisible();
+    await expect(table.getByText('Não', { exact: true }).first()).toBeVisible();
     // Seletor de colunas e formulario tambem nao oferecem o campo.
     await page.getByRole('button', { name: 'Colunas' }).click();
     await expect(page.getByText('CPF', { exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Criar' }).click();
-    await expect(page.getByRole('dialog').getByText('Nome').first()).toBeVisible();
-    await expect(page.getByRole('dialog').getByText('CPF')).toHaveCount(0);
+    // Criar abre a pagina do registro (antes era um dialogo)
+    await page.getByRole('button', { name: 'Criar', exact: true }).first().click();
+    await page.waitForURL(/\/data\/clientes\/new/);
+    const form = page.getByTestId('record-page');
+    await expect(form.getByText('Nome').first()).toBeVisible();
+    await expect(form.getByText('CPF')).toHaveCount(0);
   });
 
   test('[O-09/8-9] exportar por cargo', async ({ browser }) => {

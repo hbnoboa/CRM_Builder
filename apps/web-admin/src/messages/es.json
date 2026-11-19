@@ -1787,6 +1787,11 @@
           "published": "publicó un anuncio",
           "unpublished": "retiró un anuncio",
           "deleted": "eliminó un anuncio"
+        },
+        "domain": {
+          "registered": "registró el dominio",
+          "failed": "falló el registro del dominio",
+          "cancelled": "canceló el pedido de dominio"
         }
       }
     },

@@ -121,3 +121,8 @@ export const SOLUTION_SLUGS = SOLUTION_CATALOG.map((s) => s.slug);
 export function solutionOwnerEmail(slug: string): string {
   return `modelos+${slug}@iossystem.com.br`;
 }
+
+/** E-mail reservado as empresas-modelo: o cadastro publico nao aceita (viraria o modelo copiado). */
+export function isSolutionOwnerEmail(email: string): boolean {
+  return /^modelos([+-][^@]*)?@iossystem\.com\.br$/i.test(email.trim());
+}

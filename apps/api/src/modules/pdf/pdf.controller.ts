@@ -23,7 +23,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentUser as CurrentUserType } from '../../common/types';
 
 import { PdfTemplateService } from './pdf-template.service';
-import { PdfGeneratorService } from './pdf-generator.service';
+import { PdfGeneratorService, PRIVATE_FILE_PREFIX } from './pdf-generator.service';
+import { UploadService } from '../upload/upload.service';
 import {
   CreatePdfTemplateDto,
   UpdatePdfTemplateDto,
@@ -44,6 +45,7 @@ export class PdfController {
   constructor(
     private readonly templateService: PdfTemplateService,
     private readonly generatorService: PdfGeneratorService,
+    private readonly uploadService: UploadService,
   ) {}
 
   // ================= CRUD DE TEMPLATES =================
@@ -107,7 +109,24 @@ export class PdfController {
       return;
     }
 
-    // Redirecionar para URL do arquivo (GCS)
+    // PDF guardado como arquivo privado: a API entrega (a geracao ja e da empresa)
+    if (generation.fileUrl.startsWith(PRIVATE_FILE_PREFIX)) {
+      const key = generation.fileUrl.slice(PRIVATE_FILE_PREFIX.length);
+      if (!key.startsWith(`${generation.tenantId}/`)) {
+        res.status(404).json({ message: 'Arquivo nao disponivel' });
+        return;
+      }
+      const buffer = await this.uploadService.readPrivate(key);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(generation.fileName || 'documento.pdf')}`,
+        'X-Content-Type-Options': 'nosniff',
+      });
+      res.send(buffer);
+      return;
+    }
+
+    // Geracoes antigas: endereco do arquivo (GCS)
     res.redirect(generation.fileUrl);
   }
 

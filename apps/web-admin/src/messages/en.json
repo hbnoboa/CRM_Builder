@@ -1790,6 +1790,11 @@
           "published": "published an announcement",
           "unpublished": "unpublished an announcement",
           "deleted": "deleted an announcement"
+        },
+        "domain": {
+          "registered": "registered the domain",
+          "failed": "domain registration failed",
+          "cancelled": "cancelled the domain order"
         }
       }
     },

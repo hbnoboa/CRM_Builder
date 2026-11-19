@@ -35,6 +35,7 @@ import { Separator } from '@/components/ui/separator';
 import { api } from '@/lib/api';
 import { useTenant } from '@/stores/tenant-context';
 import { useRouter } from '@/i18n/tenant-navigation';
+import { useOpenRecord } from '@/components/data/record-nav';
 import { cn } from '@/lib/utils';
 
 interface SubEntityListWidgetProps {
@@ -180,8 +181,9 @@ export default function SubEntityListWidget({ config }: SubEntityListWidgetProps
     return field?.type || 'text';
   };
 
+  const openRecord = useOpenRecord();
   const handleRecordClick = (recordId: string) => {
-    router.push(`/data?entity=${subEntitySlug}&recordId=${recordId}`);
+    openRecord(subEntitySlug, recordId);
   };
 
   const handleViewAll = () => {
