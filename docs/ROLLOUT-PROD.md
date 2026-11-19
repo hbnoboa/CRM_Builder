@@ -55,6 +55,8 @@ Scripts em `apps/api/prisma/data-migration/` (todos sem `DELETE`/`DROP TABLE` de
 10b. **Arquivos privados** (anexos e relatórios do chat, PDFs gerados, arquivamento e auditoria
     saem do endereço público). Com GCS, criar antes um bucket **sem acesso público** e pôr em
     `GCS_PRIVATE_BUCKET`; sem ele, os arquivos vão para o volume `uploads-private` da API.
+    Dev tem bucket próprio: `GCS_PRIVATE_BUCKET_DEV=crm-builder-dev-private` no `.env` da VM
+    (o compose passa para a API de dev; a de prod lê `GCS_PRIVATE_BUCKET`).
     Simular e depois aplicar, dentro do container da API:
     `node dist/prisma/move-private-files.js` → `node dist/prisma/move-private-files.js --aplicar`.
     O script só mexe nos arquivos das empresas do banco em que roda (dev e prod dividem o
