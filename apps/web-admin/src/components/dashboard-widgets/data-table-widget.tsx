@@ -1256,7 +1256,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       )}
 
       {/* Celular: cartoes (titulo + os proximos campos) em vez de colunas espremidas */}
-      <div className="flex-1 space-y-2 overflow-auto sm:hidden" style={{ minHeight: '340px' }} data-testid="data-table-cards">
+      <div className="flex-1 space-y-2 overflow-auto lg:hidden" style={{ minHeight: '340px' }} data-testid="data-table-cards">
         {tableLoading ? (
           <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin" />
         ) : (
@@ -1304,7 +1304,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       </div>
 
       {/* Table — min 10 rows visible */}
-      <div className="hidden rounded-md border overflow-auto flex-1 sm:block" style={{ minHeight: '340px' }}>
+      <div className="hidden rounded-md border overflow-auto flex-1 lg:block" style={{ minHeight: '340px' }}>
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
