@@ -17,3 +17,21 @@ export function useStandalone(): boolean {
   }, []);
   return standalone;
 }
+
+/**
+ * Tela de celular: largura abaixo de `lg` (1024px), onde o menu lateral ja fica
+ * escondido. Nessa faixa o painel ganha a cara de app (abas embaixo, toques maiores)
+ * tambem no navegador, sem precisar instalar. Comeca em false para o servidor e o
+ * cliente renderizarem igual (evita salto na primeira pintura).
+ */
+export function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023.98px)');
+    const read = () => setIsMobile(mq.matches);
+    read();
+    mq.addEventListener('change', read);
+    return () => mq.removeEventListener('change', read);
+  }, []);
+  return isMobile;
+}

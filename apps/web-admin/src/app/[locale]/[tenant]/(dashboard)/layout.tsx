@@ -43,7 +43,7 @@ import { cn } from '@/lib/utils';
 import { EntityNavItem } from '@/components/layout/entity-nav-item';
 import { CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
-import { useStandalone } from '@/hooks/use-standalone';
+import { useStandalone, useIsMobile } from '@/hooks/use-standalone';
 import { AppBottomNav } from '@/components/pwa/app-bottom-nav';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import type { FeatureKey } from '@/types/platform';
@@ -86,6 +86,9 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { tenant, effectiveTenantId } = useTenant();
   const features = useTenantFeatures();
   const standalone = useStandalone();
+  const isMobile = useIsMobile();
+  // Cara de app (abas embaixo, toques maiores) quando instalado OU em tela de celular
+  const appMode = standalone || isMobile;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -256,7 +259,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className={cn('min-h-screen bg-background pt-[var(--banner-h,0px)]', standalone && 'pwa-app')}>
+    <div className={cn('min-h-screen bg-background pt-[var(--banner-h,0px)]', appMode && 'pwa-app')}>
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -566,7 +569,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
-      {standalone && (
+      {appMode && (
         <AppBottomNav
           showDashboard={hasModuleAccess('dashboard')}
           showData={hasModuleAccess('data')}
