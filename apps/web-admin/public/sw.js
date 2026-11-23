@@ -2,7 +2,8 @@
  * Service worker do aplicativo instalavel (PWA). Leve de proposito:
  * - paginas: sempre da rede; sem conexao, mostra /offline.html;
  * - arquivos do build (/_next/static, com hash no nome): guardados depois da primeira vez;
- * - API, dados e o resto: nao passam por aqui (sem cache de dados).
+ * - API, dados e o resto: nao passam por aqui (sem cache de dados);
+ * - notificacoes (Web Push): mostra o aviso e, no toque, abre a tela dele.
  */
 const VERSION = 'v1';
 const SHELL = `shell-${VERSION}`;
@@ -43,4 +44,37 @@ self.addEventListener('fetch', (event) => {
       }),
     );
   }
+});
+
+// Notificacao do sistema (Web Push): { title, body, url, icon, tag }
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { title: 'Aviso', body: event.data ? event.data.text() : '' }; }
+  const title = data.title || 'Aviso';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: data.body || '',
+    icon: data.icon,
+    badge: data.icon,
+    tag: data.tag,
+    renotify: !!data.tag,
+    data: { url: data.url || '/' },
+  }));
+});
+
+// Toque na notificacao: foca uma janela aberta do sistema e leva para a tela do aviso
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin);
+  if (target.origin !== self.location.origin) return;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
+        await client.focus();
+        if ('navigate' in client) return client.navigate(target.href);
+        return;
+      }
+    }
+    return self.clients.openWindow(target.href);
+  })());
 });

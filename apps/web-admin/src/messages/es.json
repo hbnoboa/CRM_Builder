@@ -2434,11 +2434,21 @@
     "channelsHint": "Los avisos siempre quedan en la campana.",
     "popups": "Avisos en pantalla",
     "popupsHint": "Mostrar un aviso en la esquina de la pantalla cuando llegue algo nuevo.",
-    "push": "Notificación en el celular",
-    "pushHint": "Enviar a la app del celular (debe estar instalada y con sesión iniciada).",
+    "push": "Notificaciones push",
+    "pushHint": "Avisos de registros en la app del celular y en los dispositivos con notificaciones activadas.",
     "tablesTitle": "Tablas",
     "tablesHint": "Desactiva las tablas que no quieres seguir.",
-    "noTables": "No hay tablas disponibles."
+    "noTables": "No hay tablas disponibles.",
+    "device": {
+      "label": "Notificaciones en este dispositivo",
+      "hint": "Recibe los avisos de esta empresa aquí, incluso con el sistema cerrado.",
+      "unsupported": "Este navegador no recibe notificaciones.",
+      "ios-install": "En iPhone, instale primero la aplicación (Compartir › Agregar a pantalla de inicio) y actívelas desde ella.",
+      "blocked": "Las notificaciones están bloqueadas en este navegador. Permítalas en la configuración del sitio y vuelva aquí.",
+      "enabled": "Notificaciones activadas en este dispositivo",
+      "disabled": "Notificaciones desactivadas en este dispositivo",
+      "denied": "El navegador no permitió las notificaciones."
+    }
   },
   "support": {
     "title": "Soporte",

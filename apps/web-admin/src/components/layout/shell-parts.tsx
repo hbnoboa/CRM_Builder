@@ -14,6 +14,7 @@ import {
   CircleDot, Download, Laptop, LogOut, Menu, Moon, Plus, Search, Settings, Sun, User,
 } from 'lucide-react';
 import { InstallAppHelp, useInstallApp } from '@/components/pwa/app-install';
+import { disableDevicePush } from '@/lib/web-push';
 import { useRouter } from '@/i18n/tenant-navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
@@ -94,6 +95,8 @@ export function UserMenu() {
   const installApp = useInstallApp();
 
   const handleLogout = async () => {
+    // Este aparelho para de receber notificacoes da conta que esta saindo
+    await Promise.race([disableDevicePush().catch(() => undefined), new Promise((r) => setTimeout(r, 2000))]);
     await logout();
     router.push('/login');
   };

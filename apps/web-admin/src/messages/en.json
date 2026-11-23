@@ -2437,11 +2437,21 @@
     "channelsHint": "Notices always stay in the bell.",
     "popups": "On-screen notices",
     "popupsHint": "Show a notice in the corner of the screen when something new arrives.",
-    "push": "Phone notification",
-    "pushHint": "Send to the mobile app (it must be installed and signed in).",
+    "push": "Push notifications",
+    "pushHint": "Record alerts on the mobile app and on devices with notifications turned on.",
     "tablesTitle": "Tables",
     "tablesHint": "Turn off the tables you don't want to follow.",
-    "noTables": "No tables available."
+    "noTables": "No tables available.",
+    "device": {
+      "label": "Notifications on this device",
+      "hint": "Get this company's alerts here, even with the system closed.",
+      "unsupported": "This browser cannot receive notifications.",
+      "ios-install": "On iPhone, install the app first (Share › Add to Home Screen) and turn it on from there.",
+      "blocked": "Notifications are blocked in this browser. Allow them in the site settings and come back.",
+      "enabled": "Notifications turned on for this device",
+      "disabled": "Notifications turned off for this device",
+      "denied": "The browser did not allow notifications."
+    }
   },
   "support": {
     "title": "Support",

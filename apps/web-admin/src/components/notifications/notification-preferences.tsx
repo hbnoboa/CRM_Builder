@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { useEntities } from '@/hooks/use-entities';
 import { usePermissions } from '@/hooks/use-permissions';
 import { getErrorMessage } from '@/lib/get-error-message';
+import { type DevicePushState, devicePushState, disableDevicePush, enableDevicePush } from '@/lib/web-push';
 import type { Entity } from '@/types';
 import { type NotificationPrefs, useNotificationPrefs, useSaveNotificationPrefs } from './notification-prefs-api';
 
@@ -20,6 +22,56 @@ function Row({ id, label, hint, checked, onChange }: { id: string; label: string
         {hint && <span className="block text-xs font-normal text-muted-foreground">{hint}</span>}
       </Label>
       <Switch id={id} checked={checked} onCheckedChange={onChange} data-testid={id} />
+    </div>
+  );
+}
+
+/**
+ * Notificacoes neste aparelho (aplicativo instalavel / navegador). So aparece quando a
+ * empresa liberou o aplicativo. Ligar tambem liga o push dos registros (prefs.push).
+ */
+function DevicePushRow({ onEnabled }: { onEnabled: () => void }) {
+  const t = useTranslations('notificationPrefs.device');
+  const [state, setState] = useState<DevicePushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const refresh = useCallback(() => {
+    devicePushState().then(setState).catch(() => setState({ status: 'unavailable' }));
+  }, []);
+  useEffect(refresh, [refresh]);
+
+  if (!state || state.status === 'unavailable') return null;
+  const canToggle = state.status === 'on' || state.status === 'off';
+  const hint = state.status === 'on' || state.status === 'off' ? t('hint') : t(state.status);
+
+  const toggle = async (on: boolean) => {
+    if (!canToggle) return;
+    setBusy(true);
+    try {
+      if (on) {
+        if (await enableDevicePush(state.publicKey)) {
+          toast.success(t('enabled'));
+          onEnabled();
+        } else toast.error(t('denied'));
+      } else {
+        await disableDevicePush();
+        toast.success(t('disabled'));
+      }
+    } catch (e) {
+      toast.error(getErrorMessage(e));
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-4 py-2" data-testid="pref-device">
+      <Label htmlFor="pref-device-push" className="cursor-pointer">
+        <span className="block text-sm font-medium">{t('label')}</span>
+        <span className="block text-xs font-normal text-muted-foreground">{hint}</span>
+      </Label>
+      <Switch id="pref-device-push" checked={state.status === 'on'} disabled={!canToggle || busy}
+        onCheckedChange={toggle} data-testid="pref-device-push" />
     </div>
   );
 }
@@ -68,6 +120,7 @@ export function NotificationPreferences() {
             onChange={(v) => update({ ...prefs, popups: v })} />
           <Row id="pref-push" label={t('push')} hint={t('pushHint')} checked={prefs.push}
             onChange={(v) => update({ ...prefs, push: v })} />
+          <DevicePushRow onEnabled={() => { if (!prefs.push) update({ ...prefs, push: true }); }} />
         </CardContent>
       </Card>
 

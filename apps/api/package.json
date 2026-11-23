@@ -60,6 +60,7 @@
     "swagger-ui-express": "^5.0.1",
     "undici": "^6.29.1",
     "uuid": "^13.0.0",
+    "web-push": "3.6.7",
     "xlsx": "^0.18.5",
     "zod": "^3.23.0"
   },
@@ -75,6 +76,7 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/pdfkit": "^0.13.0",
     "@types/qrcode": "^1.5.6",
+    "@types/web-push": "3.6.4",
     "@types/xlsx": "^0.0.36",
     "mongodb": "^7.1.0",
     "prisma": "^5.18.0",

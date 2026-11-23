@@ -75,6 +75,10 @@ services:
       GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
       GCS_BUCKET: ${GCS_BUCKET:-}
       GCS_PRIVATE_BUCKET: ${GCS_PRIVATE_BUCKET:-}
+      # Notificacao no navegador (aplicativo instalavel); sem as chaves fica desligada
+      WEB_PUSH_PUBLIC_KEY: ${WEB_PUSH_PUBLIC_KEY:-}
+      WEB_PUSH_PRIVATE_KEY: ${WEB_PUSH_PRIVATE_KEY:-}
+      WEB_PUSH_SUBJECT: ${WEB_PUSH_SUBJECT:-https://iossystem.com.br}
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
@@ -222,6 +226,9 @@ services:
       GCS_PROJECT_ID: ${GCS_PROJECT_ID:-}
       GCS_BUCKET: ${GCS_BUCKET:-}
       GCS_PRIVATE_BUCKET: ${GCS_PRIVATE_BUCKET_DEV:-}
+      WEB_PUSH_PUBLIC_KEY: ${WEB_PUSH_PUBLIC_KEY_DEV:-}
+      WEB_PUSH_PRIVATE_KEY: ${WEB_PUSH_PRIVATE_KEY_DEV:-}
+      WEB_PUSH_SUBJECT: ${WEB_PUSH_SUBJECT_DEV:-https://dev.iossystem.com.br}
       GCS_KEY_FILE: ${GCS_KEY_FILE:-}
       GCS_CREDENTIALS: ${GCS_CREDENTIALS:-}
       GCS_BASE_URL: ${GCS_BASE_URL:-}
