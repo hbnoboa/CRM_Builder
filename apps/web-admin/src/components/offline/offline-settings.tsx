@@ -15,6 +15,7 @@ import { useTenant } from '@/stores/tenant-context';
 import { connectOffline, offlineEnabled, removeOfflineData, setOfflineEnabled } from '@/lib/offline/offline-db';
 import { useLocalQuery, useOfflineStatus } from '@/lib/offline/hooks';
 import { clearOfflineProfile, saveOfflineProfile } from '@/lib/offline/profile';
+import { clearQueuedPhotos, listQueuedPhotos } from '@/lib/offline/photo-queue';
 
 /** Carrega a tela de campo escondida: o service worker guarda a pagina e os arquivos dela. */
 export function prepareCampoPage(locale: string, slug: string) {
@@ -86,10 +87,12 @@ export function OfflineSettings() {
   };
 
   const turnOff = async () => {
-    if (pending > 0 && !window.confirm(t('confirmOffPending', { n: pending }))) return;
+    const photos = (await listQueuedPhotos({ tenantId, userId }).catch(() => [])).length;
+    if ((pending > 0 || photos > 0) && !window.confirm(t('confirmOffPending', { n: pending, photos }))) return;
     setBusy(true);
     try {
       await removeOfflineData(tenantId, userId);
+      await clearQueuedPhotos({ tenantId, userId }).catch(() => undefined);
       clearOfflineProfile(tenant.slug);
       setDb(null);
       setEnabled(false);

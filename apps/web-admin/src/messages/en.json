@@ -679,7 +679,8 @@
       "createdAddChildren": "Record created. You can now add {name} to it.",
       "unsavedLeave": "This record has unsaved changes. Leave anyway?",
       "inside": "Inside"
-    }
+    },
+    "selectRecord": "Select record"
   },
   "rolesPage": {
     "title": "Roles",
@@ -2809,7 +2810,16 @@
       "enabled": "Downloading the data. You can keep using the system.",
       "disabled": "Data removed from this device.",
       "failed": "Could not turn on offline mode.",
-      "confirmOffPending": "{n} changes have not been sent yet and will be lost. Turn off anyway?"
-    }
+      "confirmOffPending": "{n} changes and {photos} photos have not been sent yet and will be lost. Turn off anyway?"
+    },
+    "photosPending": "{n, plural, one {# photo to send} other {# photos to send}}",
+    "photosFailed": "{n, plural, one {# photo was not accepted by the server} other {# photos were not accepted by the server}}",
+    "photoSaved": "Photo saved (shows when online).",
+    "photoQueued": "On this device",
+    "removePhoto": "Remove photo",
+    "takePhoto": "Take photo",
+    "retakePhoto": "Take another",
+    "add": "Add",
+    "needsOnline": "Needs internet: {fields}. Save after connecting."
   }
 }

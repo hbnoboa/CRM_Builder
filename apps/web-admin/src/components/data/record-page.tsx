@@ -14,7 +14,6 @@ import { TrackingLinkButton } from '@/components/site/tracking-link-button';
 import { useEntities, useEntityBySlug } from '@/hooks/use-entities';
 import { useEntityDataItem } from '@/hooks/use-data';
 import { usePermissions } from '@/hooks/use-permissions';
-import { useAuthStore } from '@/stores/auth-store';
 import { ClientPortalButton } from './client-portal-button';
 import { RecordFormFields, useRecordHeader } from './record-form-dialog';
 import { RecordPageNavContext, recordPath, safeBack, useOpenRecord, type RecordPageNav } from './record-nav';
@@ -50,11 +49,9 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
   const { data: parentRecord } = useEntityDataItem(parentEntity?.slug || '', parentId || '');
   const parentHeader = useRecordHeader(parentEntity ?? { fields: [] }, parentRecord ? { id: parentRecord.id, data: parentRecord.data } : null);
 
-  // Permissões (mesma regra da tabela): no portal do cliente vale só a da tabela
-  const { hasModulePermission, hasEntityPermission } = usePermissions();
-  const portal = !!useAuthStore((s) => s.user?.clientPortal);
-  const can = (action: 'canCreate' | 'canUpdate') =>
-    portal ? hasEntityPermission(entitySlug, action) : hasModulePermission('data', action) || hasEntityPermission(entitySlug, action);
+  // Permissões: a da tabela (a específica ou o coringa '*'), a mesma regra da API
+  const { hasEntityPermission } = usePermissions();
+  const can = (action: 'canCreate' | 'canUpdate') => hasEntityPermission(entitySlug, action);
   const readOnly = !isNew && !can('canUpdate');
 
   // Alteração não salva: pergunta antes de sair pela página e ao fechar a guia

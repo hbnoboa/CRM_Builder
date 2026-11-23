@@ -32,6 +32,11 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
+  // Imagens guardadas para o modo sem internet (ex.: diagrama de pecas, em outro endereco)
+  if (request.destination === 'image' && url.origin !== self.location.origin) {
+    event.respondWith(caches.match(request.url, { cacheName: CAMPO }).then((hit) => hit || fetch(request)));
+    return;
+  }
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
