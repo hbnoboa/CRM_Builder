@@ -322,10 +322,10 @@ export default function SubEntityFieldEnhanced({
 
   return (
     <div className="space-y-3">
-      {/* Header with enhanced controls */}
-      <div className="flex items-center justify-between">
+      {/* Header with enhanced controls (no celular, os botoes descem para a linha de baixo) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div
-          className="flex items-center gap-2 cursor-pointer group flex-1"
+          className="flex min-w-0 items-center gap-2 cursor-pointer group flex-1"
           onClick={() => setExpanded(!expanded)}
         >
           {expanded ? (
@@ -345,7 +345,7 @@ export default function SubEntityFieldEnhanced({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2">
           {/* View mode switcher */}
           {expanded && (
             <div className="flex items-center border rounded-md">

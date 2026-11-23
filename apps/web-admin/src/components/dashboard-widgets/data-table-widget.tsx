@@ -331,7 +331,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const t = useTranslations('data');
   const tCommon = useTranslations('common');
   const router = useRouter();
-  const { hasEntityPermission, hasModulePermission, hasModuleAction, hasEntityAction, getHiddenFields } = usePermissions();
+  const { hasEntityPermission, hasModuleAction, hasEntityAction, getHiddenFields } = usePermissions();
   // Campo oculto para o cargo nao vira coluna nem filtro.
   const hiddenByRole = getHiddenFields(entitySlug);
   const hiddenByRoleKey = Array.from(hiddenByRole).join(',');
@@ -403,13 +403,13 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       .catch(() => setPdfTemplates([]));
   }, [entity?.id]);
 
-  // Permissions - check both module-level and entity-level (same as backend)
-  // CRUD básico usa hasModulePermission (para canCreate, canUpdate, canDelete)
-  // Ações sub-granulares usam hasModuleAction (para canExport, canImport, etc)
+  // Permissoes: CRUD pela regra da tabela; acoes sub-granulares (exportar, importar...)
+  // usam hasModuleAction
   // Portal do cliente: vale so a permissao da tabela (o modulo libera so as tabelas do cargo)
   const portal = !!useAuthStore((s) => s.user?.clientPortal);
-  const can = (action: 'canCreate' | 'canUpdate' | 'canDelete') =>
-    portal ? hasEntityPermission(entitySlug, action) : hasModulePermission('data', action) || hasEntityPermission(entitySlug, action);
+  // A regra da tabela (a especifica ou o coringa '*'), a mesma que a API aplica: o modulo
+  // "data" fica liberado se alguma tabela libera, e mostraria "Criar" onde a API recusa.
+  const can = (action: 'canCreate' | 'canUpdate' | 'canDelete') => hasEntityPermission(entitySlug, action);
   const canCreate = allowCreate && can('canCreate');
   // Portal do cliente: sem editar, o registro abre so para ler (e ver o que esta dentro dele)
   const canOpen = (allowEdit && can('canUpdate')) || portal;
@@ -1270,10 +1270,23 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                 onClick={(e) => canOpen && handleEdit(record, e)}
                 onAuxClick={(e) => { if (canOpen && e.button === 1) handleEdit(record, e); }}
                 onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) handleEdit(record); }}
-                className={`rounded-lg border bg-card p-3 ${canOpen ? 'cursor-pointer active:bg-muted/40' : ''}`}
+                className={`rounded-lg border bg-card p-3 ${canOpen ? 'cursor-pointer active:bg-muted/40' : ''} ${selectedIds.has(record.id) ? 'border-primary bg-muted/40' : ''}`}
                 data-testid={canOpen ? 'open-record-card' : undefined}
               >
-                {first && <div className={`truncate text-sm font-semibold ${canOpen ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
+                <div className="flex items-start gap-2.5">
+                  {allowBatchSelect && (
+                    // Selecionar sem abrir o registro (PDF de um registro, exportar selecionados)
+                    <div className="-m-1.5 p-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={selectedIds.has(record.id)}
+                        onCheckedChange={() => toggleSelect(record.id)}
+                        aria-label={t('selectRecord')}
+                        data-testid="select-record-card"
+                      />
+                    </div>
+                  )}
+                  {first && <div className={`min-w-0 flex-1 truncate text-sm font-semibold ${canOpen ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
+                </div>
                 {rest.length > 0 && (
                   <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
                     {rest.slice(0, 4).map((field) => (

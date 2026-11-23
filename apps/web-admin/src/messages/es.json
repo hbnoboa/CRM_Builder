@@ -678,7 +678,8 @@
       "createdAddChildren": "Registro creado. Ahora puedes agregar {name} en él.",
       "unsavedLeave": "Hay cambios sin guardar en este registro. ¿Salir de todos modos?",
       "inside": "Dentro de"
-    }
+    },
+    "selectRecord": "Seleccionar registro"
   },
   "rolesPage": {
     "title": "Roles",
@@ -2806,7 +2807,16 @@
       "enabled": "Descargando los datos. Puede seguir usando el sistema.",
       "disabled": "Datos eliminados de este dispositivo.",
       "failed": "No fue posible activar el modo sin internet.",
-      "confirmOffPending": "{n} cambios todavía no se enviaron y se perderán. ¿Desactivar de todos modos?"
-    }
+      "confirmOffPending": "{n} cambios y {photos} fotos todavía no se enviaron y se perderán. ¿Desactivar de todos modos?"
+    },
+    "photosPending": "{n, plural, one {# foto para enviar} other {# fotos para enviar}}",
+    "photosFailed": "{n, plural, one {# foto no fue aceptada por el servidor} other {# fotos no fueron aceptadas por el servidor}}",
+    "photoSaved": "Foto guardada (aparece con internet).",
+    "photoQueued": "En el dispositivo",
+    "removePhoto": "Quitar foto",
+    "takePhoto": "Tomar foto",
+    "retakePhoto": "Tomar otra",
+    "add": "Agregar",
+    "needsOnline": "Solo con internet: {fields}. Guarde después de conectarse."
   }
 }

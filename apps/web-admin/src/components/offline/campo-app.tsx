@@ -4,25 +4,57 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import type { PowerSyncDatabase } from '@powersync/web';
-import { ArrowLeft, CloudOff, Loader2, Plus, RefreshCw, Search, Trash2, Wifi } from 'lucide-react';
+import { ArrowLeft, Camera, CloudOff, ImageOff, Loader2, Plus, RefreshCw, Search, Trash2, Wifi, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import api from '@/lib/api';
+import ZoneDiagramField from '@/components/form/zone-diagram-field';
+import { getQueuedPhoto, listQueuedPhotos, LOCAL_PREFIX, processPhotoQueue, queuePhoto, removeQueuedPhoto } from '@/lib/offline/photo-queue';
 import { connectOffline, offlineEnabled, openOfflineDb } from '@/lib/offline/offline-db';
 import type { OfflineConnector } from '@/lib/offline/connector';
 import { readOfflineProfile, type OfflineProfile } from '@/lib/offline/profile';
 import { can, fieldRules, type OfflineRole } from '@/lib/offline/permissions';
 import { useLocalQuery, useOfflineStatus } from '@/lib/offline/hooks';
 
-type Field = { slug: string; name?: string; label?: string; type: string; required?: boolean; options?: Array<string | { value: string; label?: string }>; subEntitySlug?: string };
+type Field = {
+  slug: string; name?: string; label?: string; type: string; required?: boolean;
+  options?: Array<string | { value: string; label?: string }>; subEntitySlug?: string;
+  diagramImage?: string; diagramZones?: unknown[]; diagramSaveMode?: 'object' | 'text';
+};
 type EntityRow = { id: string; name: string; namePlural: string | null; slug: string; fields: string | null; settings: string | null };
 type RecordRow = { id: string; data: string | null; createdAt: string | null; parentRecordId: string | null };
 
 /** Tipos que da para editar sem internet; o resto aparece so para leitura. */
-const EDITABLE = new Set(['text', 'textarea', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'number', 'currency', 'percentage', 'date', 'datetime', 'time', 'select', 'boolean', 'checkbox']);
+const EDITABLE = new Set(['text', 'textarea', 'email', 'phone', 'url', 'cpf', 'cnpj', 'cep', 'number', 'currency', 'percentage', 'date', 'datetime', 'time', 'select', 'boolean', 'checkbox', 'image', 'zone-diagram']);
+const isEmpty = (v: unknown) => v === undefined || v === null || v === '' || (typeof v === 'object' && !Array.isArray(v) && Object.keys(v as object).length === 0);
+
+/** Endereco de arquivo do sistema (/uploads/... vem da API). */
+function fileUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  try {
+    return new URL(url, new URL((api.defaults.baseURL as string) || window.location.origin, window.location.origin).origin).toString();
+  } catch {
+    return url;
+  }
+}
+
+/** Guarda a imagem do diagrama no aparelho (o service worker entrega sem conexao). */
+function cacheDiagramImages(entities: EntityRow[]) {
+  if (!navigator.onLine || typeof caches === 'undefined') return;
+  const urls = new Set<string>();
+  for (const e of entities) {
+    for (const f of parseJson<Field[]>(e.fields, [])) if (f.type === 'zone-diagram' && f.diagramImage) urls.add(f.diagramImage);
+  }
+  void caches.open('campo-v1').then(async (cache) => {
+    for (const url of Array.from(urls)) {
+      if (!(await cache.match(url))) await cache.add(new Request(url, { mode: 'no-cors' })).catch(() => undefined);
+    }
+  });
+}
 const NOT_DATA = new Set(['section-title', 'divider', 'sub-entity', 'hidden', 'action-button']);
 const PAGE = 50;
 
@@ -51,7 +83,7 @@ function titleOf(entity: EntityRow, fields: Field[], data: Record<string, unknow
   return (titleField && display(data[titleField], yes, no)) || '';
 }
 
-type View = { kind: 'tables' } | { kind: 'records'; entityId: string } | { kind: 'form'; entityId: string; recordId: string | null };
+type View = { kind: 'tables' } | { kind: 'records'; entityId: string } | { kind: 'form'; entityId: string; recordId: string | null; parentId?: string };
 
 /**
  * Modo sem internet: tabelas e registros do banco local do aparelho. Alteracoes ficam na
@@ -63,7 +95,12 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
   const [db, setDb] = useState<PowerSyncDatabase | null>(null);
   const [connector, setConnector] = useState<OfflineConnector | null>(null);
   const [online, setOnline] = useState(true);
-  const [view, setView] = useState<View>({ kind: 'tables' });
+  const [stack, setStack] = useState<View[]>([{ kind: 'tables' }]);
+  const view = stack[stack.length - 1];
+  const push = (v: View) => setStack((st) => [...st, v]);
+  const back = () => setStack((st) => (st.length > 1 ? st.slice(0, -1) : st));
+  const [photosPending, setPhotosPending] = useState(0);
+  const [photosFailed, setPhotosFailed] = useState<string[]>([]);
 
   useEffect(() => {
     const p = readOfflineProfile(slug);
@@ -90,6 +127,23 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
   }, [profile]);
 
   const { status, pending } = useOfflineStatus(db);
+
+  // Fotos tiradas sem internet: sobem quando ha conexao (a cada 30 s e ao voltar a rede)
+  const owner = useMemo(() => (profile ? { tenantId: profile.tenantId, userId: profile.userId } : null), [profile]);
+  const refreshPhotos = useCallback(async () => {
+    if (!owner) return;
+    if (db && navigator.onLine) await processPhotoQueue(db, owner).catch(() => undefined);
+    const items = await listQueuedPhotos(owner).catch(() => []);
+    setPhotosPending(items.filter((i) => !i.failed).length);
+    setPhotosFailed(items.filter((i) => i.failed).map((i) => i.failed as string));
+  }, [db, owner]);
+  useEffect(() => {
+    if (!db) return;
+    void refreshPhotos();
+    const id = setInterval(() => void refreshPhotos(), 30_000);
+    window.addEventListener('online', refreshPhotos);
+    return () => { clearInterval(id); window.removeEventListener('online', refreshPhotos); };
+  }, [db, refreshPhotos]);
   const roles = useLocalQuery<OfflineRole & { id: string }>(db, 'SELECT id, permissions, modulePermissions FROM CustomRole WHERE id = ?', [profile?.roleId ?? '']);
   const role: OfflineRole | null = roles.data[0] ?? profile?.role ?? null;
 
@@ -113,8 +167,7 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur" style={{ borderTop: `4px solid ${profile.brandColor || '#ea580c'}` }}>
         <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3">
           {view.kind !== 'tables' && (
-            <Button variant="ghost" size="icon" aria-label={t('back')} data-testid="campo-back"
-              onClick={() => setView(view.kind === 'form' ? { kind: 'records', entityId: view.entityId } : { kind: 'tables' })}>
+            <Button variant="ghost" size="icon" aria-label={t('back')} data-testid="campo-back" onClick={back}>
               <ArrowLeft className="h-5 w-5" />
             </Button>
           )}
@@ -124,6 +177,7 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
               {online ? <Wifi className="h-3.5 w-3.5 text-green-600" /> : <CloudOff className="h-3.5 w-3.5 text-amber-600" />}
               {!online ? t('statusOffline') : syncing ? t('statusSyncing') : neverSynced ? t('statusFirstSync') : t('statusSynced')}
               {pending > 0 && <span className="rounded bg-amber-100 px-1.5 text-amber-900 dark:bg-amber-900 dark:text-amber-100" data-testid="campo-pending">{t('pending', { n: pending })}</span>}
+              {photosPending > 0 && <span className="rounded bg-amber-100 px-1.5 text-amber-900 dark:bg-amber-900 dark:text-amber-100" data-testid="campo-photos-pending">{t('photosPending', { n: photosPending })}</span>}
             </p>
           </div>
           {online && (
@@ -132,6 +186,11 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">
+        {photosFailed.length > 0 && (
+          <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm" data-testid="campo-photos-failed">
+            {t('photosFailed', { n: photosFailed.length })}: {photosFailed.slice(-2).join('; ')}
+          </div>
+        )}
         {connector && connector.rejected.length > 0 && (
           <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm" data-testid="campo-rejected">
             {t('rejected', { n: connector.rejected.length })}: {connector.rejected.slice(-3).map((r) => r.message).join('; ')}
@@ -140,13 +199,15 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
         {!db ? (
           <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t('opening')}</div>
         ) : view.kind === 'tables' ? (
-          <TablesView db={db} role={role} onOpen={(entityId) => setView({ kind: 'records', entityId })} />
+          <TablesView db={db} role={role} onOpen={(entityId) => push({ kind: 'records', entityId })} />
         ) : view.kind === 'records' ? (
           <RecordsView db={db} role={role} entityId={view.entityId}
-            onOpen={(recordId) => setView({ kind: 'form', entityId: view.entityId, recordId })} />
+            onOpen={(recordId) => push({ kind: 'form', entityId: view.entityId, recordId })} />
         ) : (
-          <RecordForm db={db} role={role} profile={profile} online={online} entityId={view.entityId} recordId={view.recordId}
-            onDone={() => setView({ kind: 'records', entityId: view.entityId })} />
+          <RecordForm key={`${view.entityId}:${view.recordId ?? 'novo'}:${stack.length}`} db={db} role={role} profile={profile} online={online}
+            entityId={view.entityId} recordId={view.recordId} presetParentId={view.parentId}
+            onOpenChild={(child) => push({ kind: 'form', ...child })}
+            onSaved={() => { back(); void refreshPhotos(); }} onDone={back} />
         )}
       </main>
     </div>
@@ -159,6 +220,7 @@ function TablesView({ db, role, onOpen }: { db: PowerSyncDatabase; role: Offline
   const counts = useLocalQuery<{ entityId: string; n: number }>(db, 'SELECT entityId, count(*) AS n FROM EntityData GROUP BY entityId');
   const byId = useMemo(() => new Map(counts.data.map((c) => [c.entityId, Number(c.n)])), [counts.data]);
   const visible = entities.data.filter((e) => can(role, e.slug, 'canRead'));
+  useEffect(() => { if (entities.data.length) cacheDiagramImages(entities.data); }, [entities.data]);
   if (entities.loading) return <p className="py-6 text-sm text-muted-foreground">{t('opening')}</p>;
   if (visible.length === 0) return <p className="py-6 text-sm text-muted-foreground">{t('noTables')}</p>;
   return (
@@ -229,12 +291,82 @@ function RecordsView({ db, role, entityId, onOpen }: { db: PowerSyncDatabase; ro
   );
 }
 
-function FieldInput({ field, value, disabled, onChange, yes, no }: {
-  field: Field; value: unknown; disabled: boolean; onChange: (v: unknown) => void; yes: string; no: string;
+/** Foto do campo: camera do aparelho; sem internet fica na fila (local://) e sobe depois. */
+function PhotoInput({ value, disabled, onPick, onClear }: {
+  value: unknown; disabled: boolean; onPick: (file: File) => Promise<void>; onClear: () => void;
+}) {
+  const t = useTranslations('offline');
+  const [preview, setPreview] = useState<string | null>(null);
+  const [broken, setBroken] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const v = typeof value === 'string' ? value : '';
+  useEffect(() => {
+    setBroken(false);
+    if (!v) { setPreview(null); return; }
+    if (!v.startsWith(LOCAL_PREFIX)) { setPreview(fileUrl(v)); return; }
+    let url: string | null = null;
+    void getQueuedPhoto(v.slice(LOCAL_PREFIX.length)).then((item) => {
+      if (item) { url = URL.createObjectURL(item.blob); setPreview(url); } else setPreview(null);
+    });
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [v]);
+  return (
+    <div className="space-y-2">
+      {v && (
+        <div className="relative overflow-hidden rounded-md border bg-muted/30">
+          {preview && !broken ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview} alt="" className="max-h-56 w-full object-contain" onError={() => setBroken(true)} />
+          ) : (
+            <p className="flex items-center gap-2 p-3 text-xs text-muted-foreground"><ImageOff className="h-4 w-4" />{t('photoSaved')}</p>
+          )}
+          {v.startsWith(LOCAL_PREFIX) && <span className="absolute left-2 top-2 rounded bg-amber-100 px-1.5 text-[11px] text-amber-900">{t('photoQueued')}</span>}
+          {!disabled && (
+            <Button type="button" size="icon" variant="secondary" className="absolute right-2 top-2 h-7 w-7" onClick={onClear} aria-label={t('removePhoto')}>
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      )}
+      {!disabled && (
+        <label className={cn('inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm hover:bg-muted', busy && 'opacity-60')}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+          {v ? t('retakePhoto') : t('takePhoto')}
+          <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} data-testid="campo-photo-input"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              setBusy(true);
+              try { await onPick(file); } finally { setBusy(false); }
+            }} />
+        </label>
+      )}
+    </div>
+  );
+}
+
+function FieldInput({ field, value, disabled, onChange, onPhoto, yes, no }: {
+  field: Field; value: unknown; disabled: boolean; onChange: (v: unknown) => void;
+  onPhoto: (file: File) => Promise<void>; yes: string; no: string;
 }) {
   const id = `campo-${field.slug}`;
   const str = value === null || value === undefined ? '' : typeof value === 'object' ? display(value, yes, no) : String(value);
   switch (field.type) {
+    case 'image':
+      return <PhotoInput value={value} disabled={disabled} onPick={onPhoto} onClear={() => onChange(null)} />;
+    case 'zone-diagram':
+      return (
+        <ZoneDiagramField
+          value={value as Record<string, string> | string | undefined}
+          onChange={(v) => onChange(v)}
+          saveMode={field.diagramSaveMode || 'object'}
+          diagramImage={field.diagramImage}
+          zones={field.diagramZones as never}
+          label={fieldLabel(field)}
+          readOnly={disabled}
+        />
+      );
     case 'textarea':
       return <Textarea id={id} value={str} disabled={disabled} onChange={(e) => onChange(e.target.value)} />;
     case 'number': case 'currency': case 'percentage':
@@ -265,9 +397,46 @@ function FieldInput({ field, value, disabled, onChange, yes, no }: {
   }
 }
 
-function RecordForm({ db, role, profile, online, entityId, recordId, onDone }: {
+/** Registros de dentro (ex.: nao conformidades do veiculo), como no web e no app. */
+function ChildList({ db, role, field, child, parentId, onOpen }: {
+  db: PowerSyncDatabase; role: OfflineRole | null; field: Field; child: EntityRow; parentId: string;
+  onOpen: (recordId: string | null) => void;
+}) {
+  const t = useTranslations('offline');
+  const yes = t('yes'); const no = t('no');
+  const rows = useLocalQuery<RecordRow>(db,
+    'SELECT id, data, createdAt, parentRecordId FROM EntityData WHERE entityId = ? AND parentRecordId = ? ORDER BY createdAt DESC LIMIT 200', [child.id, parentId]);
+  const childFields = parseJson<Field[]>(child.fields, []);
+  const { hidden } = fieldRules(role, child.slug);
+  const shown = childFields.filter((f) => !NOT_DATA.has(f.type) && !hidden.has(f.slug) && f.type !== 'image');
+  return (
+    <div className="space-y-2 rounded-lg border p-3" data-testid={`campo-children-${child.slug}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex-1 text-sm font-medium">{fieldLabel(field)} <span className="text-muted-foreground">({rows.data.length})</span></span>
+        {can(role, child.slug, 'canCreate') && (
+          <Button type="button" size="sm" variant="outline" onClick={() => onOpen(null)} data-testid={`campo-add-${child.slug}`}>
+            <Plus className="mr-1 h-4 w-4" />{t('add')}
+          </Button>
+        )}
+      </div>
+      {rows.data.map((r) => {
+        const data = parseJson<Record<string, unknown>>(r.data, {});
+        const title = titleOf(child, shown, data, yes, no) || shown.map((f) => display(data[f.slug], yes, no)).find(Boolean) || t('untitled');
+        return (
+          <button key={r.id} type="button" onClick={() => onOpen(r.id)} className="block w-full truncate rounded-md border px-3 py-2 text-left text-sm hover:bg-muted">
+            {title}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RecordForm({ db, role, profile, online, entityId, recordId, presetParentId, onOpenChild, onSaved, onDone }: {
   db: PowerSyncDatabase; role: OfflineRole | null; profile: OfflineProfile; online: boolean;
-  entityId: string; recordId: string | null; onDone: () => void;
+  entityId: string; recordId: string | null; presetParentId?: string;
+  onOpenChild: (view: { entityId: string; recordId: string | null; parentId?: string }) => void;
+  onSaved: () => void; onDone: () => void;
 }) {
   const t = useTranslations('offline');
   const yes = t('yes'); const no = t('no');
@@ -278,24 +447,40 @@ function RecordForm({ db, role, profile, online, entityId, recordId, onDone }: {
   const parentEntity = useMemo(() => entity && allEntities.data.find((e) =>
     parseJson<Field[]>(e.fields, []).some((f) => f.type === 'sub-entity' && f.subEntitySlug === entity.slug)), [allEntities.data, entity]);
   const parents = useLocalQuery<RecordRow>(db,
-    'SELECT id, data, createdAt, parentRecordId FROM EntityData WHERE entityId = ? ORDER BY createdAt DESC LIMIT 300', [parentEntity?.id ?? '']);
+    'SELECT id, data, createdAt, parentRecordId FROM EntityData WHERE entityId = ? ORDER BY createdAt DESC LIMIT 300', [presetParentId ? '' : parentEntity?.id ?? '']);
+  // Id do registro novo ja existe antes de salvar (as fotos ficam presas a ele)
+  const [newId] = useState(() => crypto.randomUUID());
+  const id = recordId ?? newId;
   const [values, setValues] = useState<Record<string, unknown> | null>(null);
-  const [parentId, setParentId] = useState('');
+  const [parentId, setParentId] = useState(presetParentId ?? '');
   const [saving, setSaving] = useState(false);
+  const owner = { tenantId: profile.tenantId, userId: profile.userId };
 
   useEffect(() => {
     if (recordId && !record) return;
-    setValues(record ? parseJson<Record<string, unknown>>(record.data, {}) : {});
-    setParentId(record?.parentRecordId ?? '');
+    setValues((cur) => cur ?? (record ? parseJson<Record<string, unknown>>(record.data, {}) : {}));
+    if (record?.parentRecordId) setParentId(record.parentRecordId);
   }, [record, recordId]);
+
+  const setField = (slug: string, v: unknown) => {
+    setValues((cur) => {
+      const prev = cur?.[slug];
+      // Foto trocada ou removida antes de subir: sai da fila
+      if (typeof prev === 'string' && prev.startsWith(LOCAL_PREFIX) && prev !== v) void removeQueuedPhoto(prev.slice(LOCAL_PREFIX.length));
+      return { ...(cur ?? {}), [slug]: v };
+    });
+  };
 
   const save = useCallback(async () => {
     if (!entity || !values) return;
     const fields = parseJson<Field[]>(entity.fields, []);
     const { hidden } = fieldRules(role, entity.slug);
-    const missing = fields.filter((f) => f.required && EDITABLE.has(f.type) && !hidden.has(f.slug)
-      && (values[f.slug] === undefined || values[f.slug] === null || values[f.slug] === ''));
+    const required = fields.filter((f) => f.required && !NOT_DATA.has(f.type) && !hidden.has(f.slug) && isEmpty(values[f.slug]));
+    const missing = required.filter((f) => EDITABLE.has(f.type));
     if (missing.length) { toast.error(t('required', { fields: missing.map(fieldLabel).join(', ') })); return; }
+    // Obrigatorio que so se preenche com internet: o servidor recusaria depois
+    const needsOnline = required.filter((f) => !EDITABLE.has(f.type));
+    if (needsOnline.length) { toast.error(t('needsOnline', { fields: needsOnline.map(fieldLabel).join(', ') })); return; }
     if (!recordId && parentEntity && !parentId) { toast.error(t('chooseParent', { parent: parentEntity.name })); return; }
     setSaving(true);
     try {
@@ -305,22 +490,30 @@ function RecordForm({ db, role, profile, online, entityId, recordId, onDone }: {
       } else {
         await db.execute(
           'INSERT INTO EntityData (id, tenantId, entityId, data, parentRecordId, createdById, updatedById, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [crypto.randomUUID(), profile.tenantId, entity.id, JSON.stringify(values), parentId || null, profile.userId, profile.userId, now, now]);
+          [id, profile.tenantId, entity.id, JSON.stringify(values), parentId || null, profile.userId, profile.userId, now, now]);
       }
       toast.success(online ? t('savedOnline') : t('savedOffline'));
-      onDone();
+      onSaved();
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
       setSaving(false);
     }
-  }, [db, entity, values, role, recordId, parentEntity, parentId, profile, online, onDone, t]);
+  }, [db, entity, values, role, recordId, id, parentEntity, parentId, profile, online, onSaved, t]);
+
+  const cancel = () => {
+    // Registro novo nao salvo: as fotos tiradas para ele saem da fila
+    if (!recordId && values) {
+      for (const v of Object.values(values)) if (typeof v === 'string' && v.startsWith(LOCAL_PREFIX)) void removeQueuedPhoto(v.slice(LOCAL_PREFIX.length));
+    }
+    onDone();
+  };
 
   const remove = async () => {
     if (!recordId || !window.confirm(t('confirmDelete'))) return;
     await db.execute('DELETE FROM EntityData WHERE id = ?', [recordId]);
     toast.success(online ? t('deletedOnline') : t('deletedOffline'));
-    onDone();
+    onSaved();
   };
 
   if (!entity || !values) return null;
@@ -328,11 +521,14 @@ function RecordForm({ db, role, profile, online, entityId, recordId, onDone }: {
   const { hidden, readOnly } = fieldRules(role, entity.slug);
   const canWrite = recordId ? can(role, entity.slug, 'canUpdate') : can(role, entity.slug, 'canCreate');
   const parentFields = parseJson<Field[]>(parentEntity?.fields, []);
+  const children = fields.filter((f) => f.type === 'sub-entity' && f.subEntitySlug)
+    .map((f) => ({ field: f, child: allEntities.data.find((e) => e.slug === f.subEntitySlug) }))
+    .filter((c): c is { field: Field; child: EntityRow } => !!c.child && can(role, c.child.slug, 'canRead'));
 
   return (
     <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void save(); }} data-testid="campo-form">
       <h1 className="text-lg font-semibold">{recordId ? titleOf(entity, fields, values, yes, no) || entity.name : t('newOf', { name: entity.name })}</h1>
-      {!recordId && parentEntity && (
+      {!recordId && parentEntity && !presetParentId && (
         <div className="space-y-1.5">
           <Label htmlFor="campo-parent">{parentEntity.name}</Label>
           <select id="campo-parent" value={parentId} onChange={(e) => setParentId(e.target.value)} data-testid="campo-parent"
@@ -347,11 +543,14 @@ function RecordForm({ db, role, profile, online, entityId, recordId, onDone }: {
       {fields.filter((f) => !NOT_DATA.has(f.type) && !hidden.has(f.slug)).map((f) => {
         const editable = EDITABLE.has(f.type);
         return (
-          <div key={f.slug} className="space-y-1.5">
-            <Label htmlFor={`campo-${f.slug}`}>{fieldLabel(f)}{f.required && editable ? ' *' : ''}</Label>
+          <div key={f.slug} className="space-y-1.5" data-testid={`campo-field-${f.slug}`}>
+            {f.type !== 'zone-diagram' && <Label htmlFor={`campo-${f.slug}`}>{fieldLabel(f)}{f.required && editable ? ' *' : ''}</Label>}
             {editable ? (
               <FieldInput field={f} value={values[f.slug]} disabled={!canWrite || readOnly.has(f.slug)} yes={yes} no={no}
-                onChange={(v) => setValues((cur) => ({ ...(cur ?? {}), [f.slug]: v }))} />
+                onChange={(v) => setField(f.slug, v)}
+                onPhoto={async (file) => {
+                  setField(f.slug, await queuePhoto(owner, id, f.slug, file));
+                }} />
             ) : (
               <p className={cn('rounded-md border bg-muted/40 px-3 py-2 text-sm', !display(values[f.slug], yes, no) && 'text-muted-foreground')}>
                 {display(values[f.slug], yes, no) || t('onlyOnline')}
@@ -366,7 +565,7 @@ function RecordForm({ db, role, profile, online, entityId, recordId, onDone }: {
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t('save')}
           </Button>
         )}
-        <Button type="button" variant="outline" onClick={onDone}>{t('cancel')}</Button>
+        <Button type="button" variant="outline" onClick={cancel}>{t('cancel')}</Button>
         <span className="flex-1" />
         {recordId && can(role, entity.slug, 'canDelete') && (
           <Button type="button" variant="ghost" className="text-destructive" onClick={() => void remove()} data-testid="campo-delete">
@@ -374,6 +573,10 @@ function RecordForm({ db, role, profile, online, entityId, recordId, onDone }: {
           </Button>
         )}
       </div>
+      {recordId && children.map(({ field, child }) => (
+        <ChildList key={child.id} db={db} role={role} field={field} child={child} parentId={recordId}
+          onOpen={(childId) => onOpenChild({ entityId: child.id, recordId: childId, parentId: recordId })} />
+      ))}
       {!online && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><RefreshCw className="h-3.5 w-3.5" />{t('willSync')}</p>}
     </form>
   );
