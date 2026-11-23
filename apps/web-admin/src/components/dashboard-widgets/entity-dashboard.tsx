@@ -167,7 +167,7 @@ const SMALL_WIDGETS = new Set(['kpi-card', 'number-card', 'gauge-chart']);
  * Tela estreita: na ordem do painel (linha a linha), numeros dois por linha e o
  * resto na largura toda. Antes cada bloco ocupava a tela inteira, um embaixo do outro.
  */
-function packForNarrow<T extends GridItem>(items: T[], widgets: Record<string, unknown>, cols: number): T[] {
+function packForNarrow<T extends GridItem>(items: T[], widgets: Record<string, unknown>, cols: number, tableRows = 0): T[] {
   const ordered = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
   const out: T[] = [];
   let x = 0;
@@ -176,14 +176,16 @@ function packForNarrow<T extends GridItem>(items: T[], widgets: Record<string, u
   for (const item of ordered) {
     const type = (widgets[item.i] as { type?: string } | undefined)?.type ?? '';
     const w = SMALL_WIDGETS.has(type) ? Math.max(1, Math.floor(cols / 2)) : cols;
+    // Lista de registros ocupa a altura da tela (senao mostra 2 cards e sobra tela vazia)
+    const h = type === 'data-table' ? Math.max(item.h, tableRows) : item.h;
     if (x + w > cols) {
       y += rowH;
       x = 0;
       rowH = 0;
     }
-    out.push({ ...item, x, y, w });
+    out.push({ ...item, x, y, w, h });
     x += w;
-    rowH = Math.max(rowH, item.h);
+    rowH = Math.max(rowH, h);
     if (x >= cols) {
       y += rowH;
       x = 0;
@@ -193,14 +195,21 @@ function packForNarrow<T extends GridItem>(items: T[], widgets: Record<string, u
   return out;
 }
 
+/** Linhas da grade (30px + 12px de espaco) que cabem na tela, tirando topo e abas. */
+function screenRows(): number {
+  if (typeof window === 'undefined') return 0;
+  return Math.max(10, Math.floor((window.innerHeight - 160) / 42));
+}
+
 function responsiveLayouts<T extends GridItem>(items: T[], widgets: Record<string, unknown>, preview: boolean) {
+  const rows = screenRows();
   return {
     lg: items,
     md: items,
     // Previa do assistente no computador: area estreita, mas com o layout de tela grande
-    sm: preview ? items : packForNarrow(items, widgets, GRID_COLS.sm),
-    xs: packForNarrow(items, widgets, GRID_COLS.xs),
-    xxs: packForNarrow(items, widgets, GRID_COLS.xxs),
+    sm: preview ? items : packForNarrow(items, widgets, GRID_COLS.sm, rows),
+    xs: packForNarrow(items, widgets, GRID_COLS.xs, rows),
+    xxs: packForNarrow(items, widgets, GRID_COLS.xxs, rows),
   };
 }
 

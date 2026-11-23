@@ -1285,14 +1285,14 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                       />
                     </div>
                   )}
-                  {first && <div className={`min-w-0 flex-1 truncate text-sm font-semibold ${canOpen ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
+                  {first && <div className={`min-w-0 flex-1 truncate text-base font-semibold ${canOpen ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
                 </div>
                 {rest.length > 0 && (
                   <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
                     {rest.slice(0, 4).map((field) => (
                       <div key={field.slug} className="min-w-0">
-                        <dt className="truncate text-[11px] text-muted-foreground">{field.label || field.name}</dt>
-                        <dd className="truncate text-xs">{renderCellValue(record, field)}</dd>
+                        <dt className="truncate text-xs text-muted-foreground">{field.label || field.name}</dt>
+                        <dd className="truncate text-sm">{renderCellValue(record, field)}</dd>
                       </div>
                     ))}
                   </dl>

@@ -164,6 +164,14 @@
 .pwa-app select {
   background-color: hsl(var(--muted) / 0.6);
 }
+/* Letras e toques maiores, espacos mais justos (compacto, como o app Flutter) */
+.pwa-app .text-\[10px\] { font-size: 0.75rem; }
+.pwa-app .text-\[11px\] { font-size: 0.75rem; }
+.pwa-app .text-xs { font-size: 0.8125rem; line-height: 1.125rem; }
+.pwa-app .text-sm { font-size: 0.9375rem; line-height: 1.375rem; }
+.pwa-app :is(button, a, input, select).h-9 { height: 2.5rem; }
+.pwa-app :is(button, a).h-9.w-9 { width: 2.5rem; }
+.pwa-app main { padding-inline: 0.75rem; padding-top: 0.75rem; }
 
 /*
  * Celular: campos com no minimo 16px. Abaixo disso o iPhone (Safari) da zoom
