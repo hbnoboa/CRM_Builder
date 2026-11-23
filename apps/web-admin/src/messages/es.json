@@ -167,7 +167,8 @@
     "themeDark": "Oscuro",
     "themeSystem": "Automático",
     "adminArea": "Área de administración",
-    "backToOperation": "Volver a la operación"
+    "backToOperation": "Volver a la operación",
+    "more": "Más"
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -2818,5 +2819,11 @@
     "retakePhoto": "Tomar otra",
     "add": "Agregar",
     "needsOnline": "Solo con internet: {fields}. Guarde después de conectarse."
+  },
+  "appTables": {
+    "title": "Datos",
+    "search": "Buscar tabla",
+    "empty": "Sin tablas.",
+    "records": "{count, number} registros"
   }
 }

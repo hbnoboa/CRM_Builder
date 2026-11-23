@@ -43,6 +43,8 @@ import { cn } from '@/lib/utils';
 import { EntityNavItem } from '@/components/layout/entity-nav-item';
 import { CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
+import { useStandalone, useIsMobile } from '@/hooks/use-standalone';
+import { AppBottomNav } from '@/components/pwa/app-bottom-nav';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import type { FeatureKey } from '@/types/platform';
 
@@ -83,6 +85,10 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const { hasModuleAccess, hasModulePermission, getDefaultRoute, isOperationalSurface, canAccessAdminArea, canAccessAdminSection, canUseTrash } = usePermissions();
   const { tenant, effectiveTenantId } = useTenant();
   const features = useTenantFeatures();
+  const standalone = useStandalone();
+  const isMobile = useIsMobile();
+  // Cara de app (abas embaixo, toques maiores) quando instalado OU em tela de celular
+  const appMode = standalone || isMobile;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -174,7 +180,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
     // A visibilidade interna (ex.: canais do chat por tabela) é checada lá dentro.
     // Suporte: qualquer pessoa abre chamado. Lixeira: a API só lista o que a pessoa pode excluir.
     // Perfil e configurações são da PRÓPRIA conta (senha, 2 etapas, avisos, privacidade).
-    const ALWAYS_ALLOWED = ['home', 'chat', 'support', 'trash', 'profile', 'settings'];
+    const ALWAYS_ALLOWED = ['home', 'chat', 'support', 'trash', 'profile', 'settings', 'tabelas'];
     if (segment && !ALWAYS_ALLOWED.includes(segment) && !hasModuleAccess(segment)) {
       const defaultRoute = getDefaultRoute();
       if (defaultRoute !== `/${segment}`) {
@@ -253,7 +259,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-[var(--banner-h,0px)]">
+    <div className={cn('min-h-screen bg-background pt-[var(--banner-h,0px)]', appMode && 'pwa-app')}>
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -563,6 +569,14 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      {appMode && (
+        <AppBottomNav
+          showDashboard={hasModuleAccess('dashboard')}
+          showData={hasModuleAccess('data')}
+          showChat={!!features.chat && hasModuleAccess('chat')}
+          onMore={() => setSidebarOpen(true)}
+        />
+      )}
     </div>
   );
 }

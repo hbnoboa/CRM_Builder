@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale } from 'next-intl';
+import { Globe } from 'lucide-react';
 import { usePathname } from '@/i18n/navigation';
 import {
   DropdownMenu,
@@ -11,10 +12,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { locales, localeNames, type Locale } from '@/i18n/config';
 
-const localeFlags: Record<Locale, string> = {
-  'pt-BR': '🇧🇷',
-  'en': '🇺🇸',
-  'es': '🇲🇽',
+// Codigo curto do idioma (PT/EN/ES). Antes usavamos emoji de bandeira, mas
+// bandeira nao renderiza em varios aparelhos (vira quadradinho) e bandeira nao e
+// idioma; o globo + codigo aparece igual em qualquer celular.
+const localeShort: Record<Locale, string> = {
+  'pt-BR': 'PT',
+  'en': 'EN',
+  'es': 'ES',
 };
 
 export function LanguageSwitcher() {
@@ -29,8 +33,9 @@ export function LanguageSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" title={localeNames[currentLocale]}>
-          {localeFlags[currentLocale]}
+        <Button variant="ghost" size="icon" title={localeNames[currentLocale]} aria-label={localeNames[currentLocale]}>
+          <Globe className="h-4 w-4" />
+          <span className="sr-only">{localeShort[currentLocale]}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -40,7 +45,9 @@ export function LanguageSwitcher() {
             onClick={() => handleLocaleChange(loc)}
             className={currentLocale === loc ? 'bg-accent' : ''}
           >
-            <span className="text-lg mr-2">{localeFlags[loc]}</span>
+            <span className="mr-2 inline-flex h-5 w-7 shrink-0 items-center justify-center rounded border text-[11px] font-semibold text-muted-foreground">
+              {localeShort[loc]}
+            </span>
             {localeNames[loc]}
           </DropdownMenuItem>
         ))}

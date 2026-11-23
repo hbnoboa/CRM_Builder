@@ -145,3 +145,35 @@
 .site-editable { outline: 1px dashed transparent; outline-offset: -2px; }
 .site-editable:hover { outline-color: rgb(56 189 248 / 0.7); }
 .site-editable-on, .site-editable-on:hover { outline: 2px solid rgb(14 165 233); }
+
+/* ── Aplicativo instalado (PWA): cara de app, como o app do celular ──────────
+   Vale so quando a pagina abre instalada (classe .pwa-app no container). */
+.pwa-app {
+  /* Cantos um pouco mais arredondados (botoes, campos, menus) */
+  --radius: 0.75rem;
+}
+.pwa-app main {
+  /* Conteudo nao fica escondido atras da barra de abas */
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+}
+/* Cartoes com o canto do app (16px) */
+.pwa-app .rounded-xl { border-radius: 1rem; }
+/* Campos preenchidos, como no app */
+.pwa-app input:not([type='checkbox']):not([type='radio']),
+.pwa-app textarea,
+.pwa-app select {
+  background-color: hsl(var(--muted) / 0.6);
+}
+
+/*
+ * Celular: campos com no minimo 16px. Abaixo disso o iPhone (Safari) da zoom
+ * sozinho ao tocar no campo e a pagina "pula" — um dos motivos de parecer que
+ * o site nao foi feito para celular. Vale no site publico, no login e no painel.
+ */
+@media (max-width: 767.98px) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
