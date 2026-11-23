@@ -167,7 +167,8 @@
     "themeDark": "Dark",
     "themeSystem": "System",
     "adminArea": "Admin area",
-    "backToOperation": "Back to operation"
+    "backToOperation": "Back to operation",
+    "more": "More"
   },
   "roles": {
     "ADMIN": "Administrator",
@@ -2821,5 +2822,11 @@
     "retakePhoto": "Take another",
     "add": "Add",
     "needsOnline": "Needs internet: {fields}. Save after connecting."
+  },
+  "appTables": {
+    "title": "Data",
+    "search": "Search table",
+    "empty": "No tables.",
+    "records": "{count, number} records"
   }
 }
