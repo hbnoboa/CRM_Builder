@@ -164,3 +164,16 @@
 .pwa-app select {
   background-color: hsl(var(--muted) / 0.6);
 }
+
+/*
+ * Celular: campos com no minimo 16px. Abaixo disso o iPhone (Safari) da zoom
+ * sozinho ao tocar no campo e a pagina "pula" — um dos motivos de parecer que
+ * o site nao foi feito para celular. Vale no site publico, no login e no painel.
+ */
+@media (max-width: 767.98px) {
+  input:not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
