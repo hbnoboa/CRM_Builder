@@ -11,8 +11,10 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import {
-  CircleDot, Laptop, LogOut, Menu, Moon, Plus, Search, Settings, Sun, User,
+  CircleDot, Download, Laptop, LogOut, Menu, Moon, Plus, Search, Settings, Sun, User,
 } from 'lucide-react';
+import { InstallAppHelp, useInstallApp } from '@/components/pwa/app-install';
+import { disableDevicePush } from '@/lib/web-push';
 import { useRouter } from '@/i18n/tenant-navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { useTenant } from '@/stores/tenant-context';
@@ -90,8 +92,11 @@ export function UserMenu() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { theme, setTheme } = useTheme();
+  const installApp = useInstallApp();
 
   const handleLogout = async () => {
+    // Este aparelho para de receber notificacoes da conta que esta saindo
+    await Promise.race([disableDevicePush().catch(() => undefined), new Promise((r) => setTimeout(r, 2000))]);
     await logout();
     router.push('/login');
   };
@@ -103,6 +108,7 @@ export function UserMenu() {
   ];
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -131,6 +137,11 @@ export function UserMenu() {
         <DropdownMenuItem onSelect={() => router.push('/settings')}>
           <Settings className="h-4 w-4" /> {tNav('settings')}
         </DropdownMenuItem>
+        {installApp.available && (
+          <DropdownMenuItem onSelect={() => { void installApp.install(); }} data-testid="install-app">
+            <Download className="h-4 w-4" /> {t('appInstall.menu')}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="pb-1 text-xs font-normal text-muted-foreground">{tNav('theme')}</DropdownMenuLabel>
         <div className="grid grid-cols-3 gap-1 px-1 pb-1">
@@ -156,6 +167,8 @@ export function UserMenu() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <InstallAppHelp open={installApp.helpOpen} onOpenChange={installApp.setHelpOpen} />
+    </>
   );
 }
 

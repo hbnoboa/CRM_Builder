@@ -19,6 +19,11 @@ interface Tenant {
       brandColor?: string;
       darkMode?: 'light' | 'dark' | 'system';
     };
+    /** Aplicativo instalavel (PWA) */
+    app?: {
+      enabled?: boolean;
+      shortName?: string;
+    };
     [key: string]: unknown;
   };
 }

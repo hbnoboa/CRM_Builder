@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { ImagePlus, Loader2, Monitor, Moon, RotateCcw, Sun, Trash2 } from 'lucide-react';
+import { ImagePlus, Loader2, Monitor, Moon, RotateCcw, Smartphone, Sun, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +37,8 @@ export default function GestaoOrganizationPage() {
   const [customColor, setCustomColor] = useState(false);
   const [theme, setTheme] = useState<ThemeKey>('system');
   const [aiReadRecords, setAiReadRecords] = useState(false);
+  const [appEnabled, setAppEnabled] = useState(false);
+  const [appShortName, setAppShortName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -50,6 +52,8 @@ export default function GestaoOrganizationPage() {
     setCustomColor(!!saved?.brandColor);
     setTheme((saved?.darkMode as ThemeKey) || 'system');
     setAiReadRecords(((tenant.settings as { ai?: { readRecords?: boolean } } | undefined)?.ai?.readRecords) === true);
+    setAppEnabled(tenant.settings?.app?.enabled === true);
+    setAppShortName(tenant.settings?.app?.shortName ?? '');
   }, [tenant]);
 
   const uploadLogo = async (file: File) => {
@@ -79,6 +83,8 @@ export default function GestaoOrganizationPage() {
         brandColor: customColor ? color.toLowerCase() : null,
         darkMode: theme,
         aiReadRecords,
+        appEnabled,
+        appShortName: appShortName.trim() || null,
       });
       await refresh();
       toast.success(t('saved'));
@@ -233,6 +239,29 @@ export default function GestaoOrganizationPage() {
             <Label>{t('address.domain')}</Label>
             <Input value={tenant.domain || t('address.noDomain')} readOnly />
           </div>
+        </CardContent>
+      </Card>
+      <Card data-testid="organization-app">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base"><Smartphone className="h-4 w-4" /> {t('app.title')}</CardTitle>
+          <CardDescription>{t('app.description')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-start justify-between gap-4">
+            <span className="space-y-1">
+              <span className="block text-sm font-medium">{t('app.enable')}</span>
+              <span className="block text-xs text-muted-foreground">{t('app.enableHint')}</span>
+            </span>
+            <Switch checked={appEnabled} onCheckedChange={setAppEnabled} data-testid="organization-app-enabled" />
+          </label>
+          {appEnabled && (
+            <div className="space-y-1.5">
+              <Label htmlFor="app-short-name">{t('app.shortName')}</Label>
+              <Input id="app-short-name" value={appShortName} maxLength={20} placeholder={name.slice(0, 20)}
+                onChange={(e) => setAppShortName(e.target.value)} className="max-w-xs" data-testid="organization-app-short-name" />
+              <p className="text-xs text-muted-foreground">{t('app.shortNameHint')}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
       <Card data-testid="organization-ai">

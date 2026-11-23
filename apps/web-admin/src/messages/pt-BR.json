@@ -993,7 +993,8 @@
       "language": "Idioma",
       "theme": "Tema",
       "security": "Segurança",
-      "privacy": "Privacidade"
+      "privacy": "Privacidade",
+      "offline": "Sem internet"
     },
     "profile": {
       "title": "Perfil",
@@ -2073,6 +2074,14 @@
         "slug": "Link da empresa",
         "domain": "Endereço próprio (ex.: crm.suaempresa.com.br)",
         "noDomain": "Nenhum"
+      },
+      "app": {
+        "title": "Aplicativo",
+        "description": "Instale o sistema como aplicativo no celular e no computador, com o nome, o logo e a cor da empresa. Não precisa de loja: é instalado pelo navegador.",
+        "enable": "Permitir instalar como aplicativo",
+        "enableHint": "Aparece \"Instalar aplicativo\" no menu de cada pessoa. Precisa de internet para trabalhar, como o sistema no navegador.",
+        "shortName": "Nome embaixo do ícone",
+        "shortNameHint": "Até 20 letras. Em branco, usa o nome da empresa."
       }
     },
     "entities": {
@@ -2433,11 +2442,21 @@
     "channelsHint": "Os avisos sempre ficam no sino.",
     "popups": "Avisos na tela",
     "popupsHint": "Mostrar um aviso no canto da tela quando chegar algo novo.",
-    "push": "Notificação no celular",
-    "pushHint": "Enviar para o app do celular (precisa estar com o app instalado e logado).",
+    "push": "Notificação push",
+    "pushHint": "Avisos de registros no app do celular e nos aparelhos com notificações ativadas.",
     "tablesTitle": "Tabelas",
     "tablesHint": "Desligue as tabelas que não quer acompanhar.",
-    "noTables": "Nenhuma tabela disponível."
+    "noTables": "Nenhuma tabela disponível.",
+    "device": {
+      "label": "Notificações neste aparelho",
+      "hint": "Recebe os avisos desta empresa aqui, mesmo com o sistema fechado.",
+      "unsupported": "Este navegador não recebe notificações.",
+      "ios-install": "No iPhone, instale o aplicativo primeiro (Compartilhar › Adicionar à Tela de Início) e ative por ele.",
+      "blocked": "As notificações estão bloqueadas neste navegador. Libere nas configurações do site e volte aqui.",
+      "enabled": "Notificações ativadas neste aparelho",
+      "disabled": "Notificações desativadas neste aparelho",
+      "denied": "O navegador não permitiu as notificações."
+    }
   },
   "support": {
     "title": "Suporte",
@@ -2730,5 +2749,71 @@
     "page": "Página {page} de {total}",
     "previous": "Anterior",
     "next": "Próxima"
+  },
+  "appInstall": {
+    "menu": "Instalar aplicativo",
+    "title": "Instalar o aplicativo",
+    "description": "O sistema fica com ícone próprio na tela inicial e abre em tela cheia.",
+    "ios": {
+      "step1": "Toque em Compartilhar, na barra do Safari.",
+      "step2": "Escolha \"Adicionar à Tela de Início\" e toque em Adicionar.",
+      "note": "No iPhone, a instalação é só pelo Safari."
+    },
+    "other": {
+      "step1": "Abra o menu do navegador (⋮) e escolha \"Instalar aplicativo\" ou \"Adicionar à tela inicial\".",
+      "note": "Se a opção não aparecer, o aplicativo já pode estar instalado neste aparelho."
+    }
+  },
+  "offline": {
+    "notEnabledTitle": "Modo sem internet desligado neste aparelho",
+    "notEnabledHint": "Com internet, ligue em Configurações › Sem internet para baixar os dados para este aparelho.",
+    "openSettings": "Abrir Configurações",
+    "back": "Voltar",
+    "backToSystem": "Voltar ao sistema",
+    "statusOffline": "Sem internet: salvando no aparelho",
+    "statusSyncing": "Sincronizando…",
+    "statusFirstSync": "Baixando os dados…",
+    "statusSynced": "Em dia com o servidor",
+    "pending": "{n, plural, one {# alteração para enviar} other {# alterações para enviar}}",
+    "rejected": "{n, plural, one {# alteração não foi aceita pelo servidor} other {# alterações não foram aceitas pelo servidor}}",
+    "opening": "Abrindo os dados do aparelho…",
+    "noTables": "Nenhuma tabela neste aparelho ainda.",
+    "noRecords": "Nenhum registro encontrado.",
+    "new": "Novo",
+    "newOf": "Novo em {name}",
+    "search": "Buscar",
+    "more": "Mostrar mais",
+    "untitled": "(sem título)",
+    "yes": "Sim",
+    "no": "Não",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "confirmDelete": "Excluir este registro?",
+    "required": "Preencha: {fields}",
+    "chooseParent": "Escolha o registro de {parent}.",
+    "savedOnline": "Salvo.",
+    "savedOffline": "Salvo no aparelho. Será enviado quando houver internet.",
+    "deletedOnline": "Excluído.",
+    "deletedOffline": "Excluído no aparelho. Será enviado quando houver internet.",
+    "onlyOnline": "Edite este campo com internet.",
+    "willSync": "Sem internet: as alterações ficam no aparelho e sobem sozinhas quando a conexão voltar.",
+    "settings": {
+      "title": "Usar sem internet",
+      "description": "Baixa os registros que você pode ver para este aparelho. Sem conexão, o sistema abre no modo de campo: consultar, criar e editar registros. O que for feito sobe sozinho quando a internet voltar.",
+      "enable": "Usar sem internet neste aparelho",
+      "enableHint": "Ocupa espaço no aparelho (depende da quantidade de registros). Fotos, anexos e campos especiais só com internet.",
+      "downloading": "Baixando os dados para este aparelho…",
+      "syncing": "Sincronizando…",
+      "ready": "Pronto para usar sem internet.",
+      "stats": "{records} registros no aparelho · {pending} para enviar",
+      "storage": "{size} usados",
+      "lastSync": "atualizado em {when}",
+      "open": "Abrir modo sem internet",
+      "enabled": "Baixando os dados. Pode continuar usando o sistema.",
+      "disabled": "Dados removidos deste aparelho.",
+      "failed": "Não foi possível ligar o modo sem internet.",
+      "confirmOffPending": "{n} alterações ainda não foram enviadas e serão perdidas. Desligar mesmo assim?"
+    }
   }
 }

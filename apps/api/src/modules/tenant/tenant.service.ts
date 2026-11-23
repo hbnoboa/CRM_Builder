@@ -158,18 +158,26 @@ export class TenantService {
     if (dto.darkMode !== undefined) theme.darkMode = dto.darkMode;
     const ai = { ...((settings.ai ?? {}) as Record<string, unknown>) };
     if (dto.aiReadRecords !== undefined) ai.readRecords = dto.aiReadRecords;
+    // Aplicativo instalavel (PWA)
+    const app = { ...((settings.app ?? {}) as Record<string, unknown>) };
+    if (dto.appEnabled !== undefined) app.enabled = dto.appEnabled;
+    if (dto.appShortName !== undefined) {
+      const short = dto.appShortName?.trim();
+      if (short) app.shortName = short;
+      else delete app.shortName;
+    }
 
     const updated = await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
         ...(dto.name !== undefined && { name: dto.name.trim() }),
         ...(dto.logo !== undefined && { logo: dto.logo }),
-        settings: { ...settings, theme, ai } as Prisma.InputJsonValue,
+        settings: { ...settings, theme, ai, app } as Prisma.InputJsonValue,
       },
     });
     return {
-      before: { name: tenant.name, logo: tenant.logo, theme: settings.theme ?? null, ai: settings.ai ?? null },
-      after: { name: updated.name, logo: updated.logo, theme, ai },
+      before: { name: tenant.name, logo: tenant.logo, theme: settings.theme ?? null, ai: settings.ai ?? null, app: settings.app ?? null },
+      after: { name: updated.name, logo: updated.logo, theme, ai, app },
       tenant: updated,
     };
   }

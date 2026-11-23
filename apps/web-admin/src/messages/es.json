@@ -989,7 +989,8 @@
       "language": "Idioma",
       "theme": "Tema",
       "security": "Seguridad",
-      "privacy": "Privacidad"
+      "privacy": "Privacidad",
+      "offline": "Sin internet"
     },
     "profile": {
       "title": "Perfil",
@@ -2066,6 +2067,14 @@
         "slug": "Dirección en el sistema",
         "domain": "Dominio propio",
         "noDomain": "Ninguno"
+      },
+      "app": {
+        "title": "Aplicación",
+        "description": "Instale el sistema como aplicación en el celular y la computadora, con el nombre, el logo y el color de la empresa. Sin tienda: se instala desde el navegador.",
+        "enable": "Permitir instalar como aplicación",
+        "enableHint": "Aparece \"Instalar aplicación\" en el menú de cada persona. Necesita internet para funcionar, como el sistema en el navegador.",
+        "shortName": "Nombre debajo del ícono",
+        "shortNameHint": "Hasta 20 letras. En blanco, usa el nombre de la empresa."
       }
     },
     "entities": {
@@ -2426,11 +2435,21 @@
     "channelsHint": "Los avisos siempre quedan en la campana.",
     "popups": "Avisos en pantalla",
     "popupsHint": "Mostrar un aviso en la esquina de la pantalla cuando llegue algo nuevo.",
-    "push": "Notificación en el celular",
-    "pushHint": "Enviar a la app del celular (debe estar instalada y con sesión iniciada).",
+    "push": "Notificaciones push",
+    "pushHint": "Avisos de registros en la app del celular y en los dispositivos con notificaciones activadas.",
     "tablesTitle": "Tablas",
     "tablesHint": "Desactiva las tablas que no quieres seguir.",
-    "noTables": "No hay tablas disponibles."
+    "noTables": "No hay tablas disponibles.",
+    "device": {
+      "label": "Notificaciones en este dispositivo",
+      "hint": "Recibe los avisos de esta empresa aquí, incluso con el sistema cerrado.",
+      "unsupported": "Este navegador no recibe notificaciones.",
+      "ios-install": "En iPhone, instale primero la aplicación (Compartir › Agregar a pantalla de inicio) y actívelas desde ella.",
+      "blocked": "Las notificaciones están bloqueadas en este navegador. Permítalas en la configuración del sitio y vuelva aquí.",
+      "enabled": "Notificaciones activadas en este dispositivo",
+      "disabled": "Notificaciones desactivadas en este dispositivo",
+      "denied": "El navegador no permitió las notificaciones."
+    }
   },
   "support": {
     "title": "Soporte",
@@ -2723,5 +2742,71 @@
     "page": "Página {page} de {total}",
     "previous": "Anterior",
     "next": "Siguiente"
+  },
+  "appInstall": {
+    "menu": "Instalar aplicación",
+    "title": "Instalar la aplicación",
+    "description": "El sistema tiene su propio ícono en la pantalla de inicio y abre en pantalla completa.",
+    "ios": {
+      "step1": "Toque Compartir en la barra de Safari.",
+      "step2": "Elija \"Agregar a pantalla de inicio\" y toque Agregar.",
+      "note": "En iPhone, la instalación solo funciona desde Safari."
+    },
+    "other": {
+      "step1": "Abra el menú del navegador (⋮) y elija \"Instalar aplicación\" o \"Agregar a la pantalla de inicio\".",
+      "note": "Si la opción no aparece, la aplicación puede estar ya instalada en este dispositivo."
+    }
+  },
+  "offline": {
+    "notEnabledTitle": "Modo sin internet desactivado en este dispositivo",
+    "notEnabledHint": "Con internet, actívelo en Configuración › Sin internet para descargar los datos a este dispositivo.",
+    "openSettings": "Abrir Configuración",
+    "back": "Volver",
+    "backToSystem": "Volver al sistema",
+    "statusOffline": "Sin internet: guardando en el dispositivo",
+    "statusSyncing": "Sincronizando…",
+    "statusFirstSync": "Descargando los datos…",
+    "statusSynced": "Al día con el servidor",
+    "pending": "{n, plural, one {# cambio para enviar} other {# cambios para enviar}}",
+    "rejected": "{n, plural, one {# cambio no fue aceptado por el servidor} other {# cambios no fueron aceptados por el servidor}}",
+    "opening": "Abriendo los datos del dispositivo…",
+    "noTables": "Todavía no hay tablas en este dispositivo.",
+    "noRecords": "No se encontraron registros.",
+    "new": "Nuevo",
+    "newOf": "Nuevo en {name}",
+    "search": "Buscar",
+    "more": "Mostrar más",
+    "untitled": "(sin título)",
+    "yes": "Sí",
+    "no": "No",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "confirmDelete": "¿Eliminar este registro?",
+    "required": "Complete: {fields}",
+    "chooseParent": "Elija el registro de {parent}.",
+    "savedOnline": "Guardado.",
+    "savedOffline": "Guardado en el dispositivo. Se enviará cuando haya internet.",
+    "deletedOnline": "Eliminado.",
+    "deletedOffline": "Eliminado en el dispositivo. Se enviará cuando haya internet.",
+    "onlyOnline": "Edite este campo con internet.",
+    "willSync": "Sin internet: los cambios quedan en el dispositivo y se envían solos cuando vuelva la conexión.",
+    "settings": {
+      "title": "Usar sin internet",
+      "description": "Descarga los registros que usted puede ver a este dispositivo. Sin conexión, el sistema abre en modo de campo: consultar, crear y editar registros. Lo que haga se envía solo cuando vuelva internet.",
+      "enable": "Usar sin internet en este dispositivo",
+      "enableHint": "Ocupa espacio en el dispositivo (depende de la cantidad de registros). Fotos, adjuntos y campos especiales solo con internet.",
+      "downloading": "Descargando los datos a este dispositivo…",
+      "syncing": "Sincronizando…",
+      "ready": "Listo para usar sin internet.",
+      "stats": "{records} registros en el dispositivo · {pending} para enviar",
+      "storage": "{size} usados",
+      "lastSync": "actualizado el {when}",
+      "open": "Abrir modo sin internet",
+      "enabled": "Descargando los datos. Puede seguir usando el sistema.",
+      "disabled": "Datos eliminados de este dispositivo.",
+      "failed": "No fue posible activar el modo sin internet.",
+      "confirmOffPending": "{n} cambios todavía no se enviaron y se perderán. ¿Desactivar de todos modos?"
+    }
   }
 }

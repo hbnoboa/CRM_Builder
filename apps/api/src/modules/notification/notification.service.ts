@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { DEFAULT_NOTIFICATION_PREFS, normalizePrefs, NotificationPrefs, RecordEventContext } from './notification-prefs';
 import { hasFullTenantAccess } from '../../common/utils/platform-access';
 import { PushService } from '../push/push.service';
+import { WebPushService } from '../push/web-push.service';
 import { NotificationType, Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { evaluateConditions } from '../../common/utils/evaluate-notification-conditions';
@@ -40,7 +41,16 @@ export class NotificationService {
     private readonly gateway: NotificationGateway,
     private readonly prisma: PrismaService,
     private readonly pushService: PushService,
+    private readonly webPush: WebPushService,
   ) {}
+
+  /** Tela que abre ao tocar na notificacao do navegador (relativa a empresa). */
+  private pushPath(data?: Record<string, unknown>): string {
+    if (typeof data?.supportTicketId === 'string') return `support/${encodeURIComponent(data.supportTicketId)}`;
+    if (data?.kind === 'access-request') return 'gestao/users';
+    if (typeof data?.entitySlug === 'string' && data.entitySlug) return `data?entity=${encodeURIComponent(data.entitySlug)}`;
+    return 'home';
+  }
 
   /**
    * Criar e enviar notificação para um usuário
@@ -69,6 +79,12 @@ export class NotificationService {
     }).catch((err) => {
       this.logger.warn(`Push notification failed for user ${userId}: ${err}`);
     });
+    // Notificacao no navegador (aplicativo instalavel), so nos aparelhos inscritos nesta empresa
+    if (tenantId) {
+      this.webPush.sendToUser(userId, tenantId, {
+        title: notification.title, body: notification.message, path: this.pushPath(notification.data),
+      }).catch((err) => this.logger.warn(`Web Push failed for user ${userId}: ${err}`));
+    }
 
     // Salvar no banco de dados
     if (persist && tenantId) {
@@ -243,6 +259,10 @@ export class NotificationService {
           body: notification.message,
           data: { type: notification.type, notificationId: notification.id, entitySlug },
         }).catch((err) => this.logger.warn(`Push notification failed for user ${userId}: ${err}`));
+        this.webPush.sendToUser(userId, tenantId, {
+          title: notification.title, body: notification.message,
+          path: `data?entity=${encodeURIComponent(entitySlug)}`, tag: `registros-${entitySlug}`,
+        }).catch((err) => this.logger.warn(`Web Push failed for user ${userId}: ${err}`));
       }
 
       // Persistir em batch (1 query ao inves de N)

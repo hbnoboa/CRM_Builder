@@ -990,7 +990,8 @@
       "language": "Language",
       "theme": "Theme",
       "security": "Security",
-      "privacy": "Privacy"
+      "privacy": "Privacy",
+      "offline": "Offline"
     },
     "profile": {
       "title": "Profile",
@@ -2069,6 +2070,14 @@
         "slug": "Address in the system",
         "domain": "Custom domain",
         "noDomain": "None"
+      },
+      "app": {
+        "title": "App",
+        "description": "Install the system as an app on phones and computers, with your company name, logo and color. No app store needed: it installs from the browser.",
+        "enable": "Allow installing as an app",
+        "enableHint": "\"Install app\" shows up in everyone's menu. It needs internet to work, like the system in the browser.",
+        "shortName": "Name under the icon",
+        "shortNameHint": "Up to 20 characters. Empty uses the company name."
       }
     },
     "entities": {
@@ -2429,11 +2438,21 @@
     "channelsHint": "Notices always stay in the bell.",
     "popups": "On-screen notices",
     "popupsHint": "Show a notice in the corner of the screen when something new arrives.",
-    "push": "Phone notification",
-    "pushHint": "Send to the mobile app (it must be installed and signed in).",
+    "push": "Push notifications",
+    "pushHint": "Record alerts on the mobile app and on devices with notifications turned on.",
     "tablesTitle": "Tables",
     "tablesHint": "Turn off the tables you don't want to follow.",
-    "noTables": "No tables available."
+    "noTables": "No tables available.",
+    "device": {
+      "label": "Notifications on this device",
+      "hint": "Get this company's alerts here, even with the system closed.",
+      "unsupported": "This browser cannot receive notifications.",
+      "ios-install": "On iPhone, install the app first (Share › Add to Home Screen) and turn it on from there.",
+      "blocked": "Notifications are blocked in this browser. Allow them in the site settings and come back.",
+      "enabled": "Notifications turned on for this device",
+      "disabled": "Notifications turned off for this device",
+      "denied": "The browser did not allow notifications."
+    }
   },
   "support": {
     "title": "Support",
@@ -2726,5 +2745,71 @@
     "page": "Page {page} of {total}",
     "previous": "Previous",
     "next": "Next"
+  },
+  "appInstall": {
+    "menu": "Install app",
+    "title": "Install the app",
+    "description": "The system gets its own icon on the home screen and opens full screen.",
+    "ios": {
+      "step1": "Tap Share in the Safari toolbar.",
+      "step2": "Choose \"Add to Home Screen\" and tap Add.",
+      "note": "On iPhone, installing only works from Safari."
+    },
+    "other": {
+      "step1": "Open the browser menu (⋮) and choose \"Install app\" or \"Add to home screen\".",
+      "note": "If the option is missing, the app may already be installed on this device."
+    }
+  },
+  "offline": {
+    "notEnabledTitle": "Offline mode is off on this device",
+    "notEnabledHint": "While online, turn it on in Settings › Offline to download the data to this device.",
+    "openSettings": "Open Settings",
+    "back": "Back",
+    "backToSystem": "Back to the system",
+    "statusOffline": "Offline: saving on this device",
+    "statusSyncing": "Syncing…",
+    "statusFirstSync": "Downloading data…",
+    "statusSynced": "Up to date with the server",
+    "pending": "{n, plural, one {# change to send} other {# changes to send}}",
+    "rejected": "{n, plural, one {# change was not accepted by the server} other {# changes were not accepted by the server}}",
+    "opening": "Opening the device data…",
+    "noTables": "No tables on this device yet.",
+    "noRecords": "No records found.",
+    "new": "New",
+    "newOf": "New in {name}",
+    "search": "Search",
+    "more": "Show more",
+    "untitled": "(untitled)",
+    "yes": "Yes",
+    "no": "No",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirmDelete": "Delete this record?",
+    "required": "Fill in: {fields}",
+    "chooseParent": "Choose the {parent} record.",
+    "savedOnline": "Saved.",
+    "savedOffline": "Saved on this device. It will be sent when you are online.",
+    "deletedOnline": "Deleted.",
+    "deletedOffline": "Deleted on this device. It will be sent when you are online.",
+    "onlyOnline": "Edit this field when online.",
+    "willSync": "Offline: changes stay on this device and are sent when the connection is back.",
+    "settings": {
+      "title": "Use offline",
+      "description": "Downloads the records you can see to this device. Without a connection, the system opens in field mode: look up, create and edit records. Changes are sent when you are back online.",
+      "enable": "Use offline on this device",
+      "enableHint": "Uses device storage (depends on the number of records). Photos, attachments and special fields need internet.",
+      "downloading": "Downloading the data to this device…",
+      "syncing": "Syncing…",
+      "ready": "Ready to use offline.",
+      "stats": "{records} records on this device · {pending} to send",
+      "storage": "{size} used",
+      "lastSync": "updated {when}",
+      "open": "Open offline mode",
+      "enabled": "Downloading the data. You can keep using the system.",
+      "disabled": "Data removed from this device.",
+      "failed": "Could not turn on offline mode.",
+      "confirmOffPending": "{n} changes have not been sent yet and will be lost. Turn off anyway?"
+    }
   }
 }

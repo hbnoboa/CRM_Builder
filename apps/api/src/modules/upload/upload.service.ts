@@ -288,6 +288,29 @@ export class UploadService {
     return { key, size: buffer.length };
   }
 
+  /**
+   * Le um arquivo PUBLICO guardado pelo proprio sistema (/uploads/... ou o bucket publico),
+   * a partir do endereco gravado. Endereco de fora: null (nao busca URL arbitraria).
+   */
+  async readOwnPublic(url: string): Promise<Buffer | null> {
+    let filePath: string | null = null;
+    if (url.startsWith('/uploads/')) filePath = url.slice('/uploads/'.length);
+    else if (url.startsWith(`${this.baseUrl}/`)) filePath = url.slice(this.baseUrl.length + 1);
+    if (!filePath) return null;
+    filePath = decodeURIComponent(filePath.split('?')[0]);
+    if (filePath.split('/').some((part) => part === '..' || part === '')) return null;
+    try {
+      if (this.storage && !url.startsWith('/uploads/')) {
+        const [buffer] = await this.storage.bucket(this.bucket).file(filePath).download();
+        return buffer;
+      }
+      const localPath = path.join(process.cwd(), 'uploads', filePath);
+      return fs.existsSync(localPath) ? fs.readFileSync(localPath) : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Le um arquivo privado pela chave. Quem chama ja conferiu se a pessoa pode ver. */
   async readPrivate(rawKey: string): Promise<Buffer> {
     const key = privateKey(rawKey);
