@@ -107,6 +107,18 @@ export class UpdateMyTenantDto {
   @IsIn(['light', 'dark', 'system'])
   darkMode?: 'light' | 'dark' | 'system';
 
+  @ApiPropertyOptional({ description: 'Permite instalar o sistema como aplicativo (PWA) no celular e no computador' })
+  @IsOptional()
+  @IsBoolean()
+  appEnabled?: boolean;
+
+  @ApiPropertyOptional({ nullable: true, example: 'Nexus', description: 'Nome curto do aplicativo (embaixo do icone); null usa o nome da empresa' })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsString()
+  @MaxLength(20)
+  appShortName?: string | null;
+
   @ApiPropertyOptional({ description: 'Permite que a IA do chat leia o conteudo de um registro quando alguem pede (resumos e textos)' })
   @IsOptional()
   @IsBoolean()

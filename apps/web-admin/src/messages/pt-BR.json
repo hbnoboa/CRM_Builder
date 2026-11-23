@@ -2073,6 +2073,14 @@
         "slug": "Link da empresa",
         "domain": "Endereço próprio (ex.: crm.suaempresa.com.br)",
         "noDomain": "Nenhum"
+      },
+      "app": {
+        "title": "Aplicativo",
+        "description": "Instale o sistema como aplicativo no celular e no computador, com o nome, o logo e a cor da empresa. Não precisa de loja: é instalado pelo navegador.",
+        "enable": "Permitir instalar como aplicativo",
+        "enableHint": "Aparece \"Instalar aplicativo\" no menu de cada pessoa. Precisa de internet para trabalhar, como o sistema no navegador.",
+        "shortName": "Nome embaixo do ícone",
+        "shortNameHint": "Até 20 letras. Em branco, usa o nome da empresa."
       }
     },
     "entities": {
@@ -2730,5 +2738,19 @@
     "page": "Página {page} de {total}",
     "previous": "Anterior",
     "next": "Próxima"
+  },
+  "appInstall": {
+    "menu": "Instalar aplicativo",
+    "title": "Instalar o aplicativo",
+    "description": "O sistema fica com ícone próprio na tela inicial e abre em tela cheia.",
+    "ios": {
+      "step1": "Toque em Compartilhar, na barra do Safari.",
+      "step2": "Escolha \"Adicionar à Tela de Início\" e toque em Adicionar.",
+      "note": "No iPhone, a instalação é só pelo Safari."
+    },
+    "other": {
+      "step1": "Abra o menu do navegador (⋮) e escolha \"Instalar aplicativo\" ou \"Adicionar à tela inicial\".",
+      "note": "Se a opção não aparecer, o aplicativo já pode estar instalado neste aparelho."
+    }
   }
 }

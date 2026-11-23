@@ -2066,6 +2066,14 @@
         "slug": "Dirección en el sistema",
         "domain": "Dominio propio",
         "noDomain": "Ninguno"
+      },
+      "app": {
+        "title": "Aplicación",
+        "description": "Instale el sistema como aplicación en el celular y la computadora, con el nombre, el logo y el color de la empresa. Sin tienda: se instala desde el navegador.",
+        "enable": "Permitir instalar como aplicación",
+        "enableHint": "Aparece \"Instalar aplicación\" en el menú de cada persona. Necesita internet para funcionar, como el sistema en el navegador.",
+        "shortName": "Nombre debajo del ícono",
+        "shortNameHint": "Hasta 20 letras. En blanco, usa el nombre de la empresa."
       }
     },
     "entities": {
@@ -2723,5 +2731,19 @@
     "page": "Página {page} de {total}",
     "previous": "Anterior",
     "next": "Siguiente"
+  },
+  "appInstall": {
+    "menu": "Instalar aplicación",
+    "title": "Instalar la aplicación",
+    "description": "El sistema tiene su propio ícono en la pantalla de inicio y abre en pantalla completa.",
+    "ios": {
+      "step1": "Toque Compartir en la barra de Safari.",
+      "step2": "Elija \"Agregar a pantalla de inicio\" y toque Agregar.",
+      "note": "En iPhone, la instalación solo funciona desde Safari."
+    },
+    "other": {
+      "step1": "Abra el menú del navegador (⋮) y elija \"Instalar aplicación\" o \"Agregar a la pantalla de inicio\".",
+      "note": "Si la opción no aparece, la aplicación puede estar ya instalada en este dispositivo."
+    }
   }
 }

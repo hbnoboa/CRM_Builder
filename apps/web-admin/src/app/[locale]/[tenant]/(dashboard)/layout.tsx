@@ -34,6 +34,7 @@ import { useEntitiesGrouped } from '@/hooks/use-entities';
 import { TenantProvider, useTenant } from '@/stores/tenant-context';
 import { NotificationProvider } from '@/providers/notification-provider';
 import { TenantThemeProvider } from '@/providers/tenant-theme-provider';
+import { AppInstall } from '@/components/pwa/app-install';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { OperationalShell } from '@/components/layout/operational-shell';
 import { GestaoShell } from '@/components/layout/gestao-shell';
@@ -573,6 +574,7 @@ export default function DashboardLayout({
   return (
     <TenantProvider>
       <TenantThemeProvider>
+        <AppInstall />
         <NotificationProvider>
           <ImpersonationBanner />
           <DashboardContent>{children}</DashboardContent>

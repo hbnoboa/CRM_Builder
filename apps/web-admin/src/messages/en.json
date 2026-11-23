@@ -2069,6 +2069,14 @@
         "slug": "Address in the system",
         "domain": "Custom domain",
         "noDomain": "None"
+      },
+      "app": {
+        "title": "App",
+        "description": "Install the system as an app on phones and computers, with your company name, logo and color. No app store needed: it installs from the browser.",
+        "enable": "Allow installing as an app",
+        "enableHint": "\"Install app\" shows up in everyone's menu. It needs internet to work, like the system in the browser.",
+        "shortName": "Name under the icon",
+        "shortNameHint": "Up to 20 characters. Empty uses the company name."
       }
     },
     "entities": {
@@ -2726,5 +2734,19 @@
     "page": "Page {page} of {total}",
     "previous": "Previous",
     "next": "Next"
+  },
+  "appInstall": {
+    "menu": "Install app",
+    "title": "Install the app",
+    "description": "The system gets its own icon on the home screen and opens full screen.",
+    "ios": {
+      "step1": "Tap Share in the Safari toolbar.",
+      "step2": "Choose \"Add to Home Screen\" and tap Add.",
+      "note": "On iPhone, installing only works from Safari."
+    },
+    "other": {
+      "step1": "Open the browser menu (⋮) and choose \"Install app\" or \"Add to home screen\".",
+      "note": "If the option is missing, the app may already be installed on this device."
+    }
   }
 }
