@@ -35,6 +35,7 @@ import { TenantProvider, useTenant } from '@/stores/tenant-context';
 import { NotificationProvider } from '@/providers/notification-provider';
 import { TenantThemeProvider } from '@/providers/tenant-theme-provider';
 import { AppInstall } from '@/components/pwa/app-install';
+import { OfflineBackgroundSync } from '@/components/offline/offline-background-sync';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { OperationalShell } from '@/components/layout/operational-shell';
 import { GestaoShell } from '@/components/layout/gestao-shell';
@@ -575,6 +576,7 @@ export default function DashboardLayout({
     <TenantProvider>
       <TenantThemeProvider>
         <AppInstall />
+        <OfflineBackgroundSync />
         <NotificationProvider>
           <ImpersonationBanner />
           <DashboardContent>{children}</DashboardContent>

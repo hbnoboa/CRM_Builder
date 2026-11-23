@@ -34,3 +34,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Arquivos do banco local (PowerSync) copiados no build: pnpm build
+public/@powersync/

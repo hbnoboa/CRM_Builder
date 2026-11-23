@@ -993,7 +993,8 @@
       "language": "Idioma",
       "theme": "Tema",
       "security": "Segurança",
-      "privacy": "Privacidade"
+      "privacy": "Privacidade",
+      "offline": "Sem internet"
     },
     "profile": {
       "title": "Perfil",
@@ -2761,6 +2762,58 @@
     "other": {
       "step1": "Abra o menu do navegador (⋮) e escolha \"Instalar aplicativo\" ou \"Adicionar à tela inicial\".",
       "note": "Se a opção não aparecer, o aplicativo já pode estar instalado neste aparelho."
+    }
+  },
+  "offline": {
+    "notEnabledTitle": "Modo sem internet desligado neste aparelho",
+    "notEnabledHint": "Com internet, ligue em Configurações › Sem internet para baixar os dados para este aparelho.",
+    "openSettings": "Abrir Configurações",
+    "back": "Voltar",
+    "backToSystem": "Voltar ao sistema",
+    "statusOffline": "Sem internet: salvando no aparelho",
+    "statusSyncing": "Sincronizando…",
+    "statusFirstSync": "Baixando os dados…",
+    "statusSynced": "Em dia com o servidor",
+    "pending": "{n, plural, one {# alteração para enviar} other {# alterações para enviar}}",
+    "rejected": "{n, plural, one {# alteração não foi aceita pelo servidor} other {# alterações não foram aceitas pelo servidor}}",
+    "opening": "Abrindo os dados do aparelho…",
+    "noTables": "Nenhuma tabela neste aparelho ainda.",
+    "noRecords": "Nenhum registro encontrado.",
+    "new": "Novo",
+    "newOf": "Novo em {name}",
+    "search": "Buscar",
+    "more": "Mostrar mais",
+    "untitled": "(sem título)",
+    "yes": "Sim",
+    "no": "Não",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "confirmDelete": "Excluir este registro?",
+    "required": "Preencha: {fields}",
+    "chooseParent": "Escolha o registro de {parent}.",
+    "savedOnline": "Salvo.",
+    "savedOffline": "Salvo no aparelho. Será enviado quando houver internet.",
+    "deletedOnline": "Excluído.",
+    "deletedOffline": "Excluído no aparelho. Será enviado quando houver internet.",
+    "onlyOnline": "Edite este campo com internet.",
+    "willSync": "Sem internet: as alterações ficam no aparelho e sobem sozinhas quando a conexão voltar.",
+    "settings": {
+      "title": "Usar sem internet",
+      "description": "Baixa os registros que você pode ver para este aparelho. Sem conexão, o sistema abre no modo de campo: consultar, criar e editar registros. O que for feito sobe sozinho quando a internet voltar.",
+      "enable": "Usar sem internet neste aparelho",
+      "enableHint": "Ocupa espaço no aparelho (depende da quantidade de registros). Fotos, anexos e campos especiais só com internet.",
+      "downloading": "Baixando os dados para este aparelho…",
+      "syncing": "Sincronizando…",
+      "ready": "Pronto para usar sem internet.",
+      "stats": "{records} registros no aparelho · {pending} para enviar",
+      "storage": "{size} usados",
+      "lastSync": "atualizado em {when}",
+      "open": "Abrir modo sem internet",
+      "enabled": "Baixando os dados. Pode continuar usando o sistema.",
+      "disabled": "Dados removidos deste aparelho.",
+      "failed": "Não foi possível ligar o modo sem internet.",
+      "confirmOffPending": "{n} alterações ainda não foram enviadas e serão perdidas. Desligar mesmo assim?"
     }
   }
 }

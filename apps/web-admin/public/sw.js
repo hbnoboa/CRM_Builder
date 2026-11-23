@@ -2,12 +2,17 @@
  * Service worker do aplicativo instalavel (PWA). Leve de proposito:
  * - paginas: sempre da rede; sem conexao, mostra /offline.html;
  * - arquivos do build (/_next/static, com hash no nome): guardados depois da primeira vez;
- * - API, dados e o resto: nao passam por aqui (sem cache de dados);
+ * - modo sem internet: guarda a tela de campo (/<idioma>/<empresa>/campo) e os arquivos do
+ *   banco local (/@powersync/); sem conexao, paginas da empresa abrem a tela de campo;
+ * - API, dados e o resto: nao passam por aqui (o banco local e do PowerSync, nao do SW);
  * - notificacoes (Web Push): mostra o aviso e, no toque, abre a tela dele.
  */
 const VERSION = 'v1';
 const SHELL = `shell-${VERSION}`;
 const STATIC = `static-${VERSION}`;
+const CAMPO = `campo-${VERSION}`;
+const CAMPO_PAGE = /^\/[^/]+\/[^/]+\/campo\/?$/;
+const TENANT_PAGE = /^\/([^/]+)\/([^/]+)\//;
 const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', (event) => {
@@ -18,7 +23,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== SHELL && k !== STATIC).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== SHELL && k !== STATIC && k !== CAMPO).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
@@ -30,7 +35,40 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
+    // Tela de campo: rede primeiro; guarda a ultima versao para abrir sem conexao
+    if (CAMPO_PAGE.test(url.pathname)) {
+      const key = url.pathname.replace(/\/$/, '');
+      event.respondWith(
+        fetch(request)
+          .then((res) => {
+            if (res.ok) { const copy = res.clone(); caches.open(CAMPO).then((c) => c.put(key, copy)); }
+            return res;
+          })
+          .catch(async () => (await caches.match(key, { cacheName: CAMPO })) || caches.match(OFFLINE_URL)),
+      );
+      return;
+    }
+    // Outras paginas: sem conexao, pagina da empresa com modo sem internet abre a tela de campo
+    event.respondWith(fetch(request).catch(async () => {
+      const m = TENANT_PAGE.exec(url.pathname);
+      if (m) {
+        const campo = `/${m[1]}/${m[2]}/campo`;
+        if (await caches.match(campo, { cacheName: CAMPO })) return Response.redirect(campo, 302);
+      }
+      return caches.match(OFFLINE_URL);
+    }));
+    return;
+  }
+  // Banco local (worker e WebAssembly): rede primeiro, guardado para abrir sem conexao
+  if (url.pathname.startsWith('/@powersync/')) {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res.ok) { const copy = res.clone(); caches.open(STATIC).then((c) => c.put(request, copy)); }
+          return res;
+        })
+        .catch(() => caches.match(request)),
+    );
     return;
   }
   if (url.pathname.startsWith('/_next/static/')) {

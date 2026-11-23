@@ -989,7 +989,8 @@
       "language": "Idioma",
       "theme": "Tema",
       "security": "Seguridad",
-      "privacy": "Privacidad"
+      "privacy": "Privacidad",
+      "offline": "Sin internet"
     },
     "profile": {
       "title": "Perfil",
@@ -2754,6 +2755,58 @@
     "other": {
       "step1": "Abra el menú del navegador (⋮) y elija \"Instalar aplicación\" o \"Agregar a la pantalla de inicio\".",
       "note": "Si la opción no aparece, la aplicación puede estar ya instalada en este dispositivo."
+    }
+  },
+  "offline": {
+    "notEnabledTitle": "Modo sin internet desactivado en este dispositivo",
+    "notEnabledHint": "Con internet, actívelo en Configuración › Sin internet para descargar los datos a este dispositivo.",
+    "openSettings": "Abrir Configuración",
+    "back": "Volver",
+    "backToSystem": "Volver al sistema",
+    "statusOffline": "Sin internet: guardando en el dispositivo",
+    "statusSyncing": "Sincronizando…",
+    "statusFirstSync": "Descargando los datos…",
+    "statusSynced": "Al día con el servidor",
+    "pending": "{n, plural, one {# cambio para enviar} other {# cambios para enviar}}",
+    "rejected": "{n, plural, one {# cambio no fue aceptado por el servidor} other {# cambios no fueron aceptados por el servidor}}",
+    "opening": "Abriendo los datos del dispositivo…",
+    "noTables": "Todavía no hay tablas en este dispositivo.",
+    "noRecords": "No se encontraron registros.",
+    "new": "Nuevo",
+    "newOf": "Nuevo en {name}",
+    "search": "Buscar",
+    "more": "Mostrar más",
+    "untitled": "(sin título)",
+    "yes": "Sí",
+    "no": "No",
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "confirmDelete": "¿Eliminar este registro?",
+    "required": "Complete: {fields}",
+    "chooseParent": "Elija el registro de {parent}.",
+    "savedOnline": "Guardado.",
+    "savedOffline": "Guardado en el dispositivo. Se enviará cuando haya internet.",
+    "deletedOnline": "Eliminado.",
+    "deletedOffline": "Eliminado en el dispositivo. Se enviará cuando haya internet.",
+    "onlyOnline": "Edite este campo con internet.",
+    "willSync": "Sin internet: los cambios quedan en el dispositivo y se envían solos cuando vuelva la conexión.",
+    "settings": {
+      "title": "Usar sin internet",
+      "description": "Descarga los registros que usted puede ver a este dispositivo. Sin conexión, el sistema abre en modo de campo: consultar, crear y editar registros. Lo que haga se envía solo cuando vuelva internet.",
+      "enable": "Usar sin internet en este dispositivo",
+      "enableHint": "Ocupa espacio en el dispositivo (depende de la cantidad de registros). Fotos, adjuntos y campos especiales solo con internet.",
+      "downloading": "Descargando los datos a este dispositivo…",
+      "syncing": "Sincronizando…",
+      "ready": "Listo para usar sin internet.",
+      "stats": "{records} registros en el dispositivo · {pending} para enviar",
+      "storage": "{size} usados",
+      "lastSync": "actualizado el {when}",
+      "open": "Abrir modo sin internet",
+      "enabled": "Descargando los datos. Puede seguir usando el sistema.",
+      "disabled": "Datos eliminados de este dispositivo.",
+      "failed": "No fue posible activar el modo sin internet.",
+      "confirmOffPending": "{n} cambios todavía no se enviaron y se perderán. ¿Desactivar de todos modos?"
     }
   }
 }

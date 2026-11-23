@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { User, Languages, Palette, Sun, Moon, Monitor, FileLock2, Shield, Bell } from 'lucide-react';
+import { User, Languages, Palette, Sun, Moon, Monitor, FileLock2, Shield, Bell, CloudOff } from 'lucide-react';
 import { MfaCard, SessionsCard } from '@/components/security/account-security';
 import { PersonalPrivacy } from '@/components/privacy/personal-privacy';
 import { NotificationPreferences } from '@/components/notifications/notification-preferences';
+import { OfflineSettings } from '@/components/offline/offline-settings';
+import { useTenant } from '@/stores/tenant-context';
+import { useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { useTheme } from 'next-themes';
@@ -25,6 +28,7 @@ const MOVED_TABS: Record<string, string> = { org: '/gestao/organization', plan: 
 const TAB_ICONS: Record<string, typeof User> = {
   profile: User,
   notifications: Bell,
+  offline: CloudOff,
   security: Shield,
   privacy: FileLock2,
   language: Languages,
@@ -48,7 +52,13 @@ function SettingsPageContent() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const TAB_IDS = [...ACCOUNT_TABS] as string[];
+  // "Sem internet": so com o aplicativo da empresa ligado e o plano com app (sincronizacao)
+  const { tenant } = useTenant();
+  const features = useTenantFeatures();
+  const offlineTab = tenant?.settings?.app?.enabled === true && features.mobile;
+  const TAB_IDS = (offlineTab
+    ? [...ACCOUNT_TABS.slice(0, 2), 'offline', ...ACCOUNT_TABS.slice(2)]
+    : [...ACCOUNT_TABS]) as string[];
 
   // Links antigos (?tab=plan / ?tab=org) vao para a administracao.
   const searchParams = useSearchParams();
@@ -59,6 +69,12 @@ function SettingsPageContent() {
   const [activeTab, setActiveTab] = useState<string>(
     requestedTab && TAB_IDS.includes(requestedTab) ? requestedTab : 'profile',
   );
+  // A aba pedida pode aparecer depois (ex.: "Sem internet" depende da empresa carregar)
+  const tabKey = TAB_IDS.join(',');
+  useEffect(() => {
+    if (requestedTab && TAB_IDS.includes(requestedTab)) setActiveTab(requestedTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedTab, tabKey]);
   const { theme, setTheme } = useTheme();
 
   // Profile form state
@@ -249,6 +265,7 @@ function SettingsPageContent() {
           )}
 
           {activeTab === 'notifications' && <NotificationPreferences />}
+          {activeTab === 'offline' && <OfflineSettings />}
 
           {activeTab === 'privacy' && <PersonalPrivacy />}
 
