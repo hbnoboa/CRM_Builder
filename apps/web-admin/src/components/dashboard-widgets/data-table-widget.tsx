@@ -77,7 +77,10 @@ import { toast } from 'sonner';
 import { useEntityDataOptional, useEntityData, EntityDataProvider } from '@/components/entity-data/entity-data-context';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useAuthStore } from '@/stores/auth-store';
-import { useRouter } from '@/i18n/tenant-navigation';
+import { usePathname, useRouter } from '@/i18n/tenant-navigation';
+import { useAppMode } from '@/components/pwa/app-chrome';
+import { AppFab, useAppFab } from '@/components/pwa/app-fab';
+import { SwipeToDelete } from '@/components/pwa/swipe-to-delete';
 import { useDeleteEntityData } from '@/hooks/use-data';
 import { useOpenRecord } from '@/components/data/record-nav';
 import { ImportDialog } from '@/components/data/import-dialog';
@@ -154,6 +157,9 @@ interface DataTableWidgetProps {
   config: WidgetConfig['config'];
   title?: string;
 }
+
+// Tipos que o cartao do celular pula (como o app): foto, assinatura, sub-tabela e ocultos
+const CARD_SKIP_TYPES = new Set(['image', 'images', 'signature', 'sub-entity', 'hidden']);
 
 // ─── Component ──────────────────────────────────────────────────────
 
@@ -415,6 +421,10 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
   const canOpen = (allowEdit && can('canUpdate')) || portal;
   const canEdit = allowEdit && can('canUpdate');
   const canDelete = allowDelete && can('canDelete');
+  // Modo app, na tela da tabela: "Criar" vira o botao redondo + no canto (como no app Flutter)
+  const appMode = useAppMode();
+  const pathname = usePathname();
+  const ownsFab = useAppFab(appMode && canCreate && pathname === '/data');
   // Coluna de ações sempre presente: "Abrir chat" vale para qualquer um que veja a linha.
   const showRowActions = true;
   const canExport = allowExport && (hasModuleAction('data', 'canExport') || hasEntityAction(entitySlug, 'canExport'));
@@ -656,6 +666,13 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
     window.addEventListener('entity-data-changed', onChange);
     return () => { window.removeEventListener('entity-data-changed', onChange); if (timer) clearTimeout(timer); };
   }, [serverMode, entitySlug, refetchServerPage]);
+
+  // Puxar a tela para baixo (modo app) recarrega a tabela
+  useEffect(() => {
+    const onPull = () => { if (serverMode) void refetchServerPage(); else refresh(); };
+    window.addEventListener('app-refresh', onPull);
+    return () => window.removeEventListener('app-refresh', onPull);
+  }, [serverMode, refetchServerPage, refresh]);
 
   const totalRecords = serverMode ? (serverPage.data?.meta.total ?? 0) : sortedRecords.length;
   // Total sem filtros (rodape "X de Y (total)")
@@ -1212,7 +1229,7 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
 
           {/* Create */}
           {canCreate && (
-            <Button size="sm" className="h-9" onClick={handleCreate}>
+            <Button size="sm" className={ownsFab ? 'hidden h-9 lg:inline-flex' : 'h-9'} onClick={handleCreate}>
               <Plus className="h-4 w-4 mr-1" />
               {tCommon('create')}
             </Button>
@@ -1255,25 +1272,31 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
         </div>
       )}
 
-      {/* Celular: cartoes (titulo + os proximos campos) em vez de colunas espremidas */}
-      <div className="flex-1 space-y-2 overflow-auto lg:hidden" style={{ minHeight: '340px' }} data-testid="data-table-cards">
+      {/* Celular: cartoes como os do app Flutter (titulo + ate 2 campos "Nome: valor") */}
+      <div className="flex-1 space-y-1.5 overflow-auto lg:hidden" style={{ minHeight: '340px' }} data-testid="data-table-cards">
         {tableLoading ? (
           <Loader2 className="mx-auto mt-8 h-5 w-5 animate-spin" />
         ) : (
           displayedRecords.map((record) => {
-            const [first, ...rest] = visibleFields;
+            // Como no app: os 3 primeiros campos com valor (sem foto, sub-tabela e ocultos)
+            const shown = visibleFields.filter((f) => {
+              if (CARD_SKIP_TYPES.has(f.type)) return false;
+              if (f.slug.startsWith('__')) return true;
+              const v = record.data?.[f.slug];
+              return v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0);
+            }).slice(0, 3);
+            const [first, ...rest] = shown;
             return (
-              <div
-                key={record.id}
-                role={canOpen ? 'button' : undefined}
-                tabIndex={canOpen ? 0 : undefined}
-                onClick={(e) => canOpen && handleEdit(record, e)}
-                onAuxClick={(e) => { if (canOpen && e.button === 1) handleEdit(record, e); }}
-                onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) handleEdit(record); }}
-                className={`rounded-lg border bg-card p-3 ${canOpen ? 'cursor-pointer active:bg-muted/40' : ''} ${selectedIds.has(record.id) ? 'border-primary bg-muted/40' : ''}`}
-                data-testid={canOpen ? 'open-record-card' : undefined}
-              >
-                <div className="flex items-start gap-2.5">
+              <SwipeToDelete key={record.id} enabled={canDelete} onDelete={() => handleDeleteClick(record)}>
+                <div
+                  role={canOpen ? 'button' : undefined}
+                  tabIndex={canOpen ? 0 : undefined}
+                  onClick={(e) => canOpen && handleEdit(record, e)}
+                  onAuxClick={(e) => { if (canOpen && e.button === 1) handleEdit(record, e); }}
+                  onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) handleEdit(record); }}
+                  className={`flex items-center gap-2 rounded-xl border border-border/50 bg-card px-3 py-2.5 ${canOpen ? 'cursor-pointer active:bg-muted/40' : ''} ${selectedIds.has(record.id) ? 'border-primary bg-muted/40' : ''}`}
+                  data-testid={canOpen ? 'open-record-card' : undefined}
+                >
                   {allowBatchSelect && (
                     // Selecionar sem abrir o registro (PDF de um registro, exportar selecionados)
                     <div className="-m-1.5 p-1.5" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -1285,23 +1308,27 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
                       />
                     </div>
                   )}
-                  {first && <div className={`min-w-0 flex-1 truncate text-base font-semibold ${canOpen ? 'text-primary' : ''}`}>{renderCellValue(record, first)}</div>}
-                </div>
-                {rest.length > 0 && (
-                  <dl className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    {rest.slice(0, 4).map((field) => (
-                      <div key={field.slug} className="min-w-0">
-                        <dt className="truncate text-xs text-muted-foreground">{field.label || field.name}</dt>
-                        <dd className="truncate text-sm">{renderCellValue(record, field)}</dd>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{first ? renderCellValue(record, first) : t('cardTitleFallback')}</div>
+                    {rest.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
+                        {rest.map((field) => (
+                          <span key={field.slug} className="inline-flex min-w-0 max-w-full items-center gap-1 truncate text-xs text-muted-foreground">
+                            <span className="shrink-0">{field.label || field.name}:</span>
+                            <span className="min-w-0 truncate">{renderCellValue(record, field)}</span>
+                          </span>
+                        ))}
                       </div>
-                    ))}
-                  </dl>
-                )}
-              </div>
+                    )}
+                  </div>
+                  {canOpen && <ChevronRight className="h-[18px] w-[18px] shrink-0 text-muted-foreground" />}
+                </div>
+              </SwipeToDelete>
             );
           })
         )}
       </div>
+      {ownsFab && <AppFab onClick={() => handleCreate()} label={tCommon('create')} />}
 
       {/* Table — min 10 rows visible */}
       <div className="hidden rounded-md border overflow-auto flex-1 lg:block" style={{ minHeight: '340px' }}>

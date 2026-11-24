@@ -168,7 +168,13 @@
     "themeSystem": "System",
     "adminArea": "Admin area",
     "backToOperation": "Back to operation",
-    "more": "More"
+    "more": "More",
+    "back": "Back",
+    "appNav": {
+      "dashboard": "Dashboard",
+      "data": "Data",
+      "chat": "Chat"
+    }
   },
   "roles": {
     "ADMIN": "Administrator",
@@ -681,7 +687,8 @@
       "unsavedLeave": "This record has unsaved changes. Leave anyway?",
       "inside": "Inside"
     },
-    "selectRecord": "Select record"
+    "selectRecord": "Select record",
+    "cardTitleFallback": "Record"
   },
   "rolesPage": {
     "title": "Roles",
@@ -2827,6 +2834,9 @@
     "title": "Data",
     "search": "Search table",
     "empty": "No tables.",
-    "records": "{count, number} records"
+    "records": "{count, number} records",
+    "pickTable": "Select a table",
+    "fields": "{count, plural, one {# field} other {# fields}}",
+    "other": "Other"
   }
 }

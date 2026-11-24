@@ -172,6 +172,8 @@
 .pwa-app :is(button, a, input, select).h-9 { height: 2.5rem; }
 .pwa-app :is(button, a).h-9.w-9 { width: 2.5rem; }
 .pwa-app main { padding-inline: 0.75rem; padding-top: 0.75rem; }
+/* Modo app: o "puxar para atualizar" e o nosso (PullToRefresh), nao o do navegador */
+html:has(.pwa-app:not(.pwa-no-tabs)), body:has(.pwa-app:not(.pwa-no-tabs)) { overscroll-behavior-y: none; }
 /* Gestao no celular: mesma cara, mas sem a barra de abas embaixo */
 .pwa-no-tabs main { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
 

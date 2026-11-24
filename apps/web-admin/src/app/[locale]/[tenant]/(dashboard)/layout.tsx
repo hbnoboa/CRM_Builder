@@ -41,10 +41,12 @@ import { OperationalShell } from '@/components/layout/operational-shell';
 import { GestaoShell } from '@/components/layout/gestao-shell';
 import { cn } from '@/lib/utils';
 import { EntityNavItem } from '@/components/layout/entity-nav-item';
-import { CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
+import { AppTopbar, CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { useStandalone, useIsMobile } from '@/hooks/use-standalone';
 import { AppBottomNav } from '@/components/pwa/app-bottom-nav';
+import { AppChromeContext, useAppFrame } from '@/components/pwa/app-chrome';
+import { PullToRefresh } from '@/components/pwa/pull-to-refresh';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import type { FeatureKey } from '@/types/platform';
 
@@ -89,6 +91,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile();
   // Cara de app (abas embaixo, toques maiores) quando instalado OU em tela de celular
   const appMode = standalone || isMobile;
+  const frame = useAppFrame(appMode, pathname);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -259,6 +262,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <AppChromeContext.Provider value={frame.ctx}>
     <div className={cn('min-h-screen bg-background pt-[var(--banner-h,0px)]', appMode && 'pwa-app')}>
       {sidebarOpen && (
         <div
@@ -543,7 +547,11 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className={cn('transition-all duration-200', sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64')}>
-        <ShellTopbar onOpenSidebar={() => setSidebarOpen(true)} onOpenSearch={() => setSearchOpen(true)} />
+        {appMode ? (
+          <AppTopbar title={frame.title} onBack={frame.onBack} onOpenSidebar={() => setSidebarOpen(true)} onOpenSearch={() => setSearchOpen(true)} />
+        ) : (
+          <ShellTopbar onOpenSidebar={() => setSidebarOpen(true)} onOpenSearch={() => setSearchOpen(true)} />
+        )}
         <CommandMenu
           open={searchOpen}
           onOpenChange={setSearchOpen}
@@ -570,14 +578,17 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       {appMode && (
-        <AppBottomNav
-          showDashboard={hasModuleAccess('dashboard')}
-          showData={hasModuleAccess('data')}
-          showChat={!!features.chat && hasModuleAccess('chat')}
-          onMore={() => setSidebarOpen(true)}
-        />
+        <>
+          <PullToRefresh />
+          <AppBottomNav
+            showDashboard={hasModuleAccess('dashboard')}
+            showData={hasModuleAccess('data')}
+            showChat={!!features.chat && hasModuleAccess('chat')}
+          />
+        </>
       )}
     </div>
+    </AppChromeContext.Provider>
   );
 }
 
