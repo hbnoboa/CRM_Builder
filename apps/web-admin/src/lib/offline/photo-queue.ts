@@ -31,6 +31,8 @@ export interface QueuedPhoto {
   /** Endereco depois de enviada. A foto fica ate o registro subir com ele (o mesmo
    *  "local://" pode estar em mais de uma alteracao na fila). */
   url?: string;
+  /** 'form': tirada na tela normal (fila em lib/outbox); sem: tela de campo (PowerSync). */
+  origin?: 'form';
 }
 
 function openStore(): Promise<IDBDatabase> {
@@ -72,11 +74,11 @@ export async function compressPhoto(file: File): Promise<Blob> {
 }
 
 /** Guarda a foto no aparelho e devolve o valor do campo ("local://<id>"). */
-export async function queuePhoto(owner: { tenantId: string; userId: string }, recordId: string, fieldSlug: string, file: File): Promise<string> {
+export async function queuePhoto(owner: { tenantId: string; userId: string }, recordId: string, fieldSlug: string, file: File, origin?: 'form'): Promise<string> {
   const id = crypto.randomUUID();
   const blob = await compressPhoto(file);
   const item: QueuedPhoto = {
-    id, ...owner, recordId, fieldSlug, blob,
+    id, ...owner, recordId, fieldSlug, blob, ...(origin ? { origin } : {}),
     name: `${fieldSlug}-${Date.now()}.jpg`,
     createdAt: new Date().toISOString(),
   };
@@ -96,8 +98,9 @@ export async function removeQueuedPhoto(id: string) {
   await tx('readwrite', (s) => s.delete(id));
 }
 
+/** Apaga as fotos da tela de campo (desligar o modo sem internet). As da fila normal ficam. */
 export async function clearQueuedPhotos(owner: { tenantId: string; userId: string }) {
-  for (const item of await listQueuedPhotos(owner)) await removeQueuedPhoto(item.id);
+  for (const item of await listQueuedPhotos(owner)) if (item.origin !== 'form') await removeQueuedPhoto(item.id);
 }
 
 /** Resultado do envio: endereco real, ou null com o motivo (foto apagada ou recusada). */
@@ -153,11 +156,26 @@ export async function countPendingPhotos(db: PowerSyncDatabase, owner: { tenantI
 export async function cleanPhotoQueue(db: PowerSyncDatabase, owner: { tenantId: string; userId: string }): Promise<void> {
   const refs = await pendingRefs(db);
   for (const item of await listQueuedPhotos(owner)) {
+    if (item.origin === 'form') continue; // da fila da tela normal (cleanFormPhotos)
     const ref = `${LOCAL_PREFIX}${item.id}`;
     if (refs.includes(ref)) continue; // registro ainda na fila
     const row = await db.getOptional<{ data: string | null }>('SELECT data FROM EntityData WHERE id = ?', [item.recordId]);
     if (row?.data?.includes(ref)) continue; // registro no aparelho ainda aponta para ela
     if (!item.url && Date.now() - Date.parse(item.createdAt) < ABANDONED_MS) continue;
+    await removeQueuedPhoto(item.id);
+  }
+}
+
+/**
+ * Fotos da tela normal que nao fazem mais falta: nenhum envio da fila usa e ja subiram
+ * (o formulario trocou pelo endereco real) ou sao de um formulario abandonado.
+ */
+export async function cleanFormPhotos(owner: { tenantId: string; userId: string }, inUse: Set<string>): Promise<void> {
+  for (const item of await listQueuedPhotos(owner)) {
+    if (item.origin !== 'form' || inUse.has(item.id)) continue;
+    const age = Date.now() - Date.parse(item.createdAt);
+    // Ja subiu: o formulario aberto ja usa o endereco; espera um pouco por um salvar em andamento
+    if (item.url ? age < 10 * 60 * 1000 : age < ABANDONED_MS) continue;
     await removeQueuedPhoto(item.id);
   }
 }

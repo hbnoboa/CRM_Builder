@@ -19,6 +19,8 @@ import type { OfflineConnector } from '@/lib/offline/connector';
 import { readOfflineProfile, type OfflineProfile } from '@/lib/offline/profile';
 import { can, fieldRules, type OfflineRole } from '@/lib/offline/permissions';
 import { useLocalQuery, useOfflineStatus } from '@/lib/offline/hooks';
+import { useOutbox } from '@/lib/outbox';
+import { OutboxSync } from './outbox-sync';
 
 type Field = {
   slug: string; name?: string; label?: string; type: string; required?: boolean;
@@ -136,7 +138,10 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
     return () => { cancelled = true; window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
   }, [profile]);
 
-  const { status, pending } = useOfflineStatus(db);
+  const { status, pending: campoPending } = useOfflineStatus(db);
+  // Salvo na tela normal sem internet (fila do aparelho): tambem sobe daqui e entra na conta
+  const outbox = useOutbox();
+  const pending = campoPending + outbox.items.filter((i) => !i.error).length;
 
   // Fotos tiradas sem internet sobem junto com o registro (connector). Aqui: quantas faltam
   // e limpeza das que ja subiram. Recontagem quando a fila de alteracoes muda.
@@ -173,6 +178,7 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
 
   return (
     <div className="min-h-screen bg-background">
+      <OutboxSync owner={owner} />
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur" style={{ borderTop: `4px solid ${profile.brandColor || '#ea580c'}` }}>
         <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3">
           {view.kind !== 'tables' && (

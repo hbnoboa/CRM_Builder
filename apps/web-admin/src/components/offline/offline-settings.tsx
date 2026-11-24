@@ -87,7 +87,7 @@ export function OfflineSettings() {
   };
 
   const turnOff = async () => {
-    const photos = (await listQueuedPhotos({ tenantId, userId }).catch(() => [])).length;
+    const photos = (await listQueuedPhotos({ tenantId, userId }).catch(() => [])).filter((p) => p.origin !== 'form').length;
     if ((pending > 0 || photos > 0) && !window.confirm(t('confirmOffPending', { n: pending, photos }))) return;
     setBusy(true);
     try {

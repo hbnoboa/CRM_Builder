@@ -693,8 +693,8 @@
     },
     "selectRecord": "Selecionar registro",
     "cardTitleFallback": "Registro",
-    "savingOffline": "Sem internet. O registro fica guardado nesta tela e é salvo sozinho quando a conexão voltar. Não feche esta tela.",
-    "waitingUploads": "Enviando fotos..."
+    "waitingUploads": "Preparando fotos...",
+    "savedOnDevice": "Sem internet: salvo no aparelho. Envia sozinho quando a conexão voltar."
   },
   "rolesPage": {
     "title": "Cargos",
@@ -1182,7 +1182,8 @@
     "takePhoto": "Tirar foto",
     "takePhotoHint": "Use a camera do dispositivo para capturar uma imagem",
     "onlyImages": "Apenas arquivos de imagem sao permitidos",
-    "waitingNetwork": "Sem internet, envia quando o sinal voltar"
+    "waitingNetwork": "Sem internet, envia quando o sinal voltar",
+    "savedOnDevice": "Guardada no aparelho"
   },
   "placeholders": {
     "email": "email@exemplo.com",
@@ -2847,5 +2848,11 @@
     "pickTable": "Selecione uma tabela",
     "fields": "{count, plural, one {# campo} other {# campos}}",
     "other": "Outros"
+  },
+  "outbox": {
+    "waiting": "{n, plural, one {1 alteração salva no aparelho. Envia sozinha quando a internet voltar.} other {# alterações salvas no aparelho. Enviam sozinhas quando a internet voltar.}}",
+    "sending": "{n, plural, one {Enviando 1 alteração salva no aparelho...} other {Enviando # alterações salvas no aparelho...}}",
+    "rejected": "{name}: o servidor recusou a alteração ({error}).",
+    "discard": "Descartar"
   }
 }

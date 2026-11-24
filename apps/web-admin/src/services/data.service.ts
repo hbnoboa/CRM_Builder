@@ -1,8 +1,8 @@
 import api from '@/lib/api';
 import { EntityData, PaginatedResponse, Entity } from '@/types';
 
-/** Salvar travado em sinal ruim: desiste desta tentativa e o formulario tenta de novo. */
-const SAVE_TIMEOUT_MS = 30_000;
+/** Salvar travado em sinal ruim: desiste e o formulario guarda na fila do aparelho. */
+const SAVE_TIMEOUT_MS = 20_000;
 
 export interface QueryDataParams {
   page?: number;
