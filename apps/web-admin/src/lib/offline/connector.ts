@@ -19,7 +19,10 @@ export class OfflineConnector implements PowerSyncBackendConnector {
 
   async fetchCredentials(): Promise<PowerSyncCredentials> {
     const { data } = await api.post<Credentials>('/sync/credentials');
-    return { endpoint: data.endpoint, token: data.token, expiresAt: new Date(data.expiresAt) };
+    // A API devolve o endereco com /sync no fim (https://dominio/sync). O SDK do celular
+    // ignora esse caminho (pede /sync/stream na raiz), mas o web junta tudo e cairia em
+    // /sync/sync/stream, que nao existe. So a origem deixa os dois iguais.
+    return { endpoint: new URL(data.endpoint).origin, token: data.token, expiresAt: new Date(data.expiresAt) };
   }
 
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
