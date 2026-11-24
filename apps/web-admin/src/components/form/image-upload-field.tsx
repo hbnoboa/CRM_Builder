@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Upload, X, Image as ImageIcon, FileIcon, Loader2, Camera, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
+import { compressPhoto } from '@/lib/offline/photo-queue';
+import { isTransientError, retryDelay, waitToRetry } from '@/lib/network-retry';
+import { trackUpload } from '@/lib/pending-uploads';
 
 interface ImageUploadFieldProps {
   value: string | string[];
@@ -36,7 +39,12 @@ interface UploadingFile {
   id: string;
   name: string;
   progress: number;
+  /** Sem sinal: a foto continua na tela e sobe quando a internet voltar. */
+  waiting?: boolean;
 }
+
+/** Envio travado em sinal ruim: desiste desta tentativa e tenta de novo. */
+const UPLOAD_TIMEOUT_MS = 90_000;
 
 export default function ImageUploadField({
   value,
@@ -65,6 +73,17 @@ export default function ImageUploadField({
   const values: string[] = Array.isArray(value)
     ? value.filter(Boolean)
     : (typeof value === 'string' && value ? [value] : []);
+  // Valor atual para quem termina depois (envio que esperou o sinal voltar): o `values`
+  // da hora em que a foto foi escolhida ja pode estar velho e apagaria outras fotos.
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
+  // Fechar o formulario cancela os envios pendentes (e a espera pelo sinal).
+  const closed = useRef(new AbortController());
+  useEffect(() => {
+    const controller = new AbortController();
+    closed.current = controller;
+    return () => controller.abort();
+  }, []);
 
   const defaultAccept = mode === 'image'
     ? 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml'
@@ -97,48 +116,63 @@ export default function ImageUploadField({
       toUpload = fileArray.slice(0, 1);
     }
 
-    const uploadPromises = toUpload.map(async (file) => {
+    const setProgress = (uploadId: string, patch: Partial<UploadingFile>) =>
+      setUploading(prev => prev.map(u => u.id === uploadId ? { ...u, ...patch } : u));
+
+    // Sem sinal ou servidor fora a foto nao se perde: fica na tela e tenta de novo ate
+    // subir (como no app). So a recusa do servidor (arquivo invalido etc.) desiste.
+    const upload = async (file: File): Promise<string | null> => {
       const uploadId = Math.random().toString(36).slice(2);
       setUploading(prev => [...prev, { id: uploadId, name: file.name, progress: 0 }]);
-
+      // Foto da camera do celular (ate 12 MP): reduz para subir rapido em sinal fraco.
+      const body = mode === 'image' && file.type === 'image/jpeg' ? await compressPhoto(file) : file;
+      const endpoint = mode === 'image' ? '/upload/image' : '/upload/file';
+      const fieldName = mode === 'image' ? 'image' : 'file';
+      const { signal } = closed.current;
       try {
-        const formData = new FormData();
-        const endpoint = mode === 'image' ? '/upload/image' : '/upload/file';
-        const fieldName = mode === 'image' ? 'image' : 'file';
-        formData.append(fieldName, file);
-        formData.append('folder', folder);
-
-        const response = await api.post(endpoint, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (progressEvent) => {
-            const pct = progressEvent.total
-              ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
-              : 0;
-            setUploading(prev =>
-              prev.map(u => u.id === uploadId ? { ...u, progress: pct } : u)
-            );
-          },
-        });
-
-        setUploading(prev => prev.filter(u => u.id !== uploadId));
-        return response.data.publicUrl || response.data.url;
+        for (let attempt = 0; !signal.aborted; attempt++) {
+          try {
+            const formData = new FormData();
+            formData.append(fieldName, body, file.name);
+            formData.append('folder', folder);
+            const response = await api.post(endpoint, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+              timeout: UPLOAD_TIMEOUT_MS,
+              signal,
+              onUploadProgress: (progressEvent) => {
+                const pct = progressEvent.total
+                  ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
+                  : 0;
+                setProgress(uploadId, { progress: pct, waiting: false });
+              },
+            });
+            return response.data.publicUrl || response.data.url;
+          } catch (err) {
+            if (!isTransientError(err)) throw err;
+            setProgress(uploadId, { progress: 0, waiting: true });
+            await waitToRetry(retryDelay(attempt), signal);
+          }
+        }
+        return null; // formulario fechado no meio da espera
       } catch (err) {
-        setUploading(prev => prev.filter(u => u.id !== uploadId));
+        if (signal.aborted) return null;
         console.error('Upload error:', err);
         toast.error(t('uploadError', { name: file.name }));
         return null;
+      } finally {
+        setUploading(prev => prev.filter(u => u.id !== uploadId));
       }
-    });
+    };
 
-    const urls = (await Promise.all(uploadPromises)).filter(Boolean) as string[];
-
-    if (multiple) {
-      // Multiple mode: always add to existing
-      onChange([...values, ...urls]);
-    } else {
-      // Single mode: replace with the last uploaded file
-      onChange(urls[urls.length - 1] || values[0] || '');
-    }
+    await Promise.all(toUpload.map(async (file) => {
+      const url = await trackUpload(upload(file));
+      if (!url || closed.current.signal.aborted) return;
+      const current = valuesRef.current;
+      // Multiple mode: always add to existing. Single mode: replace.
+      const next = multiple ? [...current, url] : url;
+      valuesRef.current = multiple ? (next as string[]) : [url];
+      onChange(next);
+    }));
   }, [values, multiple, maxFiles, mode, folder, onChange]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -353,7 +387,9 @@ export default function ImageUploadField({
             <div key={u.id} className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="truncate flex-1">{u.name}</span>
-              <span className="text-xs">{u.progress}%</span>
+              {u.waiting
+                ? <span className="text-xs text-amber-600">{t('waitingNetwork')}</span>
+                : <span className="text-xs">{u.progress}%</span>}
               <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary rounded-full transition-all"

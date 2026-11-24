@@ -70,7 +70,8 @@
     "typeCustomValue": "Type a custom value",
     "columns": "Columns",
     "export": "Export",
-    "import": "Import"
+    "import": "Import",
+    "readOnly": "read only"
   },
   "metadata": {
     "title": "CRM Builder - Admin Panel",
@@ -688,7 +689,9 @@
       "inside": "Inside"
     },
     "selectRecord": "Select record",
-    "cardTitleFallback": "Record"
+    "cardTitleFallback": "Record",
+    "savingOffline": "No internet. The record is kept on this screen and saves by itself when the connection returns. Do not close this screen.",
+    "waitingUploads": "Uploading photos..."
   },
   "rolesPage": {
     "title": "Roles",
@@ -1175,7 +1178,8 @@
     "pasteUrlButton": "Paste URL",
     "takePhoto": "Take photo",
     "takePhotoHint": "Use the device camera to capture an image",
-    "onlyImages": "Only image files are allowed"
+    "onlyImages": "Only image files are allowed",
+    "waitingNetwork": "No internet, will upload when signal returns"
   },
   "placeholders": {
     "email": "email@example.com",
@@ -1226,7 +1230,8 @@
     "deleteConfirm": {
       "title": "Delete record?",
       "message": "Are you sure you want to delete this {name} record? It goes to the trash and can be restored."
-    }
+    },
+    "loadMore": "Load more ({shown} of {total})"
   },
   "arrayField": {
     "placeholder": "Type and press Enter...",

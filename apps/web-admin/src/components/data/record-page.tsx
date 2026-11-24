@@ -71,8 +71,10 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
   const openRecord = useOpenRecord(confirmLeave);
   const nav = useMemo<RecordPageNav>(() => ({ openRecord }), [openRecord]);
 
-  // Para onde voltar: a tela de origem; senão o registro-pai; senão a lista da tabela
-  const fallbackBack = parentEntity && parentId ? recordPath(parentEntity.slug, parentId) : `/data?entity=${entitySlug}`;
+  // Para onde voltar: a tela de origem; senão o registro-pai (se o cargo mexe nele: o
+  // inspetor só consulta a operação e quer a lista de veículos); senão a lista da tabela
+  const backToParent = !!parentEntity && !!parentId && hasEntityPermission(parentEntity.slug, 'canUpdate');
+  const fallbackBack = backToParent ? recordPath(parentEntity.slug, parentId) : `/data?entity=${entitySlug}`;
   const backHref = backParam || fallbackBack;
   const goBack = useCallback(() => {
     if (!confirmLeave()) return;
