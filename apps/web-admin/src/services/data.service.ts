@@ -1,6 +1,9 @@
 import api from '@/lib/api';
 import { EntityData, PaginatedResponse, Entity } from '@/types';
 
+/** Salvar travado em sinal ruim: desiste desta tentativa e o formulario tenta de novo. */
+const SAVE_TIMEOUT_MS = 30_000;
+
 export interface QueryDataParams {
   page?: number;
   limit?: number;
@@ -70,14 +73,17 @@ export const dataService = {
     return response.data;
   },
 
+  /** `id` gerado no aparelho: repetir o envio (resposta perdida) devolve o mesmo registro. */
   async create(
     entitySlug: string,
     data: Record<string, unknown>,
-    parentRecordId?: string
+    parentRecordId?: string,
+    id?: string
   ): Promise<EntityData> {
     const response = await api.post<EntityData>(
       `/data/${entitySlug}`,
-      { data, parentRecordId }
+      { id, data, parentRecordId },
+      { timeout: SAVE_TIMEOUT_MS }
     );
     return response.data;
   },
@@ -89,7 +95,8 @@ export const dataService = {
   ): Promise<EntityData> {
     const response = await api.patch<EntityData>(
       `/data/${entitySlug}/${id}`,
-      { data }
+      { data },
+      { timeout: SAVE_TIMEOUT_MS }
     );
     return response.data;
   },

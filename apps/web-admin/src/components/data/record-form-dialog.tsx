@@ -2,8 +2,8 @@
 
 import { TrackingLinkButton } from '@/components/site/tracking-link-button';
 import { ClientPortalButton } from './client-portal-button';
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus, WifiOff } from 'lucide-react';
 import { withoutSystemFields } from '@/lib/system-fields';
 import { useTranslations } from 'next-intl';
 import { DialogFooter } from '@/components/ui/dialog';
@@ -21,6 +21,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select';
 import type { SelectOption } from '@/components/ui/searchable-select';
 import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
 import { usePermissions } from '@/hooks/use-permissions';
+import { usePendingUploads } from '@/lib/pending-uploads';
 import { useTenant } from '@/stores/tenant-context';
 import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -173,6 +174,12 @@ export function RecordFormFields({
   const isEditing = !!record;
   const createRecord = useCreateEntityData({ success: isEditing ? t('toast.updated') : t('toast.created') });
   const updateRecord = useUpdateEntityData({ success: t('toast.updated') });
+  // Id do registro novo gerado aqui: se a resposta do salvar se perder (sinal caiu na
+  // volta), a nova tentativa recebe o mesmo registro em vez de criar outro.
+  const newRecordId = useRef('');
+  if (!newRecordId.current) newRecordId.current = crypto.randomUUID();
+  // Foto ainda subindo: salvar agora deixaria a foto de fora do registro.
+  const uploadsBusy = usePendingUploads() > 0;
   const { tenantId, effectiveTenantId } = useTenant();
   const { hasEntityAction, isAdmin, getHiddenFields, getReadOnlyFields } = usePermissions();
   const hiddenByRole = getHiddenFields(entity.slug);
@@ -608,6 +615,7 @@ export function RecordFormFields({
     // stopPropagation impede o bubble; o guard ignora submits que não são deste form.
     e.stopPropagation();
     if (e.target !== e.currentTarget) return;
+    if (uploadsBusy) return;
     if (!validateForm()) return;
 
     const processedData: Record<string, unknown> = {};
@@ -628,7 +636,8 @@ export function RecordFormFields({
         try {
           const res = await fetch(
             `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
-            { headers: { 'Accept-Language': 'pt-BR,pt,en', 'User-Agent': 'CRM-Builder/1.0' } }
+            // Sinal ruim: o endereco e opcional, nao pode segurar o salvar.
+            { headers: { 'Accept-Language': 'pt-BR,pt,en', 'User-Agent': 'CRM-Builder/1.0' }, signal: AbortSignal.timeout(5000) }
           );
           const data = await res.json();
           if (data?.address) {
@@ -682,8 +691,9 @@ export function RecordFormFields({
         // Save delegado (ex.: comando de chat cria via executeCommand + posta card).
         await submitOverride(processedData);
       } else {
-        const created = await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId });
+        const created = await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId, id: newRecordId.current });
         saved = created?.id ? { id: created.id } : undefined;
+        newRecordId.current = crypto.randomUUID();
       }
       onDirtyChange?.(false);
       onSubmitted?.(saved);
@@ -692,6 +702,15 @@ export function RecordFormFields({
   };
 
   const isLoading = createRecord.isPending || updateRecord.isPending;
+  // Sem sinal o salvar fica em espera (ou repetindo) ate a internet voltar.
+  const saveMutation = isEditing ? updateRecord : createRecord;
+  const waitingNetwork = saveMutation.isPending && (saveMutation.isPaused || saveMutation.failureCount > 0);
+  useEffect(() => {
+    if (!isLoading && !uploadsBusy) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isLoading, uploadsBusy]);
 
   // ─── Evaluate visibleIf conditions ──────────────────────────────────────
   const evaluateCondition = useCallback((condition: { field: string; operator: string; value: unknown }): boolean => {
@@ -786,7 +805,7 @@ export function RecordFormFields({
       <Label htmlFor={field.slug} className={isFieldDisabled ? 'opacity-60' : ''}>
         {field.label || field.name}
         {fieldRequired && <span className="text-destructive ml-1">*</span>}
-        {isFieldDisabled && <span className="text-muted-foreground ml-1 text-xs">(readonly)</span>}
+        {isFieldDisabled && <span className="text-muted-foreground ml-1 text-xs">({tCommon('readOnly')})</span>}
       </Label>
     );
     const errorEl = error ? <p className="text-sm text-destructive">{error}</p> : null;
@@ -1750,11 +1769,17 @@ export function RecordFormFields({
               {t('recordLocked')}
             </p>
           )}
+          {waitingNetwork && (
+            <p role="status" data-testid="save-waiting-network" className="text-xs text-amber-600 mr-auto flex items-start gap-1.5">
+              <WifiOff className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              {t('savingOffline')}
+            </p>
+          )}
           <Button type="button" variant="outline" onClick={() => onCancel?.()}>{tCommon('cancel')}</Button>
           {!isLocked && !readOnly && (
-            <Button type="submit" disabled={isLoading || !entity.fields?.length}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoading ? tCommon('saving') : isEditing ? tCommon('save') : tCommon('create')}
+            <Button type="submit" disabled={isLoading || uploadsBusy || !entity.fields?.length}>
+              {(isLoading || uploadsBusy) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoading ? tCommon('saving') : uploadsBusy ? t('waitingUploads') : isEditing ? tCommon('save') : tCommon('create')}
             </Button>
           )}
         </DialogFooter>

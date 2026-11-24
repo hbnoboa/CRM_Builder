@@ -101,6 +101,9 @@ function formatCellValue(val: unknown, boolYes: string, boolNo: string): string 
   return String(val);
 }
 
+/** Maximo que a API devolve por pagina. */
+const PAGE_SIZE = 100;
+
 function getStatusBadgeVariant(status: unknown): 'default' | 'secondary' | 'destructive' | 'outline' {
   const statusStr = String(status).toLowerCase();
   if (statusStr.includes('conclu') || statusStr.includes('complete')) return 'default';
@@ -136,6 +139,16 @@ export default function SubEntityFieldEnhanced({
   // UI state
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'timeline'>(variant);
   const [searchQuery, setSearchQuery] = useState('');
+  // A API devolve no maximo 100 por pagina: o total vem do servidor (uma operacao tem
+  // centenas de veiculos) e a busca roda la, nao so nos ja carregados.
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
 
@@ -162,42 +175,57 @@ export default function SubEntityFieldEnhanced({
     }
   }, [subEntitySlug, subEntityId, t]);
 
+  const fetchPage = useCallback(async (pageNumber: number) => {
+    const response = await api.get(`/data/${subEntitySlug}`, {
+      params: { parentRecordId, limit: PAGE_SIZE, page: pageNumber, ...(search ? { search } : {}) },
+    });
+    const list: SubRecord[] = Array.isArray(response.data) ? response.data : response.data?.data || [];
+    return { list, total: response.data?.meta?.total ?? list.length };
+  }, [subEntitySlug, parentRecordId, search]);
+
   const loadRecords = useCallback(async () => {
     if (!subEntitySlug || !parentRecordId) return;
     setLoading(true);
     try {
-      const response = await api.get(`/data/${subEntitySlug}`, {
-        params: { parentRecordId, limit: 100 },
-      });
-      const list = Array.isArray(response.data) ? response.data : response.data?.data || [];
-      setRecords(list);
+      const result = await fetchPage(1);
+      setRecords(result.list);
+      setTotal(result.total);
+      setPage(1);
     } catch (error) {
       console.error('Error loading sub-records:', error);
       setRecords([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [subEntitySlug, parentRecordId]);
+  }, [subEntitySlug, parentRecordId, fetchPage]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const result = await fetchPage(page + 1);
+      setRecords((prev) => [...prev, ...result.list.filter((r) => !prev.some((p) => p.id === r.id))]);
+      setTotal(result.total);
+      setPage(page + 1);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     loadSubEntity();
+  }, [loadSubEntity]);
+
+  useEffect(() => {
     loadRecords();
-  }, [loadSubEntity, loadRecords]);
+  }, [loadRecords]);
 
   // Filter and sort records
   useEffect(() => {
-    let filtered = [...records];
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(record => {
-        const searchableText = displayFields
-          .map(field => displayValue(field, record.data[field]))
-          .join(' ')
-          .toLowerCase();
-        return searchableText.includes(searchQuery.toLowerCase());
-      });
-    }
+    // A busca ja veio filtrada do servidor
+    const filtered = [...records];
 
     // Sort
     filtered.sort((a, b) => {
@@ -208,7 +236,7 @@ export default function SubEntityFieldEnhanced({
     });
 
     setFilteredRecords(filtered);
-  }, [records, searchQuery, sortField, sortOrder]);
+  }, [records, sortField, sortOrder]);
 
   // Campo oculto para o cargo (ex.: cliente no portal) nao aparece nem como rotulo
   const hiddenByRole = getHiddenFields(subEntitySlug);
@@ -339,8 +367,7 @@ export default function SubEntityFieldEnhanced({
               {label || subEntity?.name || t('subRecords')}
             </span>
             <Badge variant="secondary" className="text-xs h-5">
-              {filteredRecords.length}
-              {searchQuery && ` / ${records.length}`}
+              {total}
             </Badge>
           </div>
         </div>
@@ -348,7 +375,8 @@ export default function SubEntityFieldEnhanced({
         <div className="ml-auto flex items-center gap-2">
           {/* View mode switcher */}
           {expanded && (
-            <div className="flex items-center border rounded-md">
+            // No celular o seletor de visualizacao cobria o total ao lado do nome
+            <div className="hidden sm:flex items-center border rounded-md">
               <Button
                 type="button"
                 variant={viewMode === 'table' ? 'secondary' : 'ghost'}
@@ -746,6 +774,14 @@ export default function SubEntityFieldEnhanced({
                 </div>
               )}
             </>
+          )}
+          {!loading && records.length < total && (
+            <div className="border-t p-2 text-center">
+              <Button type="button" variant="ghost" size="sm" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                {t('loadMore', { shown: records.length, total })}
+              </Button>
+            </div>
           )}
         </div>
       )}

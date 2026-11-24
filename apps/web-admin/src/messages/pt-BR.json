@@ -70,7 +70,8 @@
     "typeCustomValue": "Digite o valor",
     "columns": "Colunas",
     "export": "Exportar",
-    "import": "Importar"
+    "import": "Importar",
+    "readOnly": "somente leitura"
   },
   "metadata": {
     "title": "CRM Builder - Painel Admin",
@@ -691,7 +692,9 @@
       "inside": "Dentro de"
     },
     "selectRecord": "Selecionar registro",
-    "cardTitleFallback": "Registro"
+    "cardTitleFallback": "Registro",
+    "savingOffline": "Sem internet. O registro fica guardado nesta tela e é salvo sozinho quando a conexão voltar. Não feche esta tela.",
+    "waitingUploads": "Enviando fotos..."
   },
   "rolesPage": {
     "title": "Cargos",
@@ -1178,7 +1181,8 @@
     "pasteUrlButton": "Colar URL",
     "takePhoto": "Tirar foto",
     "takePhotoHint": "Use a camera do dispositivo para capturar uma imagem",
-    "onlyImages": "Apenas arquivos de imagem sao permitidos"
+    "onlyImages": "Apenas arquivos de imagem sao permitidos",
+    "waitingNetwork": "Sem internet, envia quando o sinal voltar"
   },
   "placeholders": {
     "email": "email@exemplo.com",
@@ -1230,7 +1234,8 @@
     "deleteConfirm": {
       "title": "Excluir registro?",
       "message": "Tem certeza que deseja excluir este registro de {name}? Ele vai para a lixeira e pode ser restaurado."
-    }
+    },
+    "loadMore": "Carregar mais ({shown} de {total})"
   },
   "arrayField": {
     "placeholder": "Digite e pressione Enter...",

@@ -55,7 +55,7 @@ async function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => I
 }
 
 /** Reduz a foto da camera (ate 1920 px, JPEG): menos espaco no aparelho e envio mais leve. */
-async function compress(file: File): Promise<Blob> {
+export async function compressPhoto(file: File): Promise<Blob> {
   try {
     const bitmap = await createImageBitmap(file);
     const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
@@ -74,7 +74,7 @@ async function compress(file: File): Promise<Blob> {
 /** Guarda a foto no aparelho e devolve o valor do campo ("local://<id>"). */
 export async function queuePhoto(owner: { tenantId: string; userId: string }, recordId: string, fieldSlug: string, file: File): Promise<string> {
   const id = crypto.randomUUID();
-  const blob = await compress(file);
+  const blob = await compressPhoto(file);
   const item: QueuedPhoto = {
     id, ...owner, recordId, fieldSlug, blob,
     name: `${fieldSlug}-${Date.now()}.jpg`,

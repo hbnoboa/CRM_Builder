@@ -3,6 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { dataService, QueryDataParams, EntityDataResponse } from '@/services/data.service';
 import { getErrorMessage } from '@/lib/get-error-message';
+import { isTransientError, retryDelay } from '@/lib/network-retry';
 import { entityKeys } from '@/hooks/use-entities';
 
 export const dataKeys = {
@@ -112,15 +113,22 @@ export function useCreateEntityData(messages?: MutationMessages) {
   const queryClient = useQueryClient();
 
   return useMutation({
+    // `id` vem do formulario: com ele, repetir o envio depois de uma resposta perdida
+    // devolve o registro ja criado em vez de duplicar. Sem sinal o salvar fica em espera
+    // (TanStack pausa a mutacao offline) e tenta de novo ate o servidor responder.
     mutationFn: ({
       entitySlug,
       data,
       parentRecordId,
+      id,
     }: {
       entitySlug: string;
       data: Record<string, unknown>;
       parentRecordId?: string;
-    }) => dataService.create(entitySlug, data, parentRecordId),
+      id: string;
+    }) => dataService.create(entitySlug, data, parentRecordId, id),
+    retry: (_count, error) => isTransientError(error),
+    retryDelay,
     onSuccess: (_, { entitySlug }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
@@ -156,6 +164,9 @@ export function useUpdateEntityData(messages?: MutationMessages) {
       id: string;
       data: Record<string, unknown>;
     }) => dataService.update(entitySlug, id, data),
+    // PATCH mescla os campos: repetir e seguro.
+    retry: (_count, error) => isTransientError(error),
+    retryDelay,
     onSuccess: (_, { entitySlug, id }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
