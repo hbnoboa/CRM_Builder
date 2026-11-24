@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,6 +16,10 @@ import { useEntityDataItem } from '@/hooks/use-data';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useAppMode, useAppTitle } from '@/components/pwa/app-chrome';
 import { cn } from '@/lib/utils';
+import { pendingData, useOutbox } from '@/lib/outbox';
+import { offlineEnabled } from '@/lib/offline/flags';
+import { useTenant } from '@/stores/tenant-context';
+import { useAuthStore } from '@/stores/auth-store';
 import { ClientPortalButton } from './client-portal-button';
 import { RecordFormFields, useRecordHeader } from './record-form-dialog';
 import { RecordPageNavContext, recordPath, safeBack, useOpenRecord, type RecordPageNav } from './record-nav';
@@ -35,6 +39,9 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
   const tp = useTranslations('data.recordPage');
   const router = useRouter();
   const searchParams = useSearchParams();
+  const params = useParams<{ locale: string; tenant: string }>();
+  const { tenant } = useTenant();
+  const userId = useAuthStore((st) => st.user?.id);
   const isNew = !recordId;
   const parentParam = searchParams.get('pai') || undefined;
   const backParam = safeBack(searchParams.get('voltar'));
@@ -83,7 +90,19 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
 
   // Objeto estavel: o formulario recarrega os valores quando `record` muda (senao, a cada
   // re-render da pagina — ex.: ao marcar alteracao nao salva — o que foi digitado se perderia)
-  const formRecord = useMemo(() => (record ? { id: record.id, data: record.data } : null), [record]);
+  // Alteracao ainda na fila do aparelho (salva sem internet) aparece por cima do servidor
+  const { items: outboxItems } = useOutbox();
+  const queued = record ? pendingData(outboxItems, record.id) : null;
+  const queuedKey = queued ? JSON.stringify(queued) : '';
+  // Quando a fila sobe, o registro do servidor so atualiza no proximo carregamento: ate
+  // la continua mostrando o que estava na fila (senao a tela voltaria ao valor antigo)
+  const shown = useRef<{ record: unknown; data: string }>({ record: undefined, data: '' });
+  if (shown.current.record !== record || (queuedKey && queuedKey !== shown.current.data)) shown.current = { record, data: queuedKey };
+  const shownKey = shown.current.data;
+  const formRecord = useMemo(
+    () => (record ? { id: record.id, data: shownKey ? { ...record.data, ...JSON.parse(shownKey) } : record.data } : null),
+    [record, shownKey],
+  );
   const header = useRecordHeader(entity ?? { fields: [] }, formRecord);
   const subEntityField = (entity?.fields || []).find((f) => f.type === 'sub-entity');
 
@@ -96,8 +115,21 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
       router.replace(recordPath(entitySlug, saved.id, { back: backParam || undefined }));
       return;
     }
+    // Salvo na fila do aparelho sem internet: abrir outra pagina precisaria da rede. Com o
+    // modo sem internet ligado, segue na tela de campo (como o service worker faz ao navegar
+    // sem conexao); senao volta para a tela anterior, que ja estava carregada
+    if (!saved && !navigator.onLine) {
+      if (tenant?.id && userId && offlineEnabled(tenant.id, userId)) {
+        window.location.assign(`/${params.locale}/${params.tenant}/campo`);
+        return;
+      }
+      if (window.history.length > 1) {
+        router.back();
+        return;
+      }
+    }
     router.push(backHref);
-  }, [isNew, subEntityField, tp, router, entitySlug, backParam, backHref]);
+  }, [isNew, subEntityField, tp, router, entitySlug, backParam, backHref, tenant?.id, userId, params.locale, params.tenant]);
 
   const loading = entityLoading || (!isNew && recordLoading);
   // Modo app: titulo e seta de voltar na barra do topo (como no app Flutter)

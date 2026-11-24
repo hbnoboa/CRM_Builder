@@ -3,7 +3,7 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { dataService, QueryDataParams, EntityDataResponse } from '@/services/data.service';
 import { getErrorMessage } from '@/lib/get-error-message';
-import { isTransientError, retryDelay } from '@/lib/network-retry';
+import { isTransientError } from '@/lib/network-retry';
 import { entityKeys } from '@/hooks/use-entities';
 
 export const dataKeys = {
@@ -107,6 +107,8 @@ export function useEntityDataItem(
 interface MutationMessages {
   success?: string;
   error?: string;
+  /** Quem chamou guarda no aparelho quando a rede falha (lib/outbox): sem aviso de erro. */
+  quietNetworkErrors?: boolean;
 }
 
 export function useCreateEntityData(messages?: MutationMessages) {
@@ -114,8 +116,7 @@ export function useCreateEntityData(messages?: MutationMessages) {
 
   return useMutation({
     // `id` vem do formulario: com ele, repetir o envio depois de uma resposta perdida
-    // devolve o registro ja criado em vez de duplicar. Sem sinal o salvar fica em espera
-    // (TanStack pausa a mutacao offline) e tenta de novo ate o servidor responder.
+    // (fila do aparelho) devolve o registro ja criado em vez de duplicar.
     mutationFn: ({
       entitySlug,
       data,
@@ -127,8 +128,8 @@ export function useCreateEntityData(messages?: MutationMessages) {
       parentRecordId?: string;
       id: string;
     }) => dataService.create(entitySlug, data, parentRecordId, id),
-    retry: (_count, error) => isTransientError(error),
-    retryDelay,
+    // Sem rede falha na hora (nao pausa): o formulario guarda na fila do aparelho
+    networkMode: 'always',
     onSuccess: (_, { entitySlug }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
@@ -146,6 +147,7 @@ export function useCreateEntityData(messages?: MutationMessages) {
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
+      if (messages?.quietNetworkErrors && isTransientError(error)) return;
       toast.error(getErrorMessage(error, messages?.error));
     },
   });
@@ -164,9 +166,8 @@ export function useUpdateEntityData(messages?: MutationMessages) {
       id: string;
       data: Record<string, unknown>;
     }) => dataService.update(entitySlug, id, data),
-    // PATCH mescla os campos: repetir e seguro.
-    retry: (_count, error) => isTransientError(error),
-    retryDelay,
+    // Sem rede falha na hora (nao pausa): o formulario guarda na fila do aparelho
+    networkMode: 'always',
     onSuccess: (_, { entitySlug, id }) => {
       queryClient.invalidateQueries({
         queryKey: dataKeys.list(entitySlug),
@@ -185,6 +186,7 @@ export function useUpdateEntityData(messages?: MutationMessages) {
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
+      if (messages?.quietNetworkErrors && isTransientError(error)) return;
       toast.error(getErrorMessage(error, messages?.error));
     },
   });
@@ -218,6 +220,7 @@ export function useDeleteEntityData(messages?: MutationMessages) {
       if (messages?.success) toast.success(messages.success);
     },
     onError: (error: unknown) => {
+      if (messages?.quietNetworkErrors && isTransientError(error)) return;
       toast.error(getErrorMessage(error, messages?.error));
     },
   });

@@ -101,8 +101,19 @@ function DataPageContent() {
 
   const fetchEntities = async () => {
     try {
-      const response = await api.get('/entities');
-      const allEntities: Entity[] = Array.isArray(response.data) ? response.data : response.data?.data || [];
+      // Sem internet (ex.: voltou de um registro salvo na fila do aparelho), usa a ultima
+      // lista carregada nesta sessao em vez de mostrar "nenhuma tabela"
+      const cacheKey = effectiveTenantId || '';
+      let response: { data: unknown };
+      try {
+        response = await api.get('/entities');
+        entitiesCache.set(cacheKey, response.data);
+      } catch (error) {
+        if (!entitiesCache.has(cacheKey)) throw error;
+        response = { data: entitiesCache.get(cacheKey) };
+      }
+      const body = response.data as Entity[] | { data?: Entity[] };
+      const allEntities: Entity[] = Array.isArray(body) ? body : body?.data || [];
 
       // Identify sub-entity slugs (entities referenced via sub-entity fields)
       const subEntitySlugs = new Set<string>();
@@ -251,6 +262,9 @@ function DataPageContent() {
     </div>
   );
 }
+
+/** Ultima lista de tabelas por empresa (vale enquanto o sistema esta aberto). */
+const entitiesCache = new Map<string, unknown>();
 
 export default function DataPage() {
   return (

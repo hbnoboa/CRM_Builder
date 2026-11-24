@@ -3,7 +3,7 @@
 import { TrackingLinkButton } from '@/components/site/tracking-link-button';
 import { ClientPortalButton } from './client-portal-button';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus, WifiOff } from 'lucide-react';
+import { Loader2, Star, Eye, EyeOff, Play, Pause, Square, Clock, AlertTriangle, CheckCircle, XCircle, X, Plus } from 'lucide-react';
 import { withoutSystemFields } from '@/lib/system-fields';
 import { useTranslations } from 'next-intl';
 import { DialogFooter } from '@/components/ui/dialog';
@@ -22,6 +22,11 @@ import type { SelectOption } from '@/components/ui/searchable-select';
 import { useCreateEntityData, useUpdateEntityData } from '@/hooks/use-data';
 import { usePermissions } from '@/hooks/use-permissions';
 import { usePendingUploads } from '@/lib/pending-uploads';
+import { enqueue, withUploadedPhotos } from '@/lib/outbox';
+import { isTransientError } from '@/lib/network-retry';
+import { getErrorMessage } from '@/lib/get-error-message';
+import { useAuthStore } from '@/stores/auth-store';
+import { toast } from 'sonner';
 import { useTenant } from '@/stores/tenant-context';
 import { api } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -172,15 +177,19 @@ export function RecordFormFields({
   const tPlaceholders = useTranslations('placeholders');
   const tValidation = useTranslations('validation');
   const isEditing = !!record;
-  const createRecord = useCreateEntityData({ success: isEditing ? t('toast.updated') : t('toast.created') });
-  const updateRecord = useUpdateEntityData({ success: t('toast.updated') });
+  const createRecord = useCreateEntityData({ success: isEditing ? t('toast.updated') : t('toast.created'), quietNetworkErrors: true });
+  const updateRecord = useUpdateEntityData({ success: t('toast.updated'), quietNetworkErrors: true });
   // Id do registro novo gerado aqui: se a resposta do salvar se perder (sinal caiu na
   // volta), a nova tentativa recebe o mesmo registro em vez de criar outro.
   const newRecordId = useRef('');
   if (!newRecordId.current) newRecordId.current = crypto.randomUUID();
-  // Foto ainda subindo: salvar agora deixaria a foto de fora do registro.
+  // Foto ainda sendo guardada: salvar agora deixaria a foto de fora do registro.
   const uploadsBusy = usePendingUploads() > 0;
-  const { tenantId, effectiveTenantId } = useTenant();
+  const [queueing, setQueueing] = useState(false);
+  const { tenantId, effectiveTenantId, tenant } = useTenant();
+  const userId = useAuthStore((st) => st.user?.id);
+  // Dono da fila do aparelho (fotos guardadas e registros salvos sem internet)
+  const owner = useMemo(() => (tenant?.id && userId ? { tenantId: tenant.id, userId } : undefined), [tenant?.id, userId]);
   const { hasEntityAction, isAdmin, getHiddenFields, getReadOnlyFields } = usePermissions();
   const hiddenByRole = getHiddenFields(entity.slug);
   const readOnlyByRole = getReadOnlyFields(entity.slug);
@@ -682,35 +691,71 @@ export function RecordFormFields({
       }
     });
 
+    // Sem internet, ou a conexao caiu no meio: guarda no aparelho e libera a tela. A fila
+    // (lib/outbox) sobe sozinha quando a internet volta, igual ao app do celular.
+    const queue = async () => {
+      if (!owner) return false;
+      await enqueue(owner, {
+        op: isEditing && record ? 'update' : 'create',
+        entitySlug: entity.slug,
+        entityName: entity.name,
+        recordId: isEditing && record ? record.id : newRecordId.current,
+        parentRecordId: isEditing ? undefined : parentRecordId,
+        data: processedData,
+      });
+      if (!isEditing) newRecordId.current = crypto.randomUUID();
+      toast.info(t('savedOnDevice'));
+      onDirtyChange?.(false);
+      onSubmitted?.(undefined);
+      onSuccess?.();
+      return true;
+    };
+    const canQueue = !!owner && !submitOverride;
+
     try {
+      setQueueing(true);
+      if (canQueue && typeof navigator !== 'undefined' && !navigator.onLine) {
+        await queue();
+        return;
+      }
+      let data = processedData;
+      try {
+        // Fotos guardadas no aparelho sobem antes (ou ja subiram e so trocam pelo endereco)
+        const resolved = await withUploadedPhotos(processedData);
+        data = resolved.data;
+        resolved.warnings.forEach((w) => toast.error(w));
+      } catch (error) {
+        if (canQueue && (isTransientError(error) || !(error as { response?: unknown })?.response)) { await queue(); return; }
+        toast.error(getErrorMessage(error));
+        throw error;
+      }
       let saved: { id: string } | undefined;
-      if (isEditing && record) {
-        await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data: processedData });
-        saved = { id: record.id };
-      } else if (submitOverride) {
-        // Save delegado (ex.: comando de chat cria via executeCommand + posta card).
-        await submitOverride(processedData);
-      } else {
-        const created = await createRecord.mutateAsync({ entitySlug: entity.slug, data: processedData, parentRecordId, id: newRecordId.current });
-        saved = created?.id ? { id: created.id } : undefined;
-        newRecordId.current = crypto.randomUUID();
+      try {
+        if (isEditing && record) {
+          await updateRecord.mutateAsync({ entitySlug: entity.slug, id: record.id, data });
+          saved = { id: record.id };
+        } else if (submitOverride) {
+          // Save delegado (ex.: comando de chat cria via executeCommand + posta card).
+          await submitOverride(data);
+        } else {
+          const created = await createRecord.mutateAsync({ entitySlug: entity.slug, data, parentRecordId, id: newRecordId.current });
+          saved = created?.id ? { id: created.id } : undefined;
+          newRecordId.current = crypto.randomUUID();
+        }
+      } catch (error) {
+        if (canQueue && isTransientError(error)) { await queue(); return; }
+        if (isTransientError(error)) toast.error(getErrorMessage(error));
+        throw error;
       }
       onDirtyChange?.(false);
       onSubmitted?.(saved);
       onSuccess?.();
-    } catch (error) { /* handled by hook */ }
+    } catch (error) { /* handled by hook */ } finally {
+      setQueueing(false);
+    }
   };
 
-  const isLoading = createRecord.isPending || updateRecord.isPending;
-  // Sem sinal o salvar fica em espera (ou repetindo) ate a internet voltar.
-  const saveMutation = isEditing ? updateRecord : createRecord;
-  const waitingNetwork = saveMutation.isPending && (saveMutation.isPaused || saveMutation.failureCount > 0);
-  useEffect(() => {
-    if (!isLoading && !uploadsBusy) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [isLoading, uploadsBusy]);
+  const isLoading = queueing || createRecord.isPending || updateRecord.isPending;
 
   // ─── Evaluate visibleIf conditions ──────────────────────────────────────
   const evaluateCondition = useCallback((condition: { field: string; operator: string; value: unknown }): boolean => {
@@ -1165,6 +1210,7 @@ export function RecordFormFields({
               imageSource={field.type === 'image' ? field.imageSource : undefined}
               imageDisplaySize={field.type === 'image' ? field.imageDisplaySize : undefined}
               disabled={isFieldDisabled}
+              offlineOwner={owner}
             />
             {helpEl}{errorEl}
           </div>
@@ -1767,12 +1813,6 @@ export function RecordFormFields({
             <p className="text-xs text-amber-600 mr-auto flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5" />
               {t('recordLocked')}
-            </p>
-          )}
-          {waitingNetwork && (
-            <p role="status" data-testid="save-waiting-network" className="text-xs text-amber-600 mr-auto flex items-start gap-1.5">
-              <WifiOff className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              {t('savingOffline')}
             </p>
           )}
           <Button type="button" variant="outline" onClick={() => onCancel?.()}>{tCommon('cancel')}</Button>

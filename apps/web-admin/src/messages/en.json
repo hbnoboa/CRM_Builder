@@ -690,8 +690,8 @@
     },
     "selectRecord": "Select record",
     "cardTitleFallback": "Record",
-    "savingOffline": "No internet. The record is kept on this screen and saves by itself when the connection returns. Do not close this screen.",
-    "waitingUploads": "Uploading photos..."
+    "waitingUploads": "Preparing photos...",
+    "savedOnDevice": "No internet: saved on this device. It will upload when the connection returns."
   },
   "rolesPage": {
     "title": "Roles",
@@ -1179,7 +1179,8 @@
     "takePhoto": "Take photo",
     "takePhotoHint": "Use the device camera to capture an image",
     "onlyImages": "Only image files are allowed",
-    "waitingNetwork": "No internet, will upload when signal returns"
+    "waitingNetwork": "No internet, will upload when signal returns",
+    "savedOnDevice": "Saved on this device"
   },
   "placeholders": {
     "email": "email@example.com",
@@ -2843,5 +2844,11 @@
     "pickTable": "Select a table",
     "fields": "{count, plural, one {# field} other {# fields}}",
     "other": "Other"
+  },
+  "outbox": {
+    "waiting": "{n, plural, one {1 change saved on this device. It will upload when the internet returns.} other {# changes saved on this device. They will upload when the internet returns.}}",
+    "sending": "{n, plural, one {Uploading 1 change saved on this device...} other {Uploading # changes saved on this device...}}",
+    "rejected": "{name}: the server rejected the change ({error}).",
+    "discard": "Discard"
   }
 }

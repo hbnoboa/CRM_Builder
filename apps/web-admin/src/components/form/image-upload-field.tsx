@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Upload, X, Image as ImageIcon, FileIcon, Loader2, Camera, ExternalLink } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, FileIcon, Loader2, Camera, ExternalLink, CloudOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
-import { compressPhoto } from '@/lib/offline/photo-queue';
+import { compressPhoto, getQueuedPhoto, LOCAL_PREFIX, queuePhoto, removeQueuedPhoto, uploadQueuedPhoto } from '@/lib/offline/photo-queue';
 import { isTransientError, retryDelay, waitToRetry } from '@/lib/network-retry';
 import { trackUpload } from '@/lib/pending-uploads';
 
@@ -33,6 +33,11 @@ interface ImageUploadFieldProps {
   imageSource?: 'camera' | 'gallery' | 'both';
   /** Display size for image previews in pixels */
   imageDisplaySize?: number;
+  /**
+   * Formulario de registro: a foto fica guardada no aparelho na hora ("local://<id>") e
+   * sobe por tras; sem sinal, o registro vai para a fila (lib/outbox) com ela.
+   */
+  offlineOwner?: { tenantId: string; userId: string };
 }
 
 interface UploadingFile {
@@ -58,6 +63,7 @@ export default function ImageUploadField({
   folder = 'uploads',
   imageSource = 'both',
   imageDisplaySize,
+  offlineOwner,
 }: ImageUploadFieldProps) {
   const t = useTranslations('upload');
   const [isDragOver, setIsDragOver] = useState(false);
@@ -77,6 +83,21 @@ export default function ImageUploadField({
   // da hora em que a foto foi escolhida ja pode estar velho e apagaria outras fotos.
   const valuesRef = useRef(values);
   valuesRef.current = values;
+  // Foto guardada no aparelho ("local://"): mostra direto do arquivo guardado
+  const [localUrls, setLocalUrls] = useState<Record<string, string>>({});
+  const localKey = values.filter((v) => v.startsWith(LOCAL_PREFIX)).join('|');
+  useEffect(() => {
+    for (const ref of localKey ? localKey.split('|') : []) {
+      if (localUrls[ref]) continue;
+      void getQueuedPhoto(ref.slice(LOCAL_PREFIX.length)).then((item) => {
+        if (item) setLocalUrls((cur) => (cur[ref] ? cur : { ...cur, [ref]: URL.createObjectURL(item.blob) }));
+      });
+    }
+  }, [localKey, localUrls]);
+  const localUrlsRef = useRef(localUrls);
+  localUrlsRef.current = localUrls;
+  useEffect(() => () => Object.values(localUrlsRef.current).forEach((u) => URL.revokeObjectURL(u)), []);
+
   // Fechar o formulario cancela os envios pendentes (e a espera pelo sinal).
   const closed = useRef(new AbortController());
   useEffect(() => {
@@ -88,6 +109,28 @@ export default function ImageUploadField({
   const defaultAccept = mode === 'image'
     ? 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml'
     : 'image/*,video/mp4,video/quicktime,video/webm,video/mpeg,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt';
+
+  // Foto guardada no aparelho sobe enquanto o formulario esta aberto e vira o endereco
+  // real. Se a tela fechar antes, a fila (lib/outbox) sobe junto com o registro.
+  const sendInBackground = async (ref: string) => {
+    const { signal } = closed.current;
+    for (let attempt = 0; !signal.aborted; attempt++) {
+      try {
+        const result = await uploadQueuedPhoto(ref.slice(LOCAL_PREFIX.length));
+        if (signal.aborted || !valuesRef.current.includes(ref)) return;
+        const url = result.url;
+        const next = url !== null
+          ? valuesRef.current.map((v) => (v === ref ? url : v))
+          : valuesRef.current.filter((v) => v !== ref);
+        if (result.url === null) toast.error(result.reason || t('uploadError', { name: '' }));
+        valuesRef.current = next;
+        onChange(multiple ? next : next[0] || '');
+        return;
+      } catch {
+        await waitToRetry(retryDelay(attempt), signal);
+      }
+    }
+  };
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
     let fileArray = Array.from(files);
@@ -114,6 +157,24 @@ export default function ImageUploadField({
     } else {
       // Single mode: only upload 1 file (will replace existing)
       toUpload = fileArray.slice(0, 1);
+    }
+
+    const commit = (next: string[]) => {
+      valuesRef.current = next;
+      onChange(multiple ? next : next[next.length - 1] || '');
+    };
+
+    if (offlineOwner && mode === 'image') {
+      // Guarda no aparelho (rapido, sem rede) e ja mostra; o envio vai por tras
+      await Promise.all(toUpload.map(async (file) => {
+        const ref = await trackUpload(queuePhoto(offlineOwner, '', folder, file, 'form'));
+        if (closed.current.signal.aborted) return;
+        const replaced = multiple ? [] : valuesRef.current;
+        commit(multiple ? [...valuesRef.current, ref] : [ref]);
+        for (const old of replaced) if (old.startsWith(LOCAL_PREFIX)) void removeQueuedPhoto(old.slice(LOCAL_PREFIX.length));
+        void sendInBackground(ref);
+      }));
+      return;
     }
 
     const setProgress = (uploadId: string, patch: Partial<UploadingFile>) =>
@@ -173,7 +234,8 @@ export default function ImageUploadField({
       valuesRef.current = multiple ? (next as string[]) : [url];
       onChange(next);
     }));
-  }, [values, multiple, maxFiles, mode, folder, onChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values, multiple, maxFiles, mode, folder, onChange, offlineOwner]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -206,6 +268,8 @@ export default function ImageUploadField({
   }, [handleFiles]);
 
   const handleRemove = useCallback((index: number) => {
+    const removed = values[index];
+    if (removed?.startsWith(LOCAL_PREFIX)) void removeQueuedPhoto(removed.slice(LOCAL_PREFIX.length));
     if (multiple) {
       const newValues = values.filter((_, i) => i !== index);
       onChange(newValues);
@@ -252,6 +316,7 @@ export default function ImageUploadField({
   // No local o upload devolve /uploads/... e o <img> resolveria contra o web (:3100),
   // que não serve isso. Em prod as URLs já são absolutas (GCS) → no-op.
   const resolveMediaUrl = (url: string) => {
+    if (url.startsWith(LOCAL_PREFIX)) return localUrls[url] || '';
     if (!url || /^(https?:|data:|blob:)/i.test(url)) return url;
     try {
       const base = (api.defaults.baseURL as string) || process.env.NEXT_PUBLIC_API_URL || '';
@@ -306,6 +371,14 @@ export default function ImageUploadField({
                   className="relative rounded-lg border overflow-hidden bg-muted"
                   style={imageDisplaySize ? { width: imageDisplaySize, height: imageDisplaySize } : { aspectRatio: '1/1', width: '100%', maxWidth: 200 }}
                 >
+                  {url.startsWith(LOCAL_PREFIX) && (
+                    <span className="absolute bottom-1 left-1 z-10 flex items-center gap-1 rounded bg-background/90 px-1.5 py-0.5 text-[10px] text-amber-700 shadow" title={t('savedOnDevice')} data-testid="photo-on-device">
+                      <CloudOff className="h-3 w-3" />{t('savedOnDevice')}
+                    </span>
+                  )}
+                  {!resolveMediaUrl(url) ? (
+                    <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  ) : (
                   <img
                     src={resolveMediaUrl(url)}
                     alt={`Arquivo ${index + 1}`}
@@ -322,6 +395,7 @@ export default function ImageUploadField({
                       im.parentElement?.appendChild(icon);
                     }}
                   />
+                  )}
                   <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                     <a
                       href={resolveMediaUrl(url)}

@@ -36,6 +36,7 @@ import { NotificationProvider } from '@/providers/notification-provider';
 import { TenantThemeProvider } from '@/providers/tenant-theme-provider';
 import { AppInstall } from '@/components/pwa/app-install';
 import { OfflineBackgroundSync } from '@/components/offline/offline-background-sync';
+import { OutboxBanner, OutboxHost } from '@/components/offline/outbox-sync';
 import { ImpersonationBanner } from '@/components/impersonation-banner';
 import { OperationalShell } from '@/components/layout/operational-shell';
 import { GestaoShell } from '@/components/layout/gestao-shell';
@@ -254,11 +255,11 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   // proprio (slim, identidade "Operacional"), nao o console de admin. O guard de
   // rota acima ja redireciona URLs admin digitadas na mao para a home deles.
   if (pathname === '/gestao' || pathname.startsWith('/gestao/')) {
-    return <GestaoShell>{children}</GestaoShell>;
+    return <GestaoShell><OutboxBanner />{children}</GestaoShell>;
   }
 
   if (isOperationalSurface) {
-    return <OperationalShell>{children}</OperationalShell>;
+    return <OperationalShell><OutboxBanner />{children}</OperationalShell>;
   }
 
   return (
@@ -574,6 +575,7 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
         <AnnouncementsBanner />
         <TrialBanner />
         <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">
+          <OutboxBanner />
           {children}
         </main>
       </div>
@@ -602,6 +604,7 @@ export default function DashboardLayout({
       <TenantThemeProvider>
         <AppInstall />
         <OfflineBackgroundSync />
+        <OutboxHost />
         <NotificationProvider>
           <ImpersonationBanner />
           <DashboardContent>{children}</DashboardContent>
