@@ -6,14 +6,18 @@ import api from '@/lib/api';
 /**
  * Fotos tiradas no modo sem internet (igual ao app do celular): a foto fica guardada no
  * aparelho (IndexedDB), o campo recebe "local://<id>" e o registro e salvo normalmente.
- * Com internet, a foto sobe (/upload/image) e o "local://" vira o endereco real no
- * registro local, o que gera a alteracao que sobe para o servidor.
+ * Na hora de enviar o registro (connector.uploadData), cada "local://" sobe antes e vira
+ * o endereco real: o servidor nunca recebe "local://", e um registro que some do aparelho
+ * depois de enviado (ex.: veiculo concluido, que o cargo deixa de ver) ja foi com as fotos.
  */
 export const LOCAL_PREFIX = 'local://';
 const DB_NAME = 'crm-campo-fotos';
 const STORE = 'fotos';
 const MAX_SIDE = 1920;
-const MAX_ATTEMPTS = 8;
+/** Envio de foto travado em sinal ruim: desiste desta vez e tenta de novo depois. */
+const UPLOAD_TIMEOUT_MS = 90_000;
+/** Foto de formulario abandonado (nunca salvo) sai do aparelho depois disso. */
+const ABANDONED_MS = 24 * 60 * 60 * 1000;
 
 export interface QueuedPhoto {
   id: string;
@@ -24,10 +28,9 @@ export interface QueuedPhoto {
   blob: Blob;
   name: string;
   createdAt: string;
-  attempts: number;
-  nextTryAt: number;
-  /** Recusada pelo servidor (nao tenta de novo). */
-  failed?: string;
+  /** Endereco depois de enviada. A foto fica ate o registro subir com ele (o mesmo
+   *  "local://" pode estar em mais de uma alteracao na fila). */
+  url?: string;
 }
 
 function openStore(): Promise<IDBDatabase> {
@@ -75,7 +78,7 @@ export async function queuePhoto(owner: { tenantId: string; userId: string }, re
   const item: QueuedPhoto = {
     id, ...owner, recordId, fieldSlug, blob,
     name: `${fieldSlug}-${Date.now()}.jpg`,
-    createdAt: new Date().toISOString(), attempts: 0, nextTryAt: 0,
+    createdAt: new Date().toISOString(),
   };
   await tx('readwrite', (s) => s.put(item));
   return `${LOCAL_PREFIX}${id}`;
@@ -97,51 +100,64 @@ export async function clearQueuedPhotos(owner: { tenantId: string; userId: strin
   for (const item of await listQueuedPhotos(owner)) await removeQueuedPhoto(item.id);
 }
 
-let running = false;
+/** Resultado do envio: endereco real, ou null com o motivo (foto apagada ou recusada). */
+export type PhotoUpload = { url: string } | { url: null; reason?: string };
 
 /**
- * Envia as fotos pendentes (com internet). Falha temporaria espera e tenta de novo;
- * recusa do servidor fica marcada e aparece na tela de campo.
+ * Envia uma foto da fila (ou devolve o endereco, se ja subiu). Falta de rede ou servidor
+ * fora: lanca o erro, e quem chamou tenta de novo depois, sem limite de tentativas (no
+ * campo a internet cai o tempo todo). So a recusa do servidor (4xx) desiste da foto.
  */
-export async function processPhotoQueue(db: PowerSyncDatabase, owner: { tenantId: string; userId: string }): Promise<void> {
-  if (running || !navigator.onLine) return;
-  running = true;
+export async function uploadQueuedPhoto(id: string): Promise<PhotoUpload> {
+  const item = await getQueuedPhoto(id);
+  if (!item) return { url: null };
+  if (item.url) return { url: item.url };
   try {
-    for (const item of await listQueuedPhotos(owner)) {
-      if (item.failed || item.nextTryAt > Date.now()) continue;
-      const row = await db.getOptional<{ data: string }>('SELECT data FROM EntityData WHERE id = ?', [item.recordId]);
-      if (!row) { await removeQueuedPhoto(item.id); continue; } // registro excluido
-      try {
-        const form = new FormData();
-        form.append('image', item.blob, item.name);
-        form.append('folder', 'images');
-        const { data: up } = await api.post<{ url?: string; publicUrl?: string }>('/upload/image', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-        const url = up.publicUrl || up.url;
-        if (!url) throw new Error('Envio sem endereco');
-        // Troca o "local://" pelo endereco real (se o campo ainda aponta para esta foto)
-        await db.writeTransaction(async (t) => {
-          const fresh = await t.getOptional<{ data: string }>('SELECT data FROM EntityData WHERE id = ?', [item.recordId]);
-          if (!fresh) return;
-          const data = JSON.parse(fresh.data || '{}') as Record<string, unknown>;
-          if (data[item.fieldSlug] !== `${LOCAL_PREFIX}${item.id}`) return;
-          data[item.fieldSlug] = url;
-          await t.execute('UPDATE EntityData SET data = ?, updatedAt = ? WHERE id = ?', [JSON.stringify(data), new Date().toISOString(), item.recordId]);
-        });
-        await removeQueuedPhoto(item.id);
-      } catch (error) {
-        const status = (error as { response?: { status?: number } })?.response?.status;
-        const permanent = !!status && status >= 400 && status < 500 && ![401, 408, 429].includes(status);
-        const attempts = item.attempts + 1;
-        const next: QueuedPhoto = {
-          ...item, attempts,
-          nextTryAt: Date.now() + Math.min(30_000, 500 * 2 ** attempts),
-          failed: permanent || attempts >= MAX_ATTEMPTS ? (error as Error).message || 'Foto recusada pelo servidor' : undefined,
-        };
-        await tx('readwrite', (s) => s.put(next));
-        if (!status) break; // sem rede: para e tenta depois
-      }
-    }
-  } finally {
-    running = false;
+    const form = new FormData();
+    form.append('image', item.blob, item.name);
+    form.append('folder', 'images');
+    const { data: up } = await api.post<{ url?: string; publicUrl?: string }>('/upload/image', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: UPLOAD_TIMEOUT_MS,
+    });
+    const url = up.publicUrl || up.url;
+    if (!url) throw new Error('Envio sem endereco');
+    await tx('readwrite', (s) => s.put({ ...item, url }));
+    return { url };
+  } catch (error) {
+    const status = (error as { response?: { status?: number } })?.response?.status;
+    if (!status || status >= 500 || [401, 408, 429].includes(status)) throw error;
+    const message = (error as { response?: { data?: { message?: string | string[] } } })?.response?.data?.message;
+    return { url: null, reason: (Array.isArray(message) ? message.join(', ') : message) || 'Foto recusada pelo servidor' };
+  }
+}
+
+/** Ids de "local://" ainda presentes na fila de alteracoes (o registro nao subiu). */
+async function pendingRefs(db: PowerSyncDatabase): Promise<string> {
+  const rows = await db.getAll<{ data: string | null }>('SELECT data FROM ps_crud');
+  return rows.map((r) => r.data ?? '').join('\n');
+}
+
+/** Fotos que ainda vao subir (o registro delas esta na fila e a foto nao subiu). */
+export async function countPendingPhotos(db: PowerSyncDatabase, owner: { tenantId: string; userId: string }): Promise<number> {
+  const refs = await pendingRefs(db);
+  return (await listQueuedPhotos(owner)).filter((i) => !i.url && refs.includes(`${LOCAL_PREFIX}${i.id}`)).length;
+}
+
+/**
+ * Tira do aparelho as fotos que nao fazem mais falta: ja subiram e o registro nao aponta
+ * mais para o "local://" (subiu com o endereco real), ou ficaram de um formulario
+ * abandonado sem salvar. Foto que ainda nao subiu e nao esta em nada salvo pode ser de um
+ * formulario aberto agora (ex.: veiculo ainda nao salvo enquanto se cria a NC): fica.
+ */
+export async function cleanPhotoQueue(db: PowerSyncDatabase, owner: { tenantId: string; userId: string }): Promise<void> {
+  const refs = await pendingRefs(db);
+  for (const item of await listQueuedPhotos(owner)) {
+    const ref = `${LOCAL_PREFIX}${item.id}`;
+    if (refs.includes(ref)) continue; // registro ainda na fila
+    const row = await db.getOptional<{ data: string | null }>('SELECT data FROM EntityData WHERE id = ?', [item.recordId]);
+    if (row?.data?.includes(ref)) continue; // registro no aparelho ainda aponta para ela
+    if (!item.url && Date.now() - Date.parse(item.createdAt) < ABANDONED_MS) continue;
+    await removeQueuedPhoto(item.id);
   }
 }

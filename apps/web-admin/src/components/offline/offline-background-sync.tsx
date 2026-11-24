@@ -19,12 +19,12 @@ export function OfflineBackgroundSync() {
     let interval: ReturnType<typeof setInterval> | undefined;
     const timer = setTimeout(async () => {
       try {
-        const [{ connectOffline }, { processPhotoQueue }] = await Promise.all([import('@/lib/offline/offline-db'), import('@/lib/offline/photo-queue')]);
+        const [{ connectOffline }, { cleanPhotoQueue }] = await Promise.all([import('@/lib/offline/offline-db'), import('@/lib/offline/photo-queue')]);
+        // Conectado, o que ficou na fila (com as fotos) sobe tambem com o sistema normal aberto
         const { db } = await connectOffline(tenantId, userId);
-        // Fotos tiradas sem internet sobem tambem com o sistema normal aberto
-        const send = () => void processPhotoQueue(db, { tenantId, userId }).catch(() => undefined);
-        send();
-        interval = setInterval(send, 30_000);
+        const clean = () => void cleanPhotoQueue(db, { tenantId, userId }).catch(() => undefined);
+        clean();
+        interval = setInterval(clean, 30_000);
       } catch { /* sem modo sem internet agora */ }
     }, 3000); // depois de a tela carregar
     return () => { clearTimeout(timer); if (interval) clearInterval(interval); };

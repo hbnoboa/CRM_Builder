@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import type { PowerSyncDatabase } from '@powersync/web';
@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
 import ZoneDiagramField from '@/components/form/zone-diagram-field';
-import { getQueuedPhoto, listQueuedPhotos, LOCAL_PREFIX, processPhotoQueue, queuePhoto, removeQueuedPhoto } from '@/lib/offline/photo-queue';
+import { cleanPhotoQueue, countPendingPhotos, getQueuedPhoto, LOCAL_PREFIX, queuePhoto, removeQueuedPhoto } from '@/lib/offline/photo-queue';
 import { connectOffline, offlineEnabled, openOfflineDb } from '@/lib/offline/offline-db';
 import type { OfflineConnector } from '@/lib/offline/connector';
 import { readOfflineProfile, type OfflineProfile } from '@/lib/offline/profile';
@@ -97,10 +97,20 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
   const [online, setOnline] = useState(true);
   const [stack, setStack] = useState<View[]>([{ kind: 'tables' }]);
   const view = stack[stack.length - 1];
-  const push = (v: View) => setStack((st) => [...st, v]);
-  const back = () => setStack((st) => (st.length > 1 ? st.slice(0, -1) : st));
+  // Cada tela da pilha guarda a rolagem: a nova abre no topo e, ao voltar, a de baixo
+  // reaparece onde estava (ex.: no fim do formulario do veiculo, perto das nao conformidades).
+  const scrolls = useRef<number[]>([]);
+  const push = (v: View) => {
+    scrolls.current[stack.length - 1] = window.scrollY;
+    setStack((st) => [...st, v]);
+    requestAnimationFrame(() => window.scrollTo(0, 0));
+  };
+  const back = () => {
+    const y = scrolls.current[stack.length - 2] ?? 0;
+    setStack((st) => (st.length > 1 ? st.slice(0, -1) : st));
+    requestAnimationFrame(() => window.scrollTo(0, y));
+  };
   const [photosPending, setPhotosPending] = useState(0);
-  const [photosFailed, setPhotosFailed] = useState<string[]>([]);
 
   useEffect(() => {
     const p = readOfflineProfile(slug);
@@ -128,22 +138,21 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
 
   const { status, pending } = useOfflineStatus(db);
 
-  // Fotos tiradas sem internet: sobem quando ha conexao (a cada 30 s e ao voltar a rede)
+  // Fotos tiradas sem internet sobem junto com o registro (connector). Aqui: quantas faltam
+  // e limpeza das que ja subiram. Recontagem quando a fila de alteracoes muda.
   const owner = useMemo(() => (profile ? { tenantId: profile.tenantId, userId: profile.userId } : null), [profile]);
   const refreshPhotos = useCallback(async () => {
-    if (!owner) return;
-    if (db && navigator.onLine) await processPhotoQueue(db, owner).catch(() => undefined);
-    const items = await listQueuedPhotos(owner).catch(() => []);
-    setPhotosPending(items.filter((i) => !i.failed).length);
-    setPhotosFailed(items.filter((i) => i.failed).map((i) => i.failed as string));
+    if (!owner || !db) return;
+    await cleanPhotoQueue(db, owner).catch(() => undefined);
+    setPhotosPending(await countPendingPhotos(db, owner).catch(() => 0));
   }, [db, owner]);
   useEffect(() => {
     if (!db) return;
     void refreshPhotos();
     const id = setInterval(() => void refreshPhotos(), 30_000);
-    window.addEventListener('online', refreshPhotos);
-    return () => { clearInterval(id); window.removeEventListener('online', refreshPhotos); };
+    return () => clearInterval(id);
   }, [db, refreshPhotos]);
+  useEffect(() => { void refreshPhotos(); }, [pending, refreshPhotos]);
   const roles = useLocalQuery<OfflineRole & { id: string }>(db, 'SELECT id, permissions, modulePermissions FROM CustomRole WHERE id = ?', [profile?.roleId ?? '']);
   const role: OfflineRole | null = roles.data[0] ?? profile?.role ?? null;
 
@@ -186,11 +195,6 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-4 py-4">
-        {photosFailed.length > 0 && (
-          <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm" data-testid="campo-photos-failed">
-            {t('photosFailed', { n: photosFailed.length })}: {photosFailed.slice(-2).join('; ')}
-          </div>
-        )}
         {connector && connector.rejected.length > 0 && (
           <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm" data-testid="campo-rejected">
             {t('rejected', { n: connector.rejected.length })}: {connector.rejected.slice(-3).map((r) => r.message).join('; ')}
@@ -198,16 +202,24 @@ export function CampoApp({ slug, locale }: { slug: string; locale: string }) {
         )}
         {!db ? (
           <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> {t('opening')}</div>
-        ) : view.kind === 'tables' ? (
-          <TablesView db={db} role={role} onOpen={(entityId) => push({ kind: 'records', entityId })} />
-        ) : view.kind === 'records' ? (
-          <RecordsView db={db} role={role} entityId={view.entityId}
-            onOpen={(recordId) => push({ kind: 'form', entityId: view.entityId, recordId })} />
         ) : (
-          <RecordForm key={`${view.entityId}:${view.recordId ?? 'novo'}:${stack.length}`} db={db} role={role} profile={profile} online={online}
-            entityId={view.entityId} recordId={view.recordId} presetParentId={view.parentId}
-            onOpenChild={(child) => push({ kind: 'form', ...child })}
-            onSaved={() => { back(); void refreshPhotos(); }} onDone={back} />
+          // As telas de baixo continuam montadas (so escondidas): o que foi preenchido no
+          // veiculo nao se perde ao abrir uma nao conformidade e voltar.
+          stack.map((v, i) => (
+            <div key={v.kind === 'form' ? `${i}:form:${v.entityId}:${v.recordId ?? 'novo'}` : v.kind === 'records' ? `${i}:records:${v.entityId}` : `${i}:tables`} hidden={i !== stack.length - 1}>
+              {v.kind === 'tables' ? (
+                <TablesView db={db} role={role} onOpen={(entityId) => push({ kind: 'records', entityId })} />
+              ) : v.kind === 'records' ? (
+                <RecordsView db={db} role={role} entityId={v.entityId}
+                  onOpen={(recordId) => push({ kind: 'form', entityId: v.entityId, recordId })} />
+              ) : (
+                <RecordForm db={db} role={role} profile={profile} online={online}
+                  entityId={v.entityId} recordId={v.recordId} presetParentId={v.parentId}
+                  onOpenChild={(child) => push({ kind: 'form', ...child })}
+                  onSaved={() => { back(); void refreshPhotos(); }} onDone={back} />
+              )}
+            </div>
+          ))
         )}
       </main>
     </div>
@@ -346,11 +358,10 @@ function PhotoInput({ value, disabled, onPick, onClear }: {
   );
 }
 
-function FieldInput({ field, value, disabled, onChange, onPhoto, yes, no }: {
-  field: Field; value: unknown; disabled: boolean; onChange: (v: unknown) => void;
+function FieldInput({ id, field, value, disabled, onChange, onPhoto, yes, no }: {
+  id: string; field: Field; value: unknown; disabled: boolean; onChange: (v: unknown) => void;
   onPhoto: (file: File) => Promise<void>; yes: string; no: string;
 }) {
-  const id = `campo-${field.slug}`;
   const str = value === null || value === undefined ? '' : typeof value === 'object' ? display(value, yes, no) : String(value);
   switch (field.type) {
     case 'image':
@@ -454,6 +465,8 @@ function RecordForm({ db, role, profile, online, entityId, recordId, presetParen
   const [values, setValues] = useState<Record<string, unknown> | null>(null);
   const [parentId, setParentId] = useState(presetParentId ?? '');
   const [saving, setSaving] = useState(false);
+  // Foto ainda sendo reduzida/guardada: salvar antes deixaria a foto de fora do registro
+  const [photosBusy, setPhotosBusy] = useState(0);
   const owner = { tenantId: profile.tenantId, userId: profile.userId };
 
   useEffect(() => {
@@ -472,7 +485,7 @@ function RecordForm({ db, role, profile, online, entityId, recordId, presetParen
   };
 
   const save = useCallback(async () => {
-    if (!entity || !values) return;
+    if (!entity || !values || photosBusy > 0) return;
     const fields = parseJson<Field[]>(entity.fields, []);
     const { hidden } = fieldRules(role, entity.slug);
     const required = fields.filter((f) => f.required && !NOT_DATA.has(f.type) && !hidden.has(f.slug) && isEmpty(values[f.slug]));
@@ -499,7 +512,7 @@ function RecordForm({ db, role, profile, online, entityId, recordId, presetParen
     } finally {
       setSaving(false);
     }
-  }, [db, entity, values, role, recordId, id, parentEntity, parentId, profile, online, onSaved, t]);
+  }, [db, entity, values, photosBusy, role, recordId, id, parentEntity, parentId, profile, online, onSaved, t]);
 
   const cancel = () => {
     // Registro novo nao salvo: as fotos tiradas para ele saem da fila
@@ -544,12 +557,13 @@ function RecordForm({ db, role, profile, online, entityId, recordId, presetParen
         const editable = EDITABLE.has(f.type);
         return (
           <div key={f.slug} className="space-y-1.5" data-testid={`campo-field-${f.slug}`}>
-            {f.type !== 'zone-diagram' && <Label htmlFor={`campo-${f.slug}`}>{fieldLabel(f)}{f.required && editable ? ' *' : ''}</Label>}
+            {f.type !== 'zone-diagram' && <Label htmlFor={`campo-${entity.slug}-${f.slug}`}>{fieldLabel(f)}{f.required && editable ? ' *' : ''}</Label>}
             {editable ? (
-              <FieldInput field={f} value={values[f.slug]} disabled={!canWrite || readOnly.has(f.slug)} yes={yes} no={no}
+              <FieldInput id={`campo-${entity.slug}-${f.slug}`} field={f} value={values[f.slug]} disabled={!canWrite || readOnly.has(f.slug)} yes={yes} no={no}
                 onChange={(v) => setField(f.slug, v)}
                 onPhoto={async (file) => {
-                  setField(f.slug, await queuePhoto(owner, id, f.slug, file));
+                  setPhotosBusy((n) => n + 1);
+                  try { setField(f.slug, await queuePhoto(owner, id, f.slug, file)); } finally { setPhotosBusy((n) => n - 1); }
                 }} />
             ) : (
               <p className={cn('rounded-md border bg-muted/40 px-3 py-2 text-sm', !display(values[f.slug], yes, no) && 'text-muted-foreground')}>
@@ -561,8 +575,8 @@ function RecordForm({ db, role, profile, online, entityId, recordId, presetParen
       })}
       <div className="flex items-center gap-2 pt-2">
         {canWrite && (
-          <Button type="submit" disabled={saving} data-testid="campo-save">
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t('save')}
+          <Button type="submit" disabled={saving || photosBusy > 0} data-testid="campo-save">
+            {(saving || photosBusy > 0) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t('save')}
           </Button>
         )}
         <Button type="button" variant="outline" onClick={cancel}>{t('cancel')}</Button>
