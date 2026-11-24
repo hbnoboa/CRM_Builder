@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowLeft, Copy, ExternalLink, Globe, GripVertical, Loader2, Monitor, Plus, Redo2, Save, Smartphone, Sparkles, Undo2 } from 'lucide-react';
+import { ArrowLeft, Copy, ExternalLink, Globe, GripVertical, Loader2, Monitor, Plus, Redo2, Save, SlidersHorizontal, Smartphone, Sparkles, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
@@ -83,6 +83,11 @@ export function SitePageEditor({ id }: { id: string }) {
   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
   const [paletteTab, setPaletteTab] = useState<'elements' | 'sections'>('elements');
   const [aiOpen, setAiOpen] = useState(false);
+  // Celular/tablet (< lg): uma area por vez (adicionar, pagina, propriedades), trocada pelas abas
+  const [pane, setPane] = useState<'add' | 'page' | 'props'>('page');
+  const narrow = () => window.matchMedia('(max-width: 1023.98px)').matches;
+  // No celular a pagina ja abre na visao de celular (cabe na tela)
+  useEffect(() => { if (narrow()) setDevice('mobile'); }, []);
   const { data: aiStatus } = useAiBuilderStatus();
   const [preview, setPreview] = useState<SitePageData | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -159,6 +164,7 @@ export function SitePageEditor({ id }: { id: string }) {
     const res = ops.addBlock(doc, type, sectionId, at);
     change(() => res.doc);
     setSelection({ kind: 'item', id: res.id });
+    setPane('page');
   };
   const removeItem = (bid: string) => { change((d) => ops.removeItem(d, bid)); setSelection({ kind: 'page' }); };
   const duplicateItem = (bid: string) => {
@@ -222,7 +228,7 @@ export function SitePageEditor({ id }: { id: string }) {
   // Sem escala (como o editor de paineis): o arrasto e as alcas acompanham o mouse 1:1.
   // No computador a pagina ocupa a largura disponivel (no minimo a de um notebook).
   const scale = 1;
-  const pageWidth = device === 'desktop' ? Math.max(stageWidth - 48, DESKTOP_WIDTH) : PHONE_WIDTH;
+  const pageWidth = device === 'desktop' ? Math.max(stageWidth - 48, DESKTOP_WIDTH) : Math.min(PHONE_WIDTH, Math.max(300, stageWidth - 36));
 
   const save = async (): Promise<boolean> => {
     try {
@@ -289,9 +295,9 @@ export function SitePageEditor({ id }: { id: string }) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-background" data-testid="site-page-editor">
       {/* Barra de cima */}
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b px-3">
+      <div className="flex h-14 shrink-0 items-center gap-1.5 border-b px-2 sm:gap-2 sm:px-3">
         <Button asChild variant="ghost" size="icon" aria-label="Voltar"><Link href="/gestao/pages"><ArrowLeft className="h-4 w-4" /></Link></Button>
-        <Input value={title} onChange={(e) => { setTitle(e.target.value); setMeta(true); }} className="h-9 w-56 font-semibold" aria-label="Título da página" data-testid="page-editor-title" />
+        <Input value={title} onChange={(e) => { setTitle(e.target.value); setMeta(true); }} className="h-9 w-28 min-w-0 font-semibold sm:w-56" aria-label="Título da página" data-testid="page-editor-title" />
         <div className="hidden items-center gap-1 text-xs text-muted-foreground xl:flex">
           <span className="max-w-[220px] truncate">{fullUrl.replace(/[^/]+$/, '')}</span>
           <Input value={slug} onChange={(e) => { setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-')); setMeta(true); }} className="h-8 w-36 text-xs" aria-label="Endereço da página" />
@@ -306,28 +312,38 @@ export function SitePageEditor({ id }: { id: string }) {
         <div className="mx-auto flex items-center gap-1 rounded-lg border p-0.5">
           {([['desktop', Monitor, 'Computador'], ['mobile', Smartphone, 'Celular']] as const).map(([value, Icon, label]) => (
             <Button key={value} size="sm" variant={device === value ? 'secondary' : 'ghost'} className="h-8" onClick={() => setDevice(value)} data-testid={`editor-device-${value}`}>
-              <Icon className="mr-1.5 h-4 w-4" />{label}
+              <Icon className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">{label}</span>
             </Button>
           ))}
         </div>
 
         {aiStatus?.enabled && (
           <Button variant="outline" className="h-9" onClick={() => setAiOpen(true)} data-testid="editor-ai">
-            <Sparkles className="mr-1.5 h-4 w-4" /> IA
+            <Sparkles className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">IA</span>
           </Button>
         )}
         <Button size="icon" variant="ghost" className="h-9 w-9" disabled={!history.canUndo} onClick={undo} title="Desfazer (Ctrl+Z)" data-testid="editor-undo"><Undo2 className="h-4 w-4" /></Button>
         <Button size="icon" variant="ghost" className="h-9 w-9" disabled={!history.canRedo} onClick={redo} title="Refazer (Ctrl+Shift+Z)" data-testid="editor-redo"><Redo2 className="h-4 w-4" /></Button>
-        <span className={cn('rounded-full px-2.5 py-1 text-xs font-medium', page.isPublished ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-muted text-muted-foreground')}>
+        <span className={cn('hidden rounded-full px-2.5 py-1 text-xs font-medium sm:inline', page.isPublished ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-muted text-muted-foreground')}>
           {page.isPublished ? 'No ar' : 'Rascunho'}
         </span>
         <Button variant="outline" onClick={() => void save()} disabled={update.isPending || updateSite.isPending || !dirty} data-testid="page-save">
-          {update.isPending || updateSite.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
-          {dirty ? 'Salvar' : 'Salvo'}
+          {update.isPending || updateSite.isPending ? <Loader2 className="h-4 w-4 animate-spin sm:mr-1.5" /> : <Save className="h-4 w-4 sm:mr-1.5" />}
+          <span className="hidden sm:inline">{dirty ? 'Salvar' : 'Salvo'}</span>
         </Button>
         <Button onClick={() => void togglePublish()} disabled={publish.isPending} variant={page.isPublished ? 'outline' : 'default'} data-testid="page-publish">
-          <Globe className="mr-1.5 h-4 w-4" /> {page.isPublished ? 'Tirar do ar' : 'Publicar'}
+          <Globe className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">{page.isPublished ? 'Tirar do ar' : 'Publicar'}</span>
         </Button>
+      </div>
+
+      {/* Abas (celular) */}
+      <div className="flex shrink-0 border-b lg:hidden" role="tablist" data-testid="page-editor-tabs">
+        {([['add', 'Adicionar'], ['page', 'Página'], ['props', 'Propriedades']] as const).map(([value, label]) => (
+          <button key={value} type="button" role="tab" aria-selected={pane === value} onClick={() => setPane(value)}
+            className={cn('-mb-px h-11 flex-1 border-b-2 text-sm font-medium transition-colors', pane === value ? 'border-primary text-primary' : 'border-transparent text-muted-foreground')}>
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Barra de formatacao do texto (aparece enquanto escreve, como no Word) */}
@@ -335,7 +351,7 @@ export function SitePageEditor({ id }: { id: string }) {
 
       <div className="flex min-h-0 flex-1">
         {/* Esquerda: elementos para adicionar e secoes */}
-        <aside className="w-60 shrink-0 overflow-y-auto border-r p-3" data-testid="editor-palette">
+        <aside className={cn('w-full shrink-0 overflow-y-auto p-3 lg:w-60 lg:border-r', pane !== 'add' && 'hidden lg:block')} data-testid="editor-palette">
           <div className="mb-3 grid grid-cols-2 rounded-lg border p-0.5 text-xs font-medium">
             {([['elements', 'Elementos'], ['sections', 'Seções prontas']] as const).map(([value, label]) => (
               <button key={value} type="button" onClick={() => setPaletteTab(value)} data-testid={`palette-tab-${value}`}
@@ -351,6 +367,7 @@ export function SitePageEditor({ id }: { id: string }) {
                     const res = insertTemplate(doc, t, selectedSectionId ?? doc.layout.sections[doc.layout.sections.length - 1]?.id ?? null);
                     change(() => res.doc);
                     setSelection({ kind: 'section', id: res.id });
+                    setPane('page');
                     setTimeout(() => document.getElementById(res.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150);
                   }}
                   className="flex w-full items-center gap-2.5 rounded-md border bg-card p-2 text-left hover:border-primary hover:bg-primary/5">
@@ -389,14 +406,14 @@ export function SitePageEditor({ id }: { id: string }) {
           <SectionList
             doc={doc}
             selectedId={selectedSectionId}
-            onSelect={(sid) => { setSelection({ kind: 'section', id: sid }); document.getElementById(sid)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+            onSelect={(sid) => { setSelection({ kind: 'section', id: sid }); setPane('page'); document.getElementById(sid)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
             onMove={(sid, to) => change((d) => ops.moveSection(d, sid, to))}
             onAdd={() => addSection(doc.layout.sections[doc.layout.sections.length - 1]?.id ?? null)}
           />
         </aside>
 
         {/* Centro: a pagina */}
-        <div ref={stageRef} className="min-w-0 flex-1 overflow-auto bg-muted/50 p-6" onClick={() => setSelection({ kind: 'page' })} data-testid="page-preview">
+        <div ref={stageRef} className={cn('relative min-w-0 flex-1 overflow-auto bg-muted/50 p-3 lg:p-6', pane !== 'page' && 'hidden lg:block')} onClick={() => setSelection({ kind: 'page' })} data-testid="page-preview">
           {previewError && <p className="mx-auto mb-3 max-w-xl rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{previewError}</p>}
           {!preview ? (
             <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -461,8 +478,15 @@ export function SitePageEditor({ id }: { id: string }) {
           )}
         </div>
 
+        {/* Celular: atalho para as propriedades do que foi tocado */}
+        {pane === 'page' && selection.kind !== 'page' && (
+          <Button className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-10 shadow-lg lg:hidden" onClick={() => setPane('props')} data-testid="editor-open-props">
+            <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Editar
+          </Button>
+        )}
+
         {/* Direita: propriedades */}
-        <aside className="w-80 shrink-0 overflow-y-auto border-l">
+        <aside className={cn('w-full shrink-0 overflow-y-auto lg:w-80 lg:border-l', pane !== 'props' && 'hidden lg:block')}>
           <PageInspector doc={doc} selection={selection} brandColor={brandColor} entities={entities} pdfs={pdfs} scrap={scrap} sitePages={siteInfo.pages} {...actions} />
         </aside>
       </div>

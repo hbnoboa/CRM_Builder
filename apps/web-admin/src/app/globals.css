@@ -172,6 +172,8 @@
 .pwa-app :is(button, a, input, select).h-9 { height: 2.5rem; }
 .pwa-app :is(button, a).h-9.w-9 { width: 2.5rem; }
 .pwa-app main { padding-inline: 0.75rem; padding-top: 0.75rem; }
+/* Gestao no celular: mesma cara, mas sem a barra de abas embaixo */
+.pwa-no-tabs main { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
 
 /*
  * Celular: campos com no minimo 16px. Abaixo disso o iPhone (Safari) da zoom

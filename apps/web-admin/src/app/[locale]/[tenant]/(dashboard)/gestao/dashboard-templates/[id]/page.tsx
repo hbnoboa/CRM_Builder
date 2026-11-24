@@ -5,7 +5,6 @@ import { smartWidgetConfig } from '@/lib/widget-defaults';
 import { useParams } from 'next/navigation';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import { RequireRole } from '@/components/auth/require-role';
-import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +46,7 @@ import {
   Database,
   ChevronDown,
   CircleHelp,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Link, useRouter } from '@/i18n/tenant-navigation';
 import { toast } from 'sonner';
@@ -2614,6 +2614,8 @@ function TemplateBuilderContent() {
   const dragMoveCleanupRef = useRef<(() => void) | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [canvasWidth, setCanvasWidth] = useState(0);
+  // Celular/tablet (< lg): paleta, painel e ajustes em abas, uma area por vez
+  const [pane, setPane] = useState<'add' | 'canvas' | 'props'>('canvas');
 
   useEffect(() => { activeEditorTabIdRef.current = activeEditorTabId; }, [activeEditorTabId]);
   useEffect(() => { setMounted(true); }, []);
@@ -2830,7 +2832,7 @@ function TemplateBuilderContent() {
       <div className="flex flex-col h-[calc(100vh-100px)]">
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-3 flex-wrap px-1 pb-3 border-b">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
             <Link href="/gestao/dashboard-templates">
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <ArrowLeft className="h-4 w-4" />
@@ -2839,13 +2841,13 @@ function TemplateBuilderContent() {
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="h-8 text-sm font-medium w-48"
+              className="h-8 text-sm font-medium w-40 sm:w-48"
               placeholder="Nome do painel"
               aria-label="Nome do painel"
             />
             <span className="hidden text-xs text-muted-foreground lg:inline">Dados de</span>
             <Select value={entitySlug || '__global__'} onValueChange={(v) => setEntitySlug(v === '__global__' ? '' : v)}>
-              <SelectTrigger className="h-8 text-sm w-48" aria-label="Tabela principal do painel" title="Tabela principal: os blocos novos já vêm usando ela">
+              <SelectTrigger className="h-8 text-sm w-40 sm:w-48" aria-label="Tabela principal do painel" title="Tabela principal: os blocos novos já vêm usando ela">
                 <SelectValue placeholder="Escolha a tabela" />
               </SelectTrigger>
               <SelectContent>
@@ -2872,10 +2874,29 @@ function TemplateBuilderContent() {
           </div>
         </div>
 
+        {/* Abas (celular) */}
+        <div className="flex shrink-0 border-b lg:hidden" role="tablist" data-testid="template-editor-tabs">
+          {([['add', 'Adicionar'], ['canvas', 'Painel'], ['props', 'Ajustes']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={pane === value}
+              onClick={() => setPane(value)}
+              className={cn(
+                'flex-1 h-11 text-sm font-medium border-b-2 -mb-px transition-colors',
+                pane === value ? 'border-primary text-primary' : 'border-transparent text-muted-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* 3-column layout */}
         <div className="flex flex-1 min-h-0">
           {/* ── Left: Widget Palette ── */}
-          <div className="w-64 border-r bg-card flex-shrink-0 overflow-y-auto" data-testid="widget-palette">
+          <div className={cn('w-full lg:w-64 lg:border-r bg-card flex-shrink-0 overflow-y-auto', pane !== 'add' && 'hidden lg:block')} data-testid="widget-palette">
             <div className="border-b px-3 py-3">
               <p className="text-sm font-semibold">Adicionar ao painel</p>
               <p className="text-xs text-muted-foreground">Clique num bloco; depois ajuste à direita.</p>
@@ -2898,7 +2919,7 @@ function TemplateBuilderContent() {
                           <div key={type} className="group relative">
                           <button
                             className="flex w-full items-start gap-2.5 rounded-md py-1.5 pl-2 pr-8 text-left transition-colors hover:bg-accent"
-                            onClick={() => handleAddWidget(type)}
+                            onClick={() => { handleAddWidget(type); setPane('canvas'); }}
                             title={def.description}
                             data-testid={`palette-${type}`}
                           >
@@ -2933,7 +2954,7 @@ function TemplateBuilderContent() {
           {/* ── Center: Canvas (WYSIWYG scaled) ── */}
           <div
             ref={canvasRef}
-            className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-muted/30 flex flex-col"
+            className={cn('flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-muted/30 flex-col', pane === 'canvas' ? 'flex' : 'hidden lg:flex')}
             onClick={() => setSelectedWidgetId(null)}
           >
             {/* Tab bar for canvas preview */}
@@ -3089,7 +3110,7 @@ function TemplateBuilderContent() {
                         </div>
 
                         {/* Overlay controls: drag handle + delete */}
-                        <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <div className={cn('absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10', selectedWidgetId === item.i && 'opacity-100')}>
                           <div className="drag-handle cursor-grab active:cursor-grabbing bg-background/80 rounded p-0.5">
                             <GripVertical className="h-4 w-4 text-muted-foreground" />
                           </div>
@@ -3121,8 +3142,19 @@ function TemplateBuilderContent() {
             })()}
           </div>
 
+          {/* Celular: atalho para os ajustes do bloco tocado */}
+          {pane === 'canvas' && selectedWidgetId && (
+            <Button
+              className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-20 shadow-lg lg:hidden"
+              onClick={() => setPane('props')}
+              data-testid="template-editor-open-props"
+            >
+              <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Ajustar bloco
+            </Button>
+          )}
+
           {/* ── Right: Properties Panel ── */}
-          <div className="w-72 border-l bg-card flex-shrink-0 overflow-hidden">
+          <div className={cn('w-full lg:w-72 lg:border-l bg-card flex-shrink-0 overflow-hidden', pane !== 'props' && 'hidden lg:block')}>
             {selectedWidgetId && widgets[selectedWidgetId] ? (
               <PropertiesPanel
                 widgetId={selectedWidgetId}
@@ -3260,9 +3292,7 @@ function TemplateBuilderContent() {
 export default function DashboardTemplateBuilderPage() {
   return (
     <RequireRole module="templates">
-      <DesktopOnlyEditor action="editar dashboards">
-        <TemplateBuilderContent />
-      </DesktopOnlyEditor>
+      <TemplateBuilderContent />
     </RequireRole>
   );
 }
