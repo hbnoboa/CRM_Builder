@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus } from 'lucide-react';
 
 // So um botao + na tela, mesmo com varias tabelas no painel: o primeiro que pede fica com ele
@@ -22,9 +23,13 @@ export function useAppFab(active: boolean): boolean {
   return own;
 }
 
-/** Botao redondo "+" no canto (FloatingActionButton do app Flutter), acima das abas. */
+/**
+ * Botao redondo "+" no canto (FloatingActionButton do app Flutter), acima das abas.
+ * Vai direto no body: dentro do bloco do painel (que usa transform) o "fixed" nao
+ * ficaria preso a tela.
+ */
 export function AppFab({ onClick, label }: { onClick: () => void; label: string }) {
-  return (
+  return createPortal(
     <button
       type="button"
       onClick={onClick}
@@ -35,6 +40,7 @@ export function AppFab({ onClick, label }: { onClick: () => void; label: string 
       data-testid="app-fab"
     >
       <Plus className="h-6 w-6" />
-    </button>
+    </button>,
+    document.body,
   );
 }
