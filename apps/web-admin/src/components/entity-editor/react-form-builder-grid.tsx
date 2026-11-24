@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout } from 'react-grid-layout';
-import { ArrowLeft, Check, Eye, GripVertical, Loader2, MousePointerClick, MoveHorizontal, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Eye, GripVertical, Loader2, MousePointerClick, MoveHorizontal, Plus, Save, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Entity, EntityField, EntitySettings } from '@crm-builder/shared';
@@ -110,6 +110,8 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel, onDirty
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  // Celular/tablet (< lg): formulario e propriedades em abas
+  const [pane, setPane] = useState<'form' | 'props'>('form');
   const [heights, setHeights] = useState<Record<string, number>>({}); // px do conteúdo medido
 
   const handleMeasure = useCallback((slug: string, px: number) => {
@@ -162,6 +164,8 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel, onDirty
     setFields((prev) => [...prev, nf]);
     setSelectedSlug(slug);
     setJustAdded(slug);
+    // Campo novo no celular: ja abre as propriedades para dar o nome
+    if (window.matchMedia('(max-width: 1023.98px)').matches) setPane('props');
     setPickerOpen(false);
     // Leva a pessoa ate o campo novo (ele entra no fim do formulario)
     setTimeout(() => document.querySelector(`[data-field-slug="${slug}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
@@ -281,9 +285,28 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel, onDirty
         </Button>
       </div>
 
+      {/* Abas (celular): uma area por vez */}
+      <div className="flex border-b bg-card flex-shrink-0 lg:hidden" role="tablist" data-testid="builder-pane-tabs">
+        {([['form', 'Formulário'], ['props', selected ? 'Campo' : 'Lista de campos']] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={pane === value}
+            onClick={() => setPane(value)}
+            className={cn(
+              'flex-1 h-11 text-sm font-medium border-b-2 -mb-px transition-colors',
+              pane === value ? 'border-primary text-primary' : 'border-transparent text-muted-foreground',
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         {/* Canvas: react-grid-layout com componentes reais */}
-        <div className="flex-1 overflow-y-auto p-6 bg-muted/30">
+        <div className={cn('flex-1 overflow-y-auto p-3 lg:p-6 bg-muted/30', pane !== 'form' && 'hidden lg:block')}>
           <div className="max-w-4xl mx-auto bg-card p-4 rounded-lg border">
             {visibleFields.length === 0 ? (
               <div className="flex flex-col items-center px-6 py-14 text-center" data-testid="builder-empty">
@@ -359,8 +382,19 @@ export default function ReactFormBuilderGrid({ entity, onSave, onCancel, onDirty
           </div>
         </div>
 
+        {/* Celular: atalho para as propriedades do campo tocado */}
+        {pane === 'form' && selected && (
+          <Button
+            className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-20 shadow-lg lg:hidden"
+            onClick={() => setPane('props')}
+            data-testid="builder-open-props"
+          >
+            <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Editar campo
+          </Button>
+        )}
+
         {/* Propriedades por tipo (reusa o painel da versão dnd) */}
-        <div className="w-72 lg:w-80 border-l bg-card flex-shrink-0 overflow-y-auto p-4">
+        <div className={cn('w-full lg:w-80 lg:border-l bg-card flex-shrink-0 overflow-y-auto p-4', pane !== 'props' && 'hidden lg:block')}>
           {selected ? (
             <FieldProperties key={selected.slug} field={selected} allFields={fields} onChange={updateSelected} currentEntitySlug={entity.slug} autoFocusName={justAdded === selected.slug} />
           ) : (

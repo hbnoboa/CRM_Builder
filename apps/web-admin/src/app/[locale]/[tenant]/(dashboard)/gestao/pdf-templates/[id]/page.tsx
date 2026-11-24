@@ -4,7 +4,6 @@ import { Loader2 } from 'lucide-react';
 import { Link } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
 import { RequireRole } from '@/components/auth/require-role';
-import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { usePdfTemplate } from '@/hooks/use-pdf-templates';
 import { PdfVisualEditor } from '@/components/pdf-editor/pdf-visual-editor';
 
@@ -41,9 +40,7 @@ function EditPdfTemplatePageContent({ params }: PageProps) {
 export default function EditPdfTemplatePage({ params }: PageProps) {
   return (
     <RequireRole module="pdfTemplates" action="canUpdate">
-      <DesktopOnlyEditor action="editar PDFs">
-        <EditPdfTemplatePageContent params={params} />
-      </DesktopOnlyEditor>
+      <EditPdfTemplatePageContent params={params} />
     </RequireRole>
   );
 }

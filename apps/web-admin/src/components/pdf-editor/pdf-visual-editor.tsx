@@ -11,8 +11,10 @@ import {
   CheckCircle,
   Loader2,
   Calculator,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useUpdatePdfTemplate, usePublishPdfTemplate } from '@/hooks/use-pdf-templates';
@@ -74,6 +76,8 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
   // WYSIWYG: o PDF real (render do backend) fica sempre visível por padrão, como
   // fonte da verdade ao lado do canvas de edição. O canvas é só p/ posicionar/selecionar.
   const [showPreview, setShowPreview] = useState(true);
+  // Celular/tablet (< lg): uma area por vez, trocada pelas abas logo abaixo da barra
+  const [pane, setPane] = useState<'canvas' | 'props' | 'preview'>('canvas');
   const [elementPickerOpen, setElementPickerOpen] = useState(false);
   const [computedFieldsOpen, setComputedFieldsOpen] = useState(false);
 
@@ -236,6 +240,12 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
     margins: localMargins,
   };
 
+  const paneTabs = [
+    { key: 'canvas' as const, label: 'Estrutura' },
+    { key: 'props' as const, label: selected ? 'Propriedades' : 'Configurações' },
+    { key: 'preview' as const, label: 'Resultado' },
+  ];
+
   // ─── Render ──────────────────────────────────────────
 
   return (
@@ -299,6 +309,7 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
         <Button
           variant="outline"
           size="sm"
+          className="hidden lg:inline-flex"
           onClick={() => setShowPreview(!showPreview)}
         >
           {showPreview ? (
@@ -348,10 +359,29 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
         )}
       </div>
 
+      {/* ═══ Abas (celular) ═══ */}
+      <div className="flex border-b bg-card flex-shrink-0 lg:hidden" role="tablist" data-testid="pdf-editor-tabs">
+        {paneTabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={pane === t.key}
+            onClick={() => setPane(t.key)}
+            className={cn(
+              'flex-1 h-11 text-sm font-medium border-b-2 -mb-px transition-colors',
+              pane === t.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground',
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {/* ═══ Main Area ═══ */}
       <div className="flex flex-1 overflow-hidden">
         {/* ─── Canvas (estrutura / edição) ─── */}
-        <div className="flex-1 min-w-[300px] overflow-y-auto bg-muted/30">
+        <div className={cn('flex-1 min-w-0 lg:min-w-[300px] overflow-y-auto bg-muted/30', pane !== 'canvas' && 'hidden lg:block')}>
           <PdfCanvas
             content={localContent}
             selected={selected}
@@ -362,9 +392,25 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
           />
         </div>
 
+        {/* Celular: atalho para as propriedades do que foi tocado */}
+        {pane === 'canvas' && selected && (
+          <Button
+            className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-4 z-20 shadow-lg lg:hidden"
+            onClick={() => setPane('props')}
+            data-testid="pdf-editor-open-props"
+          >
+            <SlidersHorizontal className="mr-1.5 h-4 w-4" /> Editar
+          </Button>
+        )}
+
         {/* ─── Preview Panel: PDF real = fonte da verdade (WYSIWYG), co-igual ao canvas ─── */}
-        {showPreview && (
-          <div className="flex-1 min-w-[360px] border-l bg-card overflow-y-auto">
+        {(showPreview || pane === 'preview') && (
+          <div
+            className={cn(
+              'flex-1 min-w-0 lg:min-w-[360px] lg:border-l bg-card overflow-y-auto',
+              pane === 'preview' ? !showPreview && 'lg:hidden' : 'hidden lg:block',
+            )}
+          >
             <Card className="border-0 shadow-none rounded-none h-full">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Resultado real (PDF)</CardTitle>
@@ -381,14 +427,17 @@ export function PdfVisualEditor({ template }: PdfVisualEditorProps) {
         )}
 
         {/* ─── Properties Panel ─── */}
-        <div className="w-64 md:w-72 lg:w-80 border-l bg-card flex-shrink-0 overflow-y-auto">
+        <div className={cn('w-full lg:w-80 lg:border-l bg-card flex-shrink-0 overflow-y-auto', pane !== 'props' && 'hidden lg:block')}>
           {selected ? (
             <ElementPropertiesPanel
               selected={selected}
               content={localContent}
               onChange={handleContentChange}
               onDelete={handleDeleteElement}
-              onDeselect={() => setSelected(null)}
+              onDeselect={() => {
+                setSelected(null);
+                setPane('canvas');
+              }}
               availableFields={availableFields}
               subEntities={template.subEntities}
               parentFields={parentFields}

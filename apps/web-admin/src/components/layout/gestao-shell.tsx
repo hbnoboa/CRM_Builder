@@ -33,6 +33,7 @@ import {
   UsersRound,
   X, Globe } from 'lucide-react';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useIsMobile, useStandalone } from '@/hooks/use-standalone';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
 import { cn } from '@/lib/utils';
@@ -95,6 +96,11 @@ export function GestaoShell({ children }: { children: React.ReactNode }) {
   const features = useTenantFeatures();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  // Celular (ou app instalado): mesma cara do painel (letras e toques maiores).
+  // A gestao nao tem a barra de abas embaixo; o menu fica no botao do topo.
+  const standalone = useStandalone();
+  const isMobile = useIsMobile();
+  const appMode = standalone || isMobile;
 
   const currentSection = pathname.split('/').filter(Boolean)[1] ?? '';
   const groups = GROUPS.map((g) => ({
@@ -105,7 +111,7 @@ export function GestaoShell({ children }: { children: React.ReactNode }) {
   const hrefOf = (item: GestaoItem) => (item.section ? `/gestao/${item.section}` : '/gestao');
 
   return (
-    <div className="min-h-screen bg-background pt-[var(--banner-h,0px)]" data-testid="gestao-shell">
+    <div className={cn('min-h-screen bg-background pt-[var(--banner-h,0px)]', appMode && 'pwa-app pwa-no-tabs')} data-testid="gestao-shell">
       {sidebarOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
       <aside

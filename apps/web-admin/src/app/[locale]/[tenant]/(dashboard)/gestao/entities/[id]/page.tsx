@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 import { AutomationTab, FieldRulesSection } from '@/components/entity-automation';
 import { DeleteEntityPanel, GlobalFiltersPanel, TableSettingsPanel } from '@/components/entity-editor/entity-settings-panels';
 import { RequireRole } from '@/components/auth/require-role';
-import { DesktopOnlyEditor } from '@/components/layout/desktop-only-editor';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useDeleteEntity, entityKeys } from '@/hooks/use-entities';
 import { toast } from 'sonner';
@@ -83,7 +82,7 @@ function EntityEditorWrapper() {
 
   return (
     <div className="flex h-screen flex-col">
-      <nav className="flex h-10 shrink-0 items-center gap-1 border-b bg-muted/40 px-2" data-testid="entity-editor-tabs">
+      <nav className="flex h-11 shrink-0 items-center gap-1 overflow-x-auto border-b bg-muted/40 px-2 lg:h-10" data-testid="entity-editor-tabs">
         {tabs.filter((tb) => tb.show).map((tb) => (
           <button
             key={tb.key}
@@ -91,7 +90,7 @@ function EntityEditorWrapper() {
             onClick={() => setTab(tb.key)}
             data-testid={`entity-tab-${tb.key}`}
             className={cn(
-              'rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent',
+              'shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors hover:bg-accent',
               tab === tb.key ? 'bg-background font-medium shadow-sm' : 'text-muted-foreground',
             )}
           >
@@ -120,7 +119,7 @@ function EntityEditorWrapper() {
           />
         </div>
         {tab !== 'fields' && (
-          <div className="h-full overflow-y-auto bg-muted/30 p-6">
+          <div className="h-full overflow-y-auto bg-muted/30 p-3 lg:p-6">
             <div className="mx-auto max-w-4xl space-y-4">
               {tab === 'settings' && (
                 <TableSettingsPanel
@@ -171,9 +170,7 @@ function EntityEditorWrapper() {
 export default function EntityDetailPage() {
   return (
     <RequireRole module="entities" action="canUpdate">
-      <DesktopOnlyEditor action="editar tabelas">
-        <EntityEditorWrapper />
-      </DesktopOnlyEditor>
+      <EntityEditorWrapper />
     </RequireRole>
   );
 }
