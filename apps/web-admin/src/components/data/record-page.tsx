@@ -14,6 +14,8 @@ import { TrackingLinkButton } from '@/components/site/tracking-link-button';
 import { useEntities, useEntityBySlug } from '@/hooks/use-entities';
 import { useEntityDataItem } from '@/hooks/use-data';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useAppMode, useAppTitle } from '@/components/pwa/app-chrome';
+import { cn } from '@/lib/utils';
 import { ClientPortalButton } from './client-portal-button';
 import { RecordFormFields, useRecordHeader } from './record-form-dialog';
 import { RecordPageNavContext, recordPath, safeBack, useOpenRecord, type RecordPageNav } from './record-nav';
@@ -96,6 +98,9 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
   }, [isNew, subEntityField, tp, router, entitySlug, backParam, backHref]);
 
   const loading = entityLoading || (!isNew && recordLoading);
+  // Modo app: titulo e seta de voltar na barra do topo (como no app Flutter)
+  const appMode = useAppMode();
+  useAppTitle(isNew ? t('newRecord') : (header.recordTitle ?? entity?.name), goBack);
   const entityLabel = entity?.namePlural || entity?.name || entitySlug;
 
   if (loading) {
@@ -126,7 +131,7 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
     <RecordPageNavContext.Provider value={nav}>
       <div className="mx-auto max-w-4xl space-y-4" data-testid="record-page">
         {/* Trilha: Registros › Tabela (› Pai) › Registro */}
-        <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground" aria-label="breadcrumb">
+        <nav className={cn('flex flex-wrap items-center gap-1 text-sm text-muted-foreground', appMode && 'hidden')} aria-label="breadcrumb">
           <Link href="/data" className="hover:text-foreground" onClick={guardLink}>{tp('records')}</Link>
           <ChevronRight className="h-3.5 w-3.5" />
           {parentEntity && parentId ? (
@@ -150,8 +155,8 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
 
         <Card className="overflow-hidden">
           {/* Cabeçalho do registro */}
-          <div className="flex items-start gap-3 border-b px-6 py-4">
-            <Button variant="ghost" size="icon" className="-ml-2 h-8 w-8 shrink-0" onClick={goBack} aria-label={tp('back')} data-testid="record-page-back">
+          <div className="flex items-start gap-3 border-b px-4 py-4 sm:px-6">
+            <Button variant="ghost" size="icon" className={cn('-ml-2 h-8 w-8 shrink-0', appMode && 'hidden')} onClick={goBack} aria-label={tp('back')} data-testid="record-page-back">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <span
@@ -170,7 +175,7 @@ export function RecordPage({ entitySlug, recordId }: RecordPageProps) {
             {!isNew && record?.id && <ClientPortalButton entitySlug={entity.slug} recordId={record.id} recordTitle={header.recordTitle} />}
           </div>
 
-          <div className="px-6 pt-5">
+          <div className="px-4 pt-5 sm:px-6">
             <RecordFormFields
               key={record?.id ?? 'novo'}
               entity={entity as unknown as Parameters<typeof RecordFormFields>[0]['entity']}

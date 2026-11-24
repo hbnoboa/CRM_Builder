@@ -1,48 +1,48 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Database, Home, LayoutDashboard, type LucideIcon, Menu, MessageSquare } from 'lucide-react';
+import { Folder, LayoutDashboard, type LucideIcon, MessageCircle } from 'lucide-react';
 import { Link, usePathname } from '@/i18n/tenant-navigation';
 import { cn } from '@/lib/utils';
 
-interface Tab { key: string; href: string; icon: LucideIcon }
+interface Tab { key: 'dashboard' | 'data' | 'chat'; href: string; icon: LucideIcon }
 
 /**
- * Barra de abas embaixo, no app instalado (como o app do celular): Inicio, Painel, Dados,
- * Chat e "Mais" (abre o menu com o resto). So as abas que o cargo/plano permitem.
+ * Barra de abas embaixo, igual a do app Flutter: Dashboard, Dados e Chat (so as que o
+ * cargo/plano permitem). Com uma aba so, a barra nao aparece. O resto fica no menu (☰).
  */
-export function AppBottomNav({ showDashboard, showData, showChat, onMore }: { showDashboard: boolean; showData: boolean; showChat: boolean; onMore: () => void }) {
-  const tNav = useTranslations('navigation');
+export function AppBottomNav({ showDashboard, showData, showChat }: { showDashboard: boolean; showData: boolean; showChat: boolean }) {
+  const t = useTranslations('navigation.appNav');
   const pathname = usePathname();
   const tabs: Tab[] = [
-    { key: 'home', href: '/home', icon: Home },
-    ...(showDashboard ? [{ key: 'dashboard', href: '/dashboard', icon: LayoutDashboard }] : []),
-    ...(showData ? [{ key: 'data', href: '/tabelas', icon: Database }] : []),
-    ...(showChat ? [{ key: 'chat', href: '/chat', icon: MessageSquare }] : []),
+    ...(showDashboard ? [{ key: 'dashboard' as const, href: '/dashboard', icon: LayoutDashboard }] : []),
+    ...(showData ? [{ key: 'data' as const, href: '/tabelas', icon: Folder }] : []),
+    ...(showChat ? [{ key: 'chat' as const, href: '/chat', icon: MessageCircle }] : []),
   ];
-  const active = (href: string) => pathname === href || (href === '/tabelas' && pathname.startsWith('/data'));
-  const cell = 'flex flex-1 flex-col items-center justify-center gap-1 py-1.5 text-[11px] font-medium';
-  const Icon = ({ icon: I, on }: { icon: LucideIcon; on: boolean }) => (
-    <span className={cn('flex h-8 w-16 items-center justify-center rounded-full transition-colors', on && 'bg-primary/10')}>
-      <I className={cn('h-5 w-5', on ? 'text-primary' : 'text-muted-foreground')} />
-    </span>
-  );
+  if (tabs.length < 2) return null;
+  const active = (tab: Tab) =>
+    tab.key === 'data' ? pathname === '/tabelas' || pathname.startsWith('/data') : pathname.startsWith(tab.href);
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgb(16_24_40/0.06)]" data-testid="app-bottom-nav">
-      <div className="mx-auto flex max-w-lg">
-        {tabs.map((t) => {
-          const on = active(t.href);
+    <nav className="fixed inset-x-0 bottom-0 z-50 bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-2px_8px_rgb(16_24_40/0.1)]" data-testid="app-bottom-nav">
+      <div className="mx-auto flex h-16 max-w-lg">
+        {tabs.map((tab) => {
+          const on = active(tab);
+          const Icon = tab.icon;
           return (
-            <Link key={t.key} href={t.href} prefetch={false} className={cn(cell, on ? 'text-primary' : 'text-muted-foreground')} data-testid={`app-tab-${t.key}`}>
-              <Icon icon={t.icon} on={on} />
-              {tNav(t.key)}
+            <Link
+              key={tab.key}
+              href={tab.href}
+              prefetch={false}
+              className={cn('flex flex-1 flex-col items-center justify-center gap-1 text-[11px]', on ? 'font-semibold text-primary' : 'font-medium text-muted-foreground')}
+              data-testid={`app-tab-${tab.key}`}
+            >
+              <span className={cn('flex h-8 w-16 items-center justify-center rounded-full transition-colors', on && 'bg-primary/[0.12]')}>
+                <Icon className="h-6 w-6" strokeWidth={on ? 2.4 : 1.8} />
+              </span>
+              {t(tab.key)}
             </Link>
           );
         })}
-        <button type="button" onClick={onMore} className={cn(cell, 'text-muted-foreground')} data-testid="app-tab-more">
-          <Icon icon={Menu} on={false} />
-          {tNav('more')}
-        </button>
       </div>
     </nav>
   );

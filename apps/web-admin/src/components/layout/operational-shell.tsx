@@ -30,7 +30,11 @@ import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useEntitiesGrouped } from '@/hooks/use-entities';
 import { cn } from '@/lib/utils';
-import { CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
+import { AppTopbar, CommandMenu, ShellTopbar, SidebarBrand, navItemClass } from '@/components/layout/shell-parts';
+import { useIsMobile, useStandalone } from '@/hooks/use-standalone';
+import { AppBottomNav } from '@/components/pwa/app-bottom-nav';
+import { AppChromeContext, useAppFrame } from '@/components/pwa/app-chrome';
+import { PullToRefresh } from '@/components/pwa/pull-to-refresh';
 import { EntityNavItem } from '@/components/layout/entity-nav-item';
 import { TrialBanner, useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { AnnouncementsBanner } from '@/components/announcements/announcements-banner';
@@ -52,6 +56,11 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [registrosOpen, setRegistrosOpen] = useState(true);
+  // Celular ou app instalado: cara do app Flutter (titulo no topo, abas embaixo)
+  const standalone = useStandalone();
+  const isMobile = useIsMobile();
+  const appMode = standalone || isMobile;
+  const frame = useAppFrame(appMode, pathname);
 
   const navLink = (href: string, icon: React.ReactNode, label: string) => {
     const isActive = pathname === href || pathname.startsWith(href + '/');
@@ -72,7 +81,8 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
   const isRegistrosActive = pathname === '/data';
 
   return (
-    <div className="min-h-screen bg-background pt-[var(--banner-h,0px)]">
+    <AppChromeContext.Provider value={frame.ctx}>
+    <div className={cn('min-h-screen bg-background pt-[var(--banner-h,0px)]', appMode && 'pwa-app')}>
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
@@ -169,7 +179,11 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="lg:pl-64">
-        <ShellTopbar onOpenSidebar={() => setSidebarOpen(true)} onOpenSearch={() => setSearchOpen(true)} />
+        {appMode ? (
+          <AppTopbar title={frame.title} onBack={frame.onBack} onOpenSidebar={() => setSidebarOpen(true)} onOpenSearch={() => setSearchOpen(true)} />
+        ) : (
+          <ShellTopbar onOpenSidebar={() => setSidebarOpen(true)} onOpenSearch={() => setSearchOpen(true)} />
+        )}
         <CommandMenu
           open={searchOpen}
           onOpenChange={setSearchOpen}
@@ -194,6 +208,17 @@ export function OperationalShell({ children }: { children: React.ReactNode }) {
         {!isClient && <TrialBanner />}
         <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">{children}</main>
       </div>
+      {appMode && (
+        <>
+          <PullToRefresh />
+          <AppBottomNav
+            showDashboard={hasModuleAccess('dashboard')}
+            showData={hasModuleAccess('data')}
+            showChat={!!features.chat && !isClient && hasModuleAccess('chat')}
+          />
+        </>
+      )}
     </div>
+    </AppChromeContext.Provider>
   );
 }

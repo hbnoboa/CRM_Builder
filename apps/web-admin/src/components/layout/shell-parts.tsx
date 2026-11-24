@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import {
-  CircleDot, Download, Laptop, LogOut, Menu, Moon, Plus, Search, Settings, Sun, User,
+  ArrowLeft, CircleDot, Download, Laptop, LogOut, Menu, Moon, Plus, Search, Settings, Sun, User,
 } from 'lucide-react';
 import { InstallAppHelp, useInstallApp } from '@/components/pwa/app-install';
 import { disableDevicePush } from '@/lib/web-push';
@@ -265,6 +265,48 @@ export function SearchTrigger({ onClick }: { onClick: () => void }) {
         {isMac ? '⌘' : 'Ctrl'} K
       </CommandShortcut>
     </button>
+  );
+}
+
+/**
+ * Barra do topo no modo app, como a AppBar do app Flutter: menu (ou voltar), titulo
+ * da tela a esquerda e as acoes (busca, avisos, usuario) a direita. Sem borda; ganha
+ * uma sombra leve quando a pagina rola por baixo.
+ */
+export function AppTopbar({ title, onBack, onOpenSidebar, onOpenSearch }: { title?: string; onBack?: () => void; onOpenSidebar: () => void; onOpenSearch: () => void }) {
+  const tNav = useTranslations('navigation');
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const read = () => setScrolled(window.scrollY > 0);
+    read();
+    window.addEventListener('scroll', read, { passive: true });
+    return () => window.removeEventListener('scroll', read);
+  }, []);
+  const iconBtn = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors active:bg-muted';
+  return (
+    <header
+      className={cn('sticky top-[var(--banner-h,0px)] z-30 bg-card transition-shadow', scrolled && 'shadow-[0_1px_3px_rgb(16_24_40/0.1)]')}
+      data-testid="app-topbar"
+    >
+      <div className="flex h-14 items-center gap-1 px-1">
+        {onBack ? (
+          <button type="button" className={iconBtn} onClick={onBack} aria-label={tNav('back')} data-testid="app-topbar-back">
+            <ArrowLeft className="h-6 w-6" />
+          </button>
+        ) : (
+          <button type="button" className={iconBtn} onClick={onOpenSidebar} aria-label="Menu" data-testid="mobile-menu-button">
+            <Menu className="h-6 w-6" />
+          </button>
+        )}
+        <h1 className="ml-1 min-w-0 flex-1 truncate text-lg font-semibold tracking-[-0.3px]" data-testid="app-topbar-title">{title}</h1>
+        <button type="button" className={iconBtn} onClick={onOpenSearch} aria-label={tNav('search')} data-testid="command-trigger">
+          <Search className="h-5 w-5" />
+        </button>
+        <TenantSelector />
+        <NotificationBell />
+        <UserMenu />
+      </div>
+    </header>
   );
 }
 

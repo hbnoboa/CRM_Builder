@@ -168,7 +168,13 @@
     "themeSystem": "Automático",
     "adminArea": "Área da administração",
     "backToOperation": "Voltar para a operação",
-    "more": "Mais"
+    "more": "Mais",
+    "back": "Voltar",
+    "appNav": {
+      "dashboard": "Dashboard",
+      "data": "Dados",
+      "chat": "Chat"
+    }
   },
   "roles": {
     "ADMIN": "Administrador",
@@ -684,7 +690,8 @@
       "unsavedLeave": "Há alterações não salvas neste registro. Sair mesmo assim?",
       "inside": "Dentro de"
     },
-    "selectRecord": "Selecionar registro"
+    "selectRecord": "Selecionar registro",
+    "cardTitleFallback": "Registro"
   },
   "rolesPage": {
     "title": "Cargos",
@@ -2831,6 +2838,9 @@
     "title": "Dados",
     "search": "Buscar tabela",
     "empty": "Nenhuma tabela.",
-    "records": "{count, number} registros"
+    "records": "{count, number} registros",
+    "pickTable": "Selecione uma tabela",
+    "fields": "{count, plural, one {# campo} other {# campos}}",
+    "other": "Outros"
   }
 }

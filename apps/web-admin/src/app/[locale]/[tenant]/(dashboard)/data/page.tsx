@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { recordPath } from '@/components/data/record-nav';
 import type { EntityField } from '@/types';
 import { HelpButton } from '@/components/help/help-button';
+import { useAppMode, useAppTitle } from '@/components/pwa/app-chrome';
 import dynamic from 'next/dynamic';
 
 const EntityDashboard = dynamic(
@@ -50,6 +51,8 @@ function DataPageContent() {
   const [loading, setLoading] = useState(true);
   // Todas as entidades (incl. sub-entidades), p/ poder abrir uma tabela filha direto via ?entity= (N niveis)
   const allEntitiesRef = useRef<Entity[]>([]);
+  // Modo app: o nome da tabela vai para a barra do topo (como no app Flutter)
+  const appMode = useAppMode();
 
   // Dashboard template selector
   const { data: myDashboardTemplates } = useMyDashboardTemplates(selectedEntity?.slug);
@@ -81,6 +84,8 @@ function DataPageContent() {
     }
     return undefined;
   }, [myDashboardTemplates, selectedTemplateId]);
+
+  useAppTitle(selectedEntity?.name);
 
   // Select entity and load full fields if needed
   const handleEntitySelect = useCallback(async (entity: Entity) => {
@@ -192,8 +197,8 @@ function DataPageContent() {
 
       {selectedEntity && (
         <>
-          {/* Cabecalho da tabela: icone na cor da tabela, nome e descricao */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          {/* Cabecalho da tabela: icone na cor da tabela, nome e descricao (no app, o nome fica no topo) */}
+          <div className={cn('flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between', appMode && 'hidden')}>
             <div className="flex min-w-0 items-center gap-3">
               <span
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-nav-active text-nav-active-foreground"
