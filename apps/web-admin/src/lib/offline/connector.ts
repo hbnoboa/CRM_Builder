@@ -1,5 +1,6 @@
 import type { AbstractPowerSyncDatabase, PowerSyncBackendConnector, PowerSyncCredentials } from '@powersync/web';
 import api from '@/lib/api';
+import { LOCAL_PREFIX, uploadQueuedPhoto } from './photo-queue';
 
 type Credentials = { token: string; endpoint: string; expiresAt: string };
 
@@ -8,6 +9,9 @@ function isPermanent(error: unknown): boolean {
   const status = (error as { response?: { status?: number } })?.response?.status;
   return !!status && status >= 400 && status < 500 && ![401, 408, 429].includes(status);
 }
+
+/** Envio de registro travado em sinal ruim: desiste desta vez e tenta de novo depois. */
+const REQUEST_TIMEOUT_MS = 30_000;
 
 /**
  * Liga o banco local a API: token do PowerSync (mesmo do app do celular) e envio das
@@ -39,15 +43,16 @@ export class OfflineConnector implements PowerSyncBackendConnector {
           : null;
         if (!entity) continue;
         const raw = (op.opData?.data as string | undefined) ?? row?.data;
-        const data = raw ? JSON.parse(raw) : undefined;
+        const data = raw ? await this.withUploadedPhotos(JSON.parse(raw)) : undefined;
+        const config = { timeout: REQUEST_TIMEOUT_MS };
         if (op.op === 'PUT') {
           const parentRecordId = (op.opData?.parentRecordId as string | undefined) ?? row?.parentRecordId ?? undefined;
-          await api.post(`/data/${entity.slug}`, { id: op.id, data: data ?? {}, ...(parentRecordId ? { parentRecordId } : {}) });
+          await api.post(`/data/${entity.slug}`, { id: op.id, data: data ?? {}, ...(parentRecordId ? { parentRecordId } : {}) }, config);
         } else if (op.op === 'PATCH') {
-          if (op.opData?.deletedAt) await api.delete(`/data/${entity.slug}/${op.id}`);
-          else if (data) await api.patch(`/data/${entity.slug}/${op.id}`, { data });
+          if (op.opData?.deletedAt) await api.delete(`/data/${entity.slug}/${op.id}`, config);
+          else if (data) await api.patch(`/data/${entity.slug}/${op.id}`, { data }, config);
         } else if (op.op === 'DELETE') {
-          await api.delete(`/data/${entity.slug}/${op.id}`);
+          await api.delete(`/data/${entity.slug}/${op.id}`, config);
         }
       } catch (error) {
         if (!isPermanent(error)) throw error; // sem rede/servidor fora: tenta de novo depois
@@ -56,5 +61,20 @@ export class OfflineConnector implements PowerSyncBackendConnector {
       }
     }
     await tx.complete();
+  }
+
+  /**
+   * Sobe as fotos tiradas sem internet ("local://") antes do registro e troca pelo
+   * endereco real. Sem rede, o erro sobe e o registro inteiro fica na fila para depois.
+   */
+  private async withUploadedPhotos(data: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const out = { ...data };
+    for (const [slug, value] of Object.entries(data)) {
+      if (typeof value !== 'string' || !value.startsWith(LOCAL_PREFIX)) continue;
+      const result = await uploadQueuedPhoto(value.slice(LOCAL_PREFIX.length));
+      out[slug] = result.url;
+      if (result.url === null && result.reason) this.rejected.push({ id: slug, message: result.reason });
+    }
+    return out;
   }
 }
