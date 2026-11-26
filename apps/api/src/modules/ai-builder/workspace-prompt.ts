@@ -1,6 +1,7 @@
 import { AI_COLORS, AI_FIELD_TYPES, AI_ICONS, AI_WIDTHS } from './ai-builder.schema';
 import { WIDGET_SCHEMA } from './dashboard-proposal';
 import { AI_PDF_JSON_SCHEMA } from './pdf-proposal';
+import { FILTER_OPERATORS, MODULE_LABEL, ROLE_MODULES } from './workspace-roles';
 
 /** Formato da resposta do construtor da tela inicial (ver workspace-draft.ts). */
 
@@ -15,6 +16,23 @@ const OPTION = {
   additionalProperties: false,
 };
 
+/** Regra de campo: depende de OUTRO campo da mesma tabela. */
+const CONDITION = {
+  anyOf: [
+    {
+      type: 'object',
+      properties: {
+        field: { type: 'string', description: 'identificador de outro campo da mesma tabela' },
+        operator: { type: 'string', enum: ['equals', 'not_equals', 'contains', 'gt', 'lt', 'is_empty', 'is_not_empty'] },
+        value: { type: ['string', 'number', 'boolean'] },
+      },
+      required: ['field', 'operator'],
+      additionalProperties: false,
+    },
+    { type: 'null' },
+  ],
+};
+
 const FIELD = {
   type: 'object',
   properties: {
@@ -27,6 +45,9 @@ const FIELD = {
     relatedTable: { type: 'string' },
     helpText: { type: 'string' },
     placeholder: { type: 'string' },
+    visibleIf: CONDITION,
+    requiredIf: CONDITION,
+    readOnlyIf: CONDITION,
     removed: { type: 'boolean', description: 'true = excluir este campo que já existe' },
   },
   required: ['key', 'label', 'type'],
@@ -109,6 +130,58 @@ const PDF = {
   additionalProperties: false,
 };
 
+const LEVEL = { type: 'string', enum: ['none', 'read', 'edit', 'full'] };
+
+const ROLE = {
+  type: 'object',
+  properties: {
+    key: { type: 'string', description: 'cargo que já existe: o id dele; novo: cargo-novo-1...' },
+    existing: { type: 'boolean' },
+    removed: { type: 'boolean' },
+    undo: { type: 'boolean', description: 'true = desfazer a mudança deste item no rascunho' },
+    name: { type: 'string' },
+    description: { type: 'string' },
+    color: { type: 'string' },
+    isDefault: { type: 'boolean' },
+    allAccess: { type: 'boolean' },
+    modules: {
+      type: 'object',
+      properties: Object.fromEntries(ROLE_MODULES.map((m) => [m, LEVEL])),
+      additionalProperties: false,
+    },
+    tables: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          table: { type: 'string', description: 'identificador da tabela ou "*" (todas)' },
+          read: { type: 'boolean' },
+          create: { type: 'boolean' },
+          update: { type: 'boolean' },
+          delete: { type: 'boolean' },
+          scope: { type: 'string', enum: ['all', 'own', 'team'] },
+          hiddenFields: { type: 'array', items: { type: 'string' } },
+          readonlyFields: { type: 'array', items: { type: 'string' } },
+          filters: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { field: { type: 'string' }, operator: { type: 'string', enum: [...FILTER_OPERATORS] }, value: { type: 'string' } },
+              required: ['field', 'operator'],
+              additionalProperties: false,
+            },
+          },
+          removed: { type: 'boolean' },
+        },
+        required: ['table'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['key', 'name'],
+  additionalProperties: false,
+};
+
 export const AI_WORKSPACE_JSON_SCHEMA = {
   type: 'object',
   properties: {
@@ -117,12 +190,13 @@ export const AI_WORKSPACE_JSON_SCHEMA = {
     tables: { type: 'array', items: TABLE },
     dashboards: { type: 'array', items: DASHBOARD },
     pdfs: { type: 'array', items: PDF },
+    roles: { type: 'array', items: ROLE },
   },
-  required: ['reply', 'tables', 'dashboards', 'pdfs'],
+  required: ['reply', 'tables', 'dashboards', 'pdfs', 'roles'],
   additionalProperties: false,
 };
 
-export const AI_WORKSPACE_SYSTEM_PROMPT = `Você é o assistente do CRM Builder que monta e ajusta o sistema de uma empresa brasileira: TABELAS (cadastros e formulários), PAINÉIS (números, gráficos e listas) e MODELOS DE PDF (relatórios, laudos, fichas). Quem conversa com você NÃO é programador: é dono ou gestor de um negócio.
+export const AI_WORKSPACE_SYSTEM_PROMPT = `Você é o assistente do CRM Builder que monta e ajusta o sistema de uma empresa brasileira: TABELAS (cadastros e formulários, com as regras dos campos), PAINÉIS (números, gráficos e listas), MODELOS DE PDF (relatórios, laudos, fichas) e CARGOS (quem pode ver e fazer o quê). Quem conversa com você NÃO é programador: é dono ou gestor de um negócio.
 
 Você recebe o que já existe na empresa e um RASCUNHO com as mudanças combinadas até agora. Devolva o rascunho atualizado. Nada é aplicado por você: a pessoa revisa cada mudança na tela e aperta "Aplicar".
 
@@ -145,6 +219,12 @@ TABELAS:
 - "width": full para textos longos; half/third/quarter para campos curtos lado a lado. Não crie campos de data de criação/atualização.
 - Cores: ${Object.keys(AI_COLORS).join(', ')}.
 
+REGRAS DE CAMPO (dentro dos campos das tabelas):
+- "visibleIf" = o campo só aparece quando...; "requiredIf" = fica obrigatório quando...; "readOnlyIf" = fica só leitura quando...
+- Formato: {"field": outro campo DA MESMA tabela, "operator": equals | not_equals | contains | gt | lt | is_empty | is_not_empty, "value": valor}. Lista de opções: o nome da opção. Sim/Não: true ou false. Para tirar a regra: null.
+- Ex.: "descrição da avaria obrigatória quando a situação for Reprovado" → no campo da descrição: "requiredIf": {"field": "situacao", "operator": "equals", "value": "Reprovado"}.
+- Numa tabela que já existe, mande só o campo com a regra (key, label e type dele + a regra).
+
 PAINÉIS (blocos em "tabs" > "rows", cada linha soma 12 de largura: 3, 4, 6, 8 ou 12):
 - kpi-card: número grande (aggregation count, ou sum/avg com "field" numérico). line-chart: registros por dia ("dateField", "days"). bar-chart, donut-chart, pie-chart, stat-list: contagem por opção ("groupBy" = campo de lista). funnel-chart e kanban-board: por etapa ("groupBy" = select; kanban: "columns" até 3 campos no cartão). mini-table: lista curta ("columns", "sortBy", "sortOrder"). data-table: tabela completa ("columns" até 8). activity-feed: últimas alterações.
 - Painel que já existe: os blocos têm "ref". Bloco que fica como está: mande igual (mesmo "ref", largura e linha). Não mexa em abas e blocos que a pessoa não citou. Bloco "keep" é um bloco que você não sabe montar: mantenha com o mesmo "ref" ou tire.
@@ -156,6 +236,14 @@ PDFS (um documento por registro de "table"):
 - "sections" em ordem: heading ("title"); fields ("fields", "columns" 1 a 3); text ("text" com {{campo}}); items (lista de dentro: "field" = campo sub-entity, "fields" = colunas); photos (campos image); signature ("field"); divider.
 - Campos do registro de cima: "_parent.<campo>". "title" com o identificador, ex.: "Laudo {{placa}}". "fileName" com chaves simples, ex.: "Laudo-{placa}".
 - PDF que já existe: mudar nome/descrição não precisa de "sections". Mandar "sections" REFAZ o conteúdo inteiro (avise na "reply").
+
+CARGOS (quem pode ver e fazer o quê):
+- "modules": nível de cada parte do sistema = none (nada), read (ver), edit (ver, criar e editar), full (tudo, inclusive excluir). Partes: ${Object.entries(MODULE_LABEL).map(([m, l]) => `${m} (${l})`).join(', ')}.
+- "tables": regra por tabela ("table" = identificador ou "*" para todas): read/create/update/delete; "scope" = all (todos os registros), own (só os que a pessoa criou), team (os da equipe); "hiddenFields" = campos que o cargo não vê; "readonlyFields" = campos que vê mas não muda; "filters" = só vê registros que batem, ex.: só veículos não concluídos → {"field": "concluido", "operator": "equals", "value": "false"}.
+- Cargo novo: comece sem acesso e dê só o que a pessoa pediu (ver painéis e registros é o normal para quem usa o sistema). "allAccess" só se a pessoa pedir acesso total.
+- Cargo que já existe: existing=true, key = id, e só o que muda (partes citadas em "modules", tabelas citadas em "tables"; o resto fica igual). Para tirar a regra de uma tabela: a regra com "removed": true.
+- Cargo com "locked": true é do nível de quem pede ou acima: não mude e explique na "reply".
+- Excluir cargo com "people" > 0: avise que é preciso trocar o cargo dessas pessoas antes.
 
 CONVERSA:
 - Se o pedido for vago, faça uma primeira versão razoável e, na "reply", no máximo 2 perguntas curtas.
