@@ -101,14 +101,20 @@ export interface AiFieldDraft {
   type: string;
   required?: boolean;
   width?: 'full' | 'half' | 'third' | 'quarter';
-  options?: Array<{ label: string; color?: string }>;
+  /** value: so em opcao que ja existe (o valor gravado nunca muda). */
+  options?: Array<{ label: string; color?: string; value?: string }>;
   relatedTable?: string;
   helpText?: string;
   placeholder?: string;
+  /** Construtor: campo que ja existe marcado para excluir. */
+  removed?: boolean;
 }
 
 export interface AiTableDraft {
   key: string;
+  /** Construtor: tabela que ja existe (key = identificador dela). */
+  existing?: boolean;
+  removed?: boolean;
   name: string;
   namePlural: string;
   description: string;

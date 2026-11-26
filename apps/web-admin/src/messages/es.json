@@ -1445,7 +1445,9 @@
     "overdue": "{days, plural, one {atrasado # día} other {atrasado # días}}",
     "dueToday": "vence hoy",
     "dueTomorrow": "vence mañana",
-    "dueIn": "en {days} días"
+    "dueIn": "en {days} días",
+    "tabToday": "Mi día",
+    "tabBuild": "Construir"
   },
   "platform": {
     "brand": "Consola de la plataforma",
