@@ -308,7 +308,8 @@ export function normalizeDashboard(
     return w.type === 'keep' || widgetSignature(w) === k.signature ? k : undefined;
   };
 
-  const rawTabs = (Array.isArray(input.tabs) ? input.tabs : []).slice(0, MAX_TABS);
+  // Painel que ja existe pode ter mais abas e blocos que o limite da IA: os dele ficam
+  const rawTabs = (Array.isArray(input.tabs) ? input.tabs : []).slice(0, kept?.size ? 20 : MAX_TABS);
   for (const [ti, tab] of rawTabs.entries()) {
     const label = clip(tab?.label, 40) || `Aba ${ti + 1}`;
     const tabId = `aba-${ti + 1}`;
@@ -346,8 +347,8 @@ export function normalizeDashboard(
       const placed: Array<{ id: string; w: number; h: number }> = [];
       const cleanLine: AiWidgetProposal[] = [];
       for (const w of line) {
-        if (count >= MAX_WIDGETS_PER_TAB) break;
         const same = original(w);
+        if (!same && count >= MAX_WIDGETS_PER_TAB) continue;
         if (same) {
           const id = w.ref!;
           usedIds.add(id);
