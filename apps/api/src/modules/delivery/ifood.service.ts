@@ -131,6 +131,13 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     if (!cfg?.ifood) return this.status(user);
     const merchants = Object.fromEntries(Object.entries(cfg.ifood.merchants).filter(([, l]) => l.storeId !== storeId));
     await this.delivery.saveConfig(tenantId, { ifood: { on: Object.keys(merchants).length > 0, merchants } });
+    // Tira o codigo da tabela Lojas tambem (senao a loja continua parecendo ligada)
+    const e = await this.delivery.entities(tenantId, cfg);
+    const store = await this.prisma.entityData.findFirst({ where: { id: storeId, tenantId, entityId: e.stores.id, deletedAt: null } });
+    if (store && (store.data as Record<string, unknown>).ifood_id) {
+      const { ifood_id: _removed, ...rest } = store.data as Record<string, unknown>;
+      await this.prisma.entityData.update({ where: { id: store.id }, data: { data: rest as Prisma.InputJsonValue } });
+    }
     return this.status(user);
   }
 
