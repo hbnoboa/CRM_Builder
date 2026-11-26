@@ -233,8 +233,9 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     for (let i = 0; i < Math.min(Math.max(count, 1), 10); i++) {
       const o = await this.fakeOrder(tenantId, e, new Date(), 'Novo');
       const actor = o.app === 'Balcão' ? 'Balcão (demonstração)' : `${o.app} (demonstração)`;
-      const order = await this.dataService.createFromSite(e.orders, o.data, actor);
-      for (const it of o.items) await this.dataService.createFromSite(e.items, it, actor, order.id);
+      // Sem o aviso generico: o painel da central ja toca e mostra o pedido
+      const order = await this.dataService.createFromSite(e.orders, o.data, actor, undefined, { notify: false });
+      for (const it of o.items) await this.dataService.createFromSite(e.items, it, actor, order.id, { notify: false });
       made++;
     }
     return made;

@@ -1359,7 +1359,11 @@ export class DataService {
    * notificacao, auditoria, automacoes); quem chama ja limitou os campos ao que a
    * pagina libera. O autor aparece como o nome da pagina.
    */
-  async createFromSite(entity: Entity, data: Record<string, unknown>, actorName: string, parentRecordId?: string): Promise<EntityData> {
+  async createFromSite(
+    entity: Entity, data: Record<string, unknown>, actorName: string, parentRecordId?: string,
+    /** notify=false: sem o aviso "fulano criou" (ex.: pedido que chega dos apps ja toca no painel). */
+    options: { notify?: boolean } = {},
+  ): Promise<EntityData> {
     const tenantId = entity.tenantId;
     const actor = { id: null, tenantId, name: actorName, email: '' } as unknown as CurrentUser;
     const settings = entity.settings as EntitySettings;
@@ -1372,10 +1376,12 @@ export class DataService {
     this.materializer.materialize(entity as any, record).catch((err) => this.logger.error(`Erro ao materializar computed fields: ${err.message}`));
 
     const titleField = settings?.titleField || 'nome';
-    this.notificationService.notifyRecordCreated(
-      tenantId, entity.name, String(withComputed[titleField] || record.id), actorName, entity.slug,
-      withComputed as Record<string, unknown>, { actorId: undefined as unknown as string, creatorId: undefined as unknown as string },
-    ).catch((err) => this.logger.error('Failed to send notification', err));
+    if (options.notify !== false) {
+      this.notificationService.notifyRecordCreated(
+        tenantId, entity.name, String(withComputed[titleField] || record.id), actorName, entity.slug,
+        withComputed as Record<string, unknown>, { actorId: undefined as unknown as string, creatorId: undefined as unknown as string },
+      ).catch((err) => this.logger.error('Failed to send notification', err));
+    }
     this.auditService.log(actor, {
       action: 'create', resource: 'entity_data', resourceId: record.id, newData: withComputed as Record<string, unknown>,
       metadata: { entitySlug: entity.slug, entityId: entity.id, source: 'site', actorName },
