@@ -2111,7 +2111,7 @@
         "keys": "API keys",
         "webhooks": "Webhooks",
         "automations": "Automations",
-        "delivery": "Delivery apps"
+        "apps": "Connected apps"
       },
       "keys": {
         "title": "API keys",
@@ -2202,6 +2202,12 @@
           "SCHEDULE": "scheduled",
           "MANUAL": "manual"
         }
+      },
+      "tabHints": {
+        "apps": "Connects the company to ready-made apps such as iFood and 99Food: click Connect, authorize it in the app and data flows both ways on its own.",
+        "webhooks": "The system notifies another system when something happens here (record created, changed, deleted). You enter the address that receives the notice.",
+        "keys": "For another system to access ours and read or write records (a website, an ERP, a spreadsheet). The key acts with the role you choose.",
+        "automations": "All table automations in one place: when something happens, the system notifies someone, sends an e-mail or fills in a field on its own."
       }
     },
     "security": {

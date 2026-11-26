@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bike, CheckCircle2, Clock, ExternalLink, Loader2, Play, Plus, Square, Store } from 'lucide-react';
+import { Bike, CheckCircle2, Clock, ExternalLink, HelpCircle, Loader2, Play, Plus, Puzzle, Square, Store } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/api';
 import { getErrorMessage } from '@/lib/get-error-message';
 
@@ -26,11 +27,82 @@ interface DeliveryStatus {
 
 const KEY = ['delivery-status'];
 
+/** Apps prontos que a empresa liga ao sistema (um cartao por app). */
+const APPS = [
+  {
+    key: 'ifood', name: 'iFood', mark: 'iF', color: '#ea1d2c',
+    summary: 'Pedidos das suas lojas no iFood entram na central de pedidos.',
+    hover: 'Ao conectar, você autoriza as suas lojas no iFood. Daí em diante os pedidos entram sozinhos na central de pedidos, e aceitar ou mudar a situação aqui avisa o iFood (o cliente acompanha pelo app). Falta o acesso da IOS System ao portal de desenvolvedores do iFood.',
+  },
+  {
+    key: 'food99', name: '99Food', mark: '99', color: '#f5b800',
+    summary: 'Pedidos das suas lojas na 99Food entram na central de pedidos.',
+    hover: 'Funciona igual ao iFood: você autoriza as lojas na 99Food e os pedidos entram sozinhos na central, com a situação indo e voltando. A ligação usa o padrão Open Delivery; falta o acesso da IOS System pela 99Food.',
+  },
+];
+
+function Hint({ text, children }: { text: string; children: ReactNode }) {
+  return (
+    <Tooltip delayDuration={150}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-xs text-xs leading-relaxed">{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 /**
- * Apps de delivery: monta a central de pedidos (varias lojas, iFood, 99Food e balcao)
- * e, ate os conectores ficarem prontos, gera pedidos de demonstracao.
+ * Apps conectados: um cartao por app pronto (iFood, 99Food...) com o botao de conectar
+ * e, para os apps de delivery, a central de pedidos (montar, lojas e demonstracao).
  */
-export function DeliveryPanel() {
+export function ConnectedAppsPanel() {
+  return (
+    <TooltipProvider>
+      <div className="space-y-6" data-testid="connected-apps">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {APPS.map((app) => (
+            <Hint key={app.key} text={app.hover}>
+              <Card className="cursor-help transition-colors hover:border-primary/40" data-testid={`app-card-${app.key}`} tabIndex={0}>
+                <CardContent className="flex items-start gap-3 p-4">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white" style={{ backgroundColor: app.color }}>{app.mark}</span>
+                  <span className="min-w-0 flex-1 space-y-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{app.name}</span>
+                      <Badge variant="outline" className="gap-1 font-normal"><Clock className="h-3 w-3" /> aguardando acesso</Badge>
+                    </span>
+                    <span className="block text-xs text-muted-foreground">{app.summary}</span>
+                  </span>
+                </CardContent>
+              </Card>
+            </Hint>
+          ))}
+          <Hint text="Mercado Pago, WhatsApp, Google Agenda, um ERP... Os apps entram aqui conforme os clientes pedem. Para algo pontual, use Avisar outros sistemas ou Chaves de API.">
+            <Card className="cursor-help border-dashed" tabIndex={0} data-testid="app-card-more">
+              <CardContent className="flex items-start gap-3 p-4 text-muted-foreground">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-dashed"><Puzzle className="h-5 w-5" /></span>
+                <span className="space-y-1">
+                  <span className="block font-medium text-foreground">Outro app?</span>
+                  <span className="block text-xs">Peça ao suporte o app que você usa.</span>
+                </span>
+              </CardContent>
+            </Card>
+          </Hint>
+        </div>
+        <section className="space-y-3">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+            Central de pedidos (iFood e 99Food)
+            <Hint text="Os pedidos dos apps de delivery e do balcão, de todas as lojas, numa tela só, com som quando chega pedido novo. Monte agora e use com pedidos de demonstração; quando o iFood e a 99Food estiverem conectados, os pedidos de verdade entram no mesmo lugar.">
+              <button type="button" aria-label="O que é a central de pedidos"><HelpCircle className="h-4 w-4 text-muted-foreground" /></button>
+            </Hint>
+          </h3>
+          <DeliveryCenter />
+        </section>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+/** Central de pedidos: montar, lojas e pedidos de demonstracao. */
+function DeliveryCenter() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: KEY, queryFn: async () => (await api.get<DeliveryStatus>('/delivery')).data });
   const [stores, setStores] = useState<string | null>(null);
@@ -104,23 +176,6 @@ export function DeliveryPanel() {
           <Button asChild><Link href={panelHref}><ExternalLink className="mr-1.5 h-4 w-4" />Abrir a central</Link></Button>
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {[
-          { key: 'ifood', name: 'iFood', text: 'Falta o acesso de desenvolvedor no portal do iFood. Com ele, os pedidos das lojas entram aqui sozinhos e aceitar ou mudar a situação avisa o iFood.' },
-          { key: 'food99', name: '99Food', text: 'Falta o acesso pela 99Food (padrão Open Delivery). Depois, funciona igual ao iFood.' },
-        ].map((c) => (
-          <Card key={c.key} data-testid={`delivery-connector-${c.key}`}>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center justify-between text-base">
-                {c.name}
-                <Badge variant="outline" className="gap-1 font-normal"><Clock className="h-3 w-3" /> aguardando acesso</Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">{c.text}</CardContent>
-          </Card>
-        ))}
-      </div>
 
       <Card>
         <CardHeader className="pb-2">
