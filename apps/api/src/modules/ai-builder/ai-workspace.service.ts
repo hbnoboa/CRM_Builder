@@ -537,7 +537,8 @@ export class AiWorkspaceService {
       metadata: { request, viaAi: request.length > 0, changes: n.changes, applied, failed, warnings: n.warnings, snapshots },
     });
     this.logger.log(`construtor aplicado tenant=${tenantId} mudancas=${applied.length}${failed ? ' (parou num erro)' : ''}`);
-    return { applied, failed, warnings: n.warnings };
+    // failed muda dentro de step(): sem o tipo explicito o TS o ve sempre null
+    return { applied, failed: failed as { name: string; message: string } | null, warnings: n.warnings };
   }
 }
 

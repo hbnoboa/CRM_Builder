@@ -40,6 +40,7 @@ import { DashboardTemplateModule } from './modules/dashboard-template/dashboard-
 import { PublicLinkModule } from './modules/public-link/public-link.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { AiBuilderModule } from './modules/ai-builder/ai-builder.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
 import { SitePagesModule } from './modules/site-pages/site-pages.module';
 import { SiteDomainsModule } from './modules/site-domains/site-domains.module';
 import { AccessRequestModule } from './modules/access-request/access-request.module';
@@ -136,6 +137,7 @@ import { TenantFeatureInterceptor } from './common/interceptors/tenant-feature.i
     PublicLinkModule,
     ChatModule,
     AiBuilderModule,
+    DeliveryModule,
     SitePagesModule,
     SiteDomainsModule,
     AccessRequestModule,

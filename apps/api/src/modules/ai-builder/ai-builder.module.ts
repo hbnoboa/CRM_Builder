@@ -17,5 +17,6 @@ import { EntityAutomationModule } from '../entity-automation/entity-automation.m
   imports: [PrismaModule, EntityModule, DashboardTemplateModule, PdfModule, UploadModule, AuditModule, EntityDataQueryModule, CustomRoleModule, EntityAutomationModule],
   controllers: [AiBuilderController, AiWorkspaceController],
   providers: [AiBuilderService, AiWorkspaceService],
+  exports: [AiWorkspaceService],
 })
 export class AiBuilderModule {}

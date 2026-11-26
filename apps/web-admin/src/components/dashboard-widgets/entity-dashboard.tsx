@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import { useMyDashboardTemplate, useDashboardTemplate, useEntityRecordCount } from '@/hooks/use-dashboard-templates';
 import { useEntities } from '@/hooks/use-entities';
+import { NewRecordAlert } from './new-record-alert';
 import { EntityDataProvider, useEntityData, useEntityDataOptional } from '@/components/entity-data/entity-data-context';
 import { DashboardFilterProvider, WidgetProvider, useDashboardFilters, useWidgetFilters } from './dashboard-filter-context';
 import type { CrossFilter, FieldFilter } from '@/components/entity-data/unified-filter-types';
@@ -305,6 +306,10 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
 
   // settings.headerCountEntitySlug: contador do topo reflete outra entidade (opcional)
   const headerCountSlug = ((effectiveTemplate as { settings?: { headerCountEntitySlug?: string } }).settings?.headerCountEntitySlug) || undefined;
+  // settings.newRecordAlert: som e aviso quando chega registro novo (ex.: pedido)
+  const alertOn = !!(effectiveTemplate as { settings?: { newRecordAlert?: boolean } }).settings?.newRecordAlert && !previewTemplate;
+  const mainEntity = allEntities?.find((e) => e.slug === entitySlug) as (EntityLike & { name?: string; settings?: { titleField?: string } }) | undefined;
+  const alert = alertOn ? <NewRecordAlert entitySlug={entitySlug} titleField={mainEntity?.settings?.titleField} label={mainEntity?.name} /> : null;
 
   // For non-tabbed dashboards, render all widgets
   if (!hasTabs) {
@@ -317,6 +322,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
         <div className="mb-4">
 
           <DashboardFilterBar entityFields={entityFields} />
+          {alert}
           <RecordCountBadge countEntitySlug={headerCountSlug} mainEntitySlug={entitySlug} />
           <ResponsiveGridLayout
             className="layout"
@@ -363,6 +369,7 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
       </WidgetProvider>
       <div className="mb-4">
         <DashboardFilterBar entityFields={entityFields} />
+        {alert}
         <RecordCountBadge countEntitySlug={headerCountSlug} mainEntitySlug={entitySlug} />
         <div className="flex gap-1 mb-3 border-b">
           {tabs.map((tab) => (

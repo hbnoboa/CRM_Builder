@@ -2107,7 +2107,8 @@
       "tabs": {
         "keys": "Claves de API",
         "webhooks": "Webhooks",
-        "automations": "Automatizaciones"
+        "automations": "Automatizaciones",
+        "delivery": "Apps de delivery"
       },
       "keys": {
         "title": "Claves de API",

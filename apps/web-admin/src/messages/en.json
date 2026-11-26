@@ -2110,7 +2110,8 @@
       "tabs": {
         "keys": "API keys",
         "webhooks": "Webhooks",
-        "automations": "Automations"
+        "automations": "Automations",
+        "delivery": "Delivery apps"
       },
       "keys": {
         "title": "API keys",
