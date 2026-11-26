@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 /** Evento da fila do iFood (pedido novo, aceito, despachado, cancelado...). */
 export interface IfoodEvent {
@@ -30,6 +30,28 @@ export interface IfoodOrder {
   extraInfo?: string;
 }
 
+/** Codigo que o dono confirma no Portal do Parceiro (aplicativo distribuido). */
+export interface IfoodUserCode {
+  userCode: string;
+  authorizationCodeVerifier: string;
+  verificationUrl: string;
+  verificationUrlComplete: string;
+  expiresIn: number;
+}
+
+export interface IfoodTokens {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
+
+/** Autorizacao de uma empresa: entrega o token valido (renovando quando vence). */
+export interface IfoodAuth {
+  token(): Promise<string>;
+  /** O iFood recusou o token: na proxima chamada, renova. */
+  reset(): void;
+}
+
 export class IfoodError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -37,42 +59,70 @@ export class IfoodError extends Error {
 }
 
 /**
- * Chamadas a API de parceiros do iFood (aplicativo centralizado: uma credencial da
- * IOS System; cada restaurante autoriza o aplicativo no Portal do Parceiro dele).
- * Sem IFOOD_CLIENT_ID/IFOOD_CLIENT_SECRET o conector fica desligado.
+ * Chamadas a API de parceiros do iFood com o aplicativo distribuido do CRM Builder:
+ * cada empresa autoriza com o login da loja dela (codigo do dono) e recebe um token
+ * so das lojas que o dono liberou. Sem IFOOD_CLIENT_ID/IFOOD_CLIENT_SECRET o conector
+ * fica desligado.
  */
 @Injectable()
 export class IfoodClient {
-  private readonly logger = new Logger(IfoodClient.name);
   private readonly base = (process.env.IFOOD_API_URL || 'https://merchant-api.ifood.com.br').replace(/\/$/, '');
-  private token: { value: string; until: number } | null = null;
 
   get configured() {
     return !!(process.env.IFOOD_CLIENT_ID && process.env.IFOOD_CLIENT_SECRET);
   }
 
-  private async accessToken(): Promise<string> {
-    if (this.token && this.token.until > Date.now()) return this.token.value;
-    const body = new URLSearchParams({
-      grantType: 'client_credentials',
-      clientId: process.env.IFOOD_CLIENT_ID || '',
-      clientSecret: process.env.IFOOD_CLIENT_SECRET || '',
+  private async form<T>(path: string, fields: Record<string, string>): Promise<T> {
+    const res = await fetch(`${this.base}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(fields),
+      signal: AbortSignal.timeout(15_000),
     });
-    const res = await fetch(`${this.base}/authentication/v1.0/oauth/token`, {
-      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body, signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) throw new IfoodError(`iFood recusou a credencial (HTTP ${res.status})`, res.status);
-    const json = (await res.json()) as { accessToken: string; expiresIn?: number };
-    // Renova 5 min antes de vencer
-    this.token = { value: json.accessToken, until: Date.now() + Math.max((json.expiresIn ?? 3600) - 300, 60) * 1000 };
-    return json.accessToken;
+    const text = await res.text();
+    if (!res.ok) throw new IfoodError(`iFood ${path}: HTTP ${res.status} ${this.detail(text)}`.trim(), res.status);
+    return JSON.parse(text) as T;
   }
 
-  private async call<T>(method: 'GET' | 'POST', path: string, opts: { body?: unknown; headers?: Record<string, string> } = {}): Promise<T | null> {
+  private detail(text: string) {
+    try {
+      const j = JSON.parse(text) as { message?: string; error?: { message?: string } };
+      return j.error?.message || j.message || text.slice(0, 300);
+    } catch {
+      return text.slice(0, 300);
+    }
+  }
+
+  /** Passo 1: codigo para o dono confirmar no Portal do Parceiro. */
+  userCode() {
+    return this.form<IfoodUserCode>('/authentication/v1.0/oauth/userCode', { clientId: process.env.IFOOD_CLIENT_ID || '' });
+  }
+
+  /** Passo 2: troca o codigo de autorizacao que o portal mostrou por tokens. */
+  exchange(authorizationCode: string, verifier: string) {
+    return this.form<IfoodTokens>('/authentication/v1.0/oauth/token', {
+      grantType: 'authorization_code',
+      clientId: process.env.IFOOD_CLIENT_ID || '',
+      clientSecret: process.env.IFOOD_CLIENT_SECRET || '',
+      authorizationCode,
+      authorizationCodeVerifier: verifier,
+    });
+  }
+
+  refresh(refreshToken: string) {
+    return this.form<IfoodTokens>('/authentication/v1.0/oauth/token', {
+      grantType: 'refresh_token',
+      clientId: process.env.IFOOD_CLIENT_ID || '',
+      clientSecret: process.env.IFOOD_CLIENT_SECRET || '',
+      refreshToken,
+    });
+  }
+
+  private async call<T>(auth: IfoodAuth, method: 'GET' | 'POST', path: string, opts: { body?: unknown; headers?: Record<string, string> } = {}): Promise<T | null> {
     const send = async () => fetch(`${this.base}${path}`, {
       method,
       headers: {
-        Authorization: `Bearer ${await this.accessToken()}`,
+        Authorization: `Bearer ${await auth.token()}`,
         ...(opts.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...opts.headers,
       },
@@ -81,58 +131,46 @@ export class IfoodClient {
     });
     let res = await send();
     if (res.status === 401) {
-      this.token = null;
+      auth.reset();
       res = await send();
     }
     if (res.status === 204) return null;
     const text = await res.text();
-    if (!res.ok) {
-      let detail = text.slice(0, 300);
-      try {
-        const j = JSON.parse(text) as { message?: string; error?: { message?: string } };
-        detail = j.error?.message || j.message || detail;
-      } catch { /* resposta sem JSON */ }
-      throw new IfoodError(`iFood ${method} ${path.split('?')[0]}: HTTP ${res.status} ${detail}`.trim(), res.status);
-    }
+    if (!res.ok) throw new IfoodError(`iFood ${method} ${path.split('?')[0]}: HTTP ${res.status} ${this.detail(text)}`.trim(), res.status);
     return text ? (JSON.parse(text) as T) : null;
   }
 
-  merchant(merchantId: string) {
-    return this.call<{ id: string; name: string; status?: string; test?: string }>('GET', `/merchant/v1.0/merchants/${encodeURIComponent(merchantId)}`);
-  }
-
-  merchantStatus(merchantId: string) {
-    return this.call<Array<{ operation?: string; available?: boolean; state?: string; message?: { title?: string } }>>(
-      'GET', `/merchant/v1.0/merchants/${encodeURIComponent(merchantId)}/status`,
-    );
+  /** Lojas que o dono liberou para o CRM Builder. */
+  async merchants(auth: IfoodAuth) {
+    return (await this.call<Array<{ id: string; name: string }>>(auth, 'GET', '/merchant/v1.0/merchants')) ?? [];
   }
 
   /** Fila de eventos das lojas (chamar a cada 30 s tambem mantem a loja conectada). */
-  async poll(merchantIds: string[]): Promise<IfoodEvent[]> {
+  async poll(auth: IfoodAuth, merchantIds: string[]): Promise<IfoodEvent[]> {
     if (merchantIds.length === 0) return [];
-    return (await this.call<IfoodEvent[]>('GET', '/order/v1.0/events:polling', { headers: { 'x-polling-merchants': merchantIds.join(',') } })) ?? [];
+    return (await this.call<IfoodEvent[]>(auth, 'GET', '/order/v1.0/events:polling', { headers: { 'x-polling-merchants': merchantIds.join(',') } })) ?? [];
   }
 
-  async ack(eventIds: string[]) {
+  async ack(auth: IfoodAuth, eventIds: string[]) {
     if (eventIds.length === 0) return;
-    await this.call('POST', '/order/v1.0/events/acknowledgment', { body: eventIds.map((id) => ({ id })) });
+    await this.call(auth, 'POST', '/order/v1.0/events/acknowledgment', { body: eventIds.map((id) => ({ id })) });
   }
 
-  order(orderId: string) {
-    return this.call<IfoodOrder>('GET', `/order/v1.0/orders/${encodeURIComponent(orderId)}`);
+  order(auth: IfoodAuth, orderId: string) {
+    return this.call<IfoodOrder>(auth, 'GET', `/order/v1.0/orders/${encodeURIComponent(orderId)}`);
   }
 
-  async action(orderId: string, action: 'confirm' | 'startPreparation' | 'readyToPickup' | 'dispatch') {
-    await this.call('POST', `/order/v1.0/orders/${encodeURIComponent(orderId)}/${action}`);
+  async action(auth: IfoodAuth, orderId: string, action: 'confirm' | 'startPreparation' | 'readyToPickup' | 'dispatch') {
+    await this.call(auth, 'POST', `/order/v1.0/orders/${encodeURIComponent(orderId)}/${action}`);
   }
 
-  async cancellationReasons(orderId: string) {
+  async cancellationReasons(auth: IfoodAuth, orderId: string) {
     return (await this.call<Array<{ cancelCodeId?: string; code?: string; description?: string }>>(
-      'GET', `/order/v1.0/orders/${encodeURIComponent(orderId)}/cancellationReasons`,
+      auth, 'GET', `/order/v1.0/orders/${encodeURIComponent(orderId)}/cancellationReasons`,
     )) ?? [];
   }
 
-  async requestCancellation(orderId: string, reason: string, cancellationCode: string) {
-    await this.call('POST', `/order/v1.0/orders/${encodeURIComponent(orderId)}/requestCancellation`, { body: { reason, cancellationCode } });
+  async requestCancellation(auth: IfoodAuth, orderId: string, reason: string, cancellationCode: string) {
+    await this.call(auth, 'POST', `/order/v1.0/orders/${encodeURIComponent(orderId)}/requestCancellation`, { body: { reason, cancellationCode } });
   }
 }
