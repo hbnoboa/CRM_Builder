@@ -252,6 +252,8 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     const due = order.delivery?.deliveryDateTime ?? order.takeout?.takeoutDateTime ?? new Date(new Date(created).getTime() + 45 * 60_000).toISOString();
     const notes = [
       order.extraInfo,
+      order.delivery?.observations,
+      order.delivery?.pickupCode && `Código de entrega: ${order.delivery.pickupCode}`,
       addr?.complement && `Complemento: ${addr.complement}`,
       addr?.reference && `Referência: ${addr.reference}`,
       order.customer?.phone?.localizer && `Código do telefone iFood: ${order.customer.phone.localizer}`,
@@ -280,7 +282,8 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       await this.dataService.createFromSite(e.items, {
         produto: it.name ?? 'Item',
         quantidade: qty,
-        preco: num(it.unitPrice ?? (it.totalPrice !== undefined ? it.totalPrice / qty : undefined)),
+        // Com os complementos (totalPrice ja soma as opcoes)
+        preco: num(it.totalPrice !== undefined ? it.totalPrice / qty : it.unitPrice),
         observacao: [options, it.observations].filter(Boolean).join(' · '),
       }, ACTOR, record.id, { notify: false });
     }

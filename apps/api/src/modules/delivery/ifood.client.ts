@@ -19,7 +19,10 @@ export interface IfoodOrder {
   createdAt?: string;
   merchant?: { id?: string; name?: string };
   customer?: { name?: string; phone?: { number?: string; localizer?: string } };
-  delivery?: { deliveryAddress?: { formattedAddress?: string; streetName?: string; streetNumber?: string; complement?: string; neighborhood?: string; reference?: string }; deliveryDateTime?: string };
+  delivery?: {
+    deliveryAddress?: { formattedAddress?: string; streetName?: string; streetNumber?: string; complement?: string; neighborhood?: string; reference?: string };
+    deliveryDateTime?: string; observations?: string; pickupCode?: string;
+  };
   takeout?: { takeoutDateTime?: string };
   items?: Array<{ name?: string; quantity?: number; unitPrice?: number; totalPrice?: number; observations?: string; options?: Array<{ name?: string; quantity?: number }> }>;
   total?: { subTotal?: number; deliveryFee?: number; orderAmount?: number };
