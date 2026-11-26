@@ -104,6 +104,42 @@ test.describe.serial('construtor da tela inicial', () => {
     await call(request, 'post', '/ai-builder/workspace/preview', viewer, { expected: 403, data: { proposal: removal } });
   });
 
+  test('cargo novo e regra de campo; quem nao mexe em cargos nao cria', async ({ request }) => {
+    const proposal = {
+      ...draft([{ key: 'clientes', existing: true, name: 'Clientes', namePlural: 'Clientes', fields: [
+        // Regra pelo nome da opcao: grava o valor dela
+        { key: 'nome', label: 'Nome completo', type: 'text', readOnlyIf: { field: 'tipo', operator: 'equals', value: 'Prata' } },
+      ] }]),
+      roles: [{ key: 'cargo-novo-1', name: 'Atendente QA', modules: { dashboard: 'read', data: 'edit' }, tables: [
+        { table: 'clientes', read: true, update: true, readonlyFields: ['Cliente especial'], filters: [{ field: 'tipo', operator: 'equals', value: 'Prata' }] },
+      ] }],
+    };
+    const preview = await (await call(request, 'post', '/ai-builder/workspace/preview', tenant.owner, { expected: 200, data: { proposal } })).json();
+    expect((preview.changes as Change[]).map((c) => `${c.kind}:${c.module}`).sort()).toEqual(['create:role', 'update:table']);
+    await call(request, 'post', '/ai-builder/workspace/apply', tenant.owner, { expected: 200, data: { proposal } });
+
+    const nome = (await get(request, tenant.owner, clientesId)).fields.find((f) => f.slug === 'nome') as Field & { readOnlyIf?: { field: string; value: string } };
+    const prata = (await get(request, tenant.owner, clientesId)).fields.find((f) => f.slug === 'tipo')!.options!.find((o) => o.label === 'Prata')!;
+    expect(nome.readOnlyIf).toMatchObject({ field: 'tipo', value: prata.value });
+    const state = await (await call(request, 'get', '/ai-builder/workspace', tenant.owner, { expected: 200 })).json();
+    const role = state.roles.find((r: { name: string }) => r.name === 'Atendente QA');
+    expect(role.modules).toMatchObject({ dashboard: 'read', data: 'edit', users: 'none' });
+    expect(role.tables[0]).toMatchObject({ table: 'clientes', read: true, update: true, create: false, readonlyFields: ['vip'] });
+    expect(role.tables[0].filters[0]).toMatchObject({ field: 'tipo', operator: 'equals', value: prata.value });
+
+    // Quem monta tabelas mas nao mexe em cargos nao cria cargo
+    const builderRole = await createRole(request, tenant.owner, {
+      name: `Monta tabelas ${Date.now()}`,
+      permissions: [{ entitySlug: '*', canRead: true, canCreate: true, canUpdate: true, canDelete: false, scope: 'all' }],
+      modulePermissions: { entities: { canRead: true, canCreate: true, canUpdate: true, canDelete: false } },
+    });
+    const builder = await createPerson(request, tenant.owner, tenant.slug, 'Montador', builderRole);
+    const denied = await call(request, 'post', '/ai-builder/workspace/apply', builder, {
+      expected: 403, data: { proposal: { ...draft([]), roles: [{ key: 'cargo-novo-1', name: 'Outro', modules: { data: 'read' } }] } },
+    });
+    expect((await denied.json()).message).toMatch(/criar cargos/);
+  });
+
   test('excluir tabela confirmando leva para a lixeira e fica no historico', async ({ request }) => {
     const state = await (await call(request, 'get', '/ai-builder/workspace', tenant.owner, { expected: 200 })).json();
     const visitas = state.tables.find((t: { key: string }) => t.key === 'visitas');
@@ -115,7 +151,7 @@ test.describe.serial('construtor da tela inicial', () => {
     expect(after.tables.map((t: { key: string }) => t.key)).not.toContain('visitas');
 
     const history = await (await call(request, 'get', '/ai-builder/workspace/history', tenant.owner, { expected: 200 })).json();
-    expect(history).toHaveLength(4);
+    expect(history).toHaveLength(5);
     const first = history[history.length - 1];
     expect(first.by).toBe('Dono QA');
     expect(first.request).toEqual(['Renomeie VIP, ponha o tipo, tire o CPF e crie visitas']);

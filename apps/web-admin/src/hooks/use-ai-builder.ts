@@ -108,7 +108,13 @@ export interface AiFieldDraft {
   placeholder?: string;
   /** Construtor: campo que ja existe marcado para excluir. */
   removed?: boolean;
+  /** Regras: aparece / obrigatorio / so leitura quando outro campo tem um valor (null = tirar). */
+  visibleIf?: AiFieldCondition | null;
+  requiredIf?: AiFieldCondition | null;
+  readOnlyIf?: AiFieldCondition | null;
 }
+
+export interface AiFieldCondition { field: string; operator: string; value?: unknown }
 
 export interface AiTableDraft {
   key: string;

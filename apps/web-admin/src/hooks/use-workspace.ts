@@ -11,7 +11,7 @@ import { pdfTemplateKeys } from './use-pdf-templates';
  */
 
 export type WsMark = 'new' | 'changed' | 'removed';
-export type WsModule = 'table' | 'dashboard' | 'pdf';
+export type WsModule = 'table' | 'dashboard' | 'pdf' | 'role';
 export type WsKind = 'create' | 'update' | 'delete';
 
 export type WsField = AiFieldDraft;
@@ -58,12 +58,52 @@ export interface WsPdf {
   sections?: WsPdfSection[];
 }
 
+export type WsLevel = 'none' | 'read' | 'edit' | 'full';
+export const ROLE_MODULES = [
+  'dashboard', 'data', 'entities', 'users', 'roles', 'settings',
+  'automations', 'templates', 'logs', 'publicLinks', 'apis', 'archive', 'chat',
+] as const;
+export type WsRoleModule = (typeof ROLE_MODULES)[number];
+
+export interface WsRoleTable {
+  /** Identificador da tabela ou '*' (todas). */
+  table: string;
+  read?: boolean;
+  create?: boolean;
+  update?: boolean;
+  delete?: boolean;
+  scope?: string;
+  hiddenFields?: string[];
+  readonlyFields?: string[];
+  filters?: Array<{ field: string; operator: string; value?: string }>;
+  removed?: boolean;
+}
+
+export interface WsRole {
+  key: string;
+  existing?: boolean;
+  removed?: boolean;
+  name: string;
+  description?: string;
+  color?: string;
+  isDefault?: boolean;
+  allAccess?: boolean;
+  modules?: Partial<Record<WsRoleModule, WsLevel>>;
+  tables?: WsRoleTable[];
+  /** Do nivel de quem mexe ou acima: so leitura. */
+  locked?: boolean;
+  people?: number;
+  /** Cargo padrao do sistema: nao se exclui nem muda de nome. */
+  system?: boolean;
+}
+
 export interface WorkspaceDraft {
   reply: string;
   group?: string;
   tables: WsTable[];
   dashboards: WsDashboard[];
   pdfs: WsPdf[];
+  roles?: WsRole[];
 }
 
 export interface WsChange {
@@ -80,6 +120,7 @@ export interface WsMarks {
   tables: Record<string, { status: WsMark; fields: Record<string, WsMark> }>;
   dashboards: Record<string, WsMark>;
   pdfs: Record<string, WsMark>;
+  roles?: Record<string, WsMark>;
 }
 
 export type WsDashboardPayload = AiDashboardResult['dashboard'];
@@ -104,7 +145,7 @@ export interface WorkspaceState {
   previews: AiPreviewTable[];
   dashboards: Array<{ draft: WsDashboard; payload: WsDashboardPayload }>;
   pdfs: WsPdf[];
-  roles: string[];
+  roles: WsRole[];
 }
 
 export interface WorkspaceApplyResult {
@@ -125,8 +166,8 @@ export interface WorkspaceHistoryItem {
   failed: WorkspaceApplyResult['failed'];
 }
 
-export const EMPTY_DRAFT: WorkspaceDraft = { reply: '', tables: [], dashboards: [], pdfs: [] };
-export const EMPTY_MARKS: WsMarks = { tables: {}, dashboards: {}, pdfs: {} };
+export const EMPTY_DRAFT: WorkspaceDraft = { reply: '', tables: [], dashboards: [], pdfs: [], roles: [] };
+export const EMPTY_MARKS: WsMarks = { tables: {}, dashboards: {}, pdfs: {}, roles: {} };
 
 export const workspaceKeys = {
   all: ['ai-workspace'] as const,

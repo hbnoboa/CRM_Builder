@@ -10,9 +10,10 @@ import { AiWorkspaceController } from './ai-workspace.controller';
 import { AiWorkspaceService } from './ai-workspace.service';
 import { AuditModule } from '../audit/audit.module';
 import { EntityDataQueryModule } from '../../common/services/entity-data-query.module';
+import { CustomRoleModule } from '../custom-role/custom-role.module';
 
 @Module({
-  imports: [PrismaModule, EntityModule, DashboardTemplateModule, PdfModule, UploadModule, AuditModule, EntityDataQueryModule],
+  imports: [PrismaModule, EntityModule, DashboardTemplateModule, PdfModule, UploadModule, AuditModule, EntityDataQueryModule, CustomRoleModule],
   controllers: [AiBuilderController, AiWorkspaceController],
   providers: [AiBuilderService, AiWorkspaceService],
 })

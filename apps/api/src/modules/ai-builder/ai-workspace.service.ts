@@ -17,6 +17,9 @@ import { creationOrder, slugify, uniqueKey } from './ai-proposal-normalizer';
 import { normalizeDashboard, type KeptWidget } from './dashboard-proposal';
 import { normalizePdf } from './pdf-proposal';
 import { describeSchema, loadTenantSchema, type SchemaTable } from './tenant-schema';
+import { roleToDraft, type BaseRole } from './workspace-roles';
+import { CustomRoleService } from '../custom-role/custom-role.service';
+import type { CreateCustomRoleDto } from '../custom-role/dto/custom-role.dto';
 import { AI_WORKSPACE_JSON_SCHEMA, AI_WORKSPACE_SYSTEM_PROMPT } from './workspace-prompt';
 import {
   dashboardToDraft, entityToDraft, normalizeWorkspace, pdfToDraft,
@@ -34,6 +37,7 @@ const PERMISSION: Record<ChangeModule, { module: string; sub?: string; label: st
   table: { module: 'entities', label: 'tabelas' },
   dashboard: { module: 'dashboard', label: 'painéis' },
   pdf: { module: 'templates', sub: 'pdfTemplates', label: 'modelos de PDF' },
+  role: { module: 'roles', label: 'cargos' },
 };
 const ACTION: Record<ChangeKind, { perm: string; verb: string }> = {
   create: { perm: 'canCreate', verb: 'criar' },
@@ -77,10 +81,12 @@ export class AiWorkspaceService {
     private readonly pdfGenerator: PdfGeneratorService,
     private readonly auditService: AuditService,
     private readonly queryService: EntityDataQueryService,
+    private readonly customRoleService: CustomRoleService,
   ) {}
 
-  private async loadBase(tenantId: string): Promise<{ base: WorkspaceBase; kept: Map<string, Map<string, KeptWidget>>; dashboards: BaseDashboard[] }> {
-    const [schema, entities, dashboards, deletedDashboards, pdfs, roles] = await Promise.all([
+  private async loadBase(user: CurrentUser): Promise<{ base: WorkspaceBase; kept: Map<string, Map<string, KeptWidget>>; dashboards: BaseDashboard[] }> {
+    const tenantId = getEffectiveTenantId(user);
+    const [schema, entities, dashboards, deletedDashboards, pdfs, roleRows] = await Promise.all([
       loadTenantSchema(this.prisma, tenantId),
       this.prisma.entity.findMany({
         where: { tenantId },
@@ -100,8 +106,22 @@ export class AiWorkspaceService {
         orderBy: { name: 'asc' },
         take: 200,
       }),
-      this.prisma.customRole.findMany({ where: { tenantId }, select: { id: true, name: true }, orderBy: { rank: 'asc' } }),
+      this.prisma.customRole.findMany({
+        where: { tenantId },
+        select: {
+          id: true, name: true, description: true, color: true, isSystem: true, isDefault: true, rank: true, modulePermissions: true, permissions: true,
+          _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
+        },
+        orderBy: { rank: 'asc' },
+      }),
     ]);
+    const roles = roleRows.map((r) => ({ id: r.id, name: r.name }));
+    const roleList: BaseRole[] = roleRows.map((r) => ({
+      id: r.id, name: r.name, description: r.description || '', color: r.color, isSystem: r.isSystem, isDefault: r.isDefault, rank: r.rank,
+      modulePermissions: (r.modulePermissions && typeof r.modulePermissions === 'object' ? r.modulePermissions : {}) as Record<string, unknown>,
+      permissions: (Array.isArray(r.permissions) ? r.permissions : []) as Array<Record<string, unknown>>,
+      people: r._count.tenantAccessUsers,
+    }));
     const parentOf = new Map(schema.map((t) => [t.slug, t.parentSlug]));
     const slugById = new Map(entities.map((e) => [e.id, e.slug]));
     const baseEntities: BaseEntity[] = entities.map((e) => ({
@@ -133,6 +153,9 @@ export class AiWorkspaceService {
       pdfs: pdfs.map((p) => ({ id: p.id, name: p.name, description: p.description || '', tableSlug: p.sourceEntityId ? slugById.get(p.sourceEntityId) ?? null : null })),
       roles,
       takenDashboardNames: [...automatic, ...deletedDashboards.map((d) => d.name)],
+      roleList,
+      actorRank: user.customRole?.rank ?? 999999,
+      actorAll: hasFullTenantAccess(user.customRole?.modulePermissions),
     };
     const kept = new Map(editable.map((d) => [d.id, dashboardToDraft(d, roles, schema).kept]));
     return { base, kept, dashboards: editable };
@@ -146,8 +169,7 @@ export class AiWorkspaceService {
 
   /** Tudo o que existe, no formato do rascunho (o ponto de partida da tela). */
   async state(user: CurrentUser) {
-    const tenantId = getEffectiveTenantId(user);
-    const { base } = await this.loadBase(tenantId);
+    const { base } = await this.loadBase(user);
     return {
       enabled: this.ai.status().enabled,
       tables: base.entities.map(entityToDraft),
@@ -160,7 +182,7 @@ export class AiWorkspaceService {
         payload: { name: d.name, description: d.description, entitySlug: d.entitySlug ?? '', layout: d.layout, widgets: d.widgets, tabs: d.tabs, roleIds: d.roleIds },
       })),
       pdfs: base.pdfs.map(pdfToDraft),
-      roles: base.roles.map((r) => r.name),
+      roles: base.roleList.map((r) => roleToDraft(r, base.actorRank)),
     };
   }
 
@@ -188,7 +210,7 @@ export class AiWorkspaceService {
 
   async propose(dto: AiProposeDto, user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
-    const { base, kept } = await this.loadBase(tenantId);
+    const { base, kept } = await this.loadBase(user);
     const raw = this.parseDraft(dto.currentProposal);
     const current = raw ? normalizeWorkspace(raw, base, kept).draft : null;
     const dashboards = base.dashboards.map((d) => dashboardToDraft(d, base.roles, base.schema).draft);
@@ -208,7 +230,8 @@ export class AiWorkspaceService {
       'PDFS QUE JÁ EXISTEM:',
       base.pdfs.length ? base.pdfs.map((p) => `- [${p.id}] ${p.name}${p.tableSlug ? ` (tabela [${p.tableSlug}])` : ''}`).join('\n') : '(nenhum)',
       '',
-      `CARGOS: ${base.roles.map((r) => r.name).join(', ') || '(nenhum)'}`,
+      'CARGOS QUE JÁ EXISTEM (no formato do rascunho; "locked": true = do nível de quem pede ou acima, não dá para mudar; "people" = quantas pessoas têm):',
+      JSON.stringify(base.roleList.map((r) => roleToDraft(r, base.actorRank))),
     ];
     const output = await this.ai.ask('workspace', tenantId, AI_WORKSPACE_SYSTEM_PROMPT, AI_WORKSPACE_JSON_SCHEMA, context, dto, current, base.schema);
     // O rascunho guarda o que ja estava nele: o que a IA esqueceu de repetir continua
@@ -218,15 +241,13 @@ export class AiWorkspaceService {
 
   /** Rascunho mexido a mao: confere e desenha de novo (sem IA, sem custo). */
   async preview(proposal: Record<string, unknown>, user: CurrentUser) {
-    const tenantId = getEffectiveTenantId(user);
-    const { base, kept } = await this.loadBase(tenantId);
+    const { base, kept } = await this.loadBase(user);
     return this.present(normalizeWorkspace(this.parseDraft(proposal), base, kept), user);
   }
 
   /** PDF de um rascunho com dados de exemplo (so com a tabela ja criada). */
   async previewPdf(dto: AiWorkspacePdfPreviewDto, user: CurrentUser): Promise<Buffer> {
-    const tenantId = getEffectiveTenantId(user);
-    const { base, kept } = await this.loadBase(tenantId);
+    const { base, kept } = await this.loadBase(user);
     const n = normalizeWorkspace(this.parseDraft(dto.proposal), base, kept);
     const plan = n.plan.pdfs.find((p) => p.key === dto.key);
     const table = base.schema.find((t) => t.slug === plan?.table);
@@ -269,7 +290,7 @@ export class AiWorkspaceService {
    */
   async apply(dto: AiWorkspaceApplyDto, user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
-    const { base, kept } = await this.loadBase(tenantId);
+    const { base, kept } = await this.loadBase(user);
     const n = normalizeWorkspace(this.parseDraft(dto.proposal), base, kept);
     if (n.changes.length === 0) throw new BadRequestException('Não há mudanças para aplicar.');
 
@@ -371,7 +392,19 @@ export class AiWorkspaceService {
       });
     }
 
-    // 3. Paineis e PDFs: conferidos de novo com as tabelas reais (as novas ja tem nome definitivo)
+    // 3. Cargos (tabela nova citada pela chave ganha o nome definitivo). O servico de cargos
+    // confere nivel e que ninguem da mais poder do que tem.
+    for (const p of n.plan.roles.filter((x) => x.kind !== 'delete')) {
+      await step('role', p.kind, p.key, p.name, async () => {
+        const data = { ...p.data!, permissions: p.data!.permissions?.map((e) => ({ ...e, entitySlug: created.get(String(e.entitySlug))?.slug ?? e.entitySlug })) };
+        if (p.kind === 'create') return (await this.customRoleService.create(data as unknown as CreateCustomRoleDto, user)).id;
+        snapshots[`role:${p.base!.id}`] = p.base;
+        await this.customRoleService.update(p.base!.id, data as unknown as CreateCustomRoleDto, user);
+        return p.base!.id;
+      });
+    }
+
+    // 4. Paineis e PDFs: conferidos de novo com as tabelas reais (as novas ja tem nome definitivo)
     const schema = failed ? [] : await loadTenantSchema(this.prisma, tenantId);
     const realSlug = (ref: unknown) => (typeof ref === 'string' ? created.get(ref)?.slug ?? ref : ref);
     const fixDashboard = (d: WsDashboard): WsDashboard => ({
@@ -413,7 +446,14 @@ export class AiWorkspaceService {
       });
     }
 
-    // 4. Exclusoes por ultimo (PDFs, paineis e tabelas; tabelas vao para a lixeira)
+    // 5. Exclusoes por ultimo (cargos, PDFs, paineis e tabelas; tabelas vao para a lixeira)
+    for (const p of n.plan.roles.filter((x) => x.kind === 'delete')) {
+      await step('role', 'delete', p.key, p.name, async () => {
+        snapshots[`role:${p.base!.id}`] = p.base;
+        await this.customRoleService.remove(p.base!.id, user);
+        return p.base!.id;
+      });
+    }
     for (const p of n.plan.pdfs.filter((x) => x.kind === 'delete')) {
       await step('pdf', 'delete', p.key, p.name, async () => {
         snapshots[`pdf:${p.base!.id}`] = await this.prisma.pdfTemplate.findFirst({ where: { id: p.base!.id, tenantId } });
@@ -450,17 +490,17 @@ export class AiWorkspaceService {
  * A IA devolve o rascunho inteiro; se esquecer um item que ja estava nele, o item
  * continua (desfazer e com a pessoa, na tela, ou pedindo "desfaça").
  */
-function mergeForgotten(output: unknown, current: { tables: Array<{ key: string }>; dashboards: Array<{ key: string }>; pdfs: Array<{ key: string }> } | null): unknown {
+function mergeForgotten(output: unknown, current: { tables: Array<{ key: string }>; dashboards: Array<{ key: string }>; pdfs: Array<{ key: string }>; roles?: Array<{ key: string }> } | null): unknown {
   if (!output || typeof output !== 'object') return output;
   const out = output as Record<string, unknown>;
-  const merge = (name: 'tables' | 'dashboards' | 'pdfs') => {
+  const merge = (name: 'tables' | 'dashboards' | 'pdfs' | 'roles') => {
     const list = Array.isArray(out[name]) ? (out[name] as Array<{ key?: string; undo?: boolean }>) : [];
     // "undo": a pessoa pediu para desfazer a mudanca (o item volta a ser como esta)
     const keys = new Set(list.map((x) => x?.key));
     const kept = list.filter((x) => x && x.undo !== true);
     return [...kept, ...(current?.[name] ?? []).filter((x) => !keys.has(x.key))];
   };
-  return { ...out, tables: merge('tables'), dashboards: merge('dashboards'), pdfs: merge('pdfs') };
+  return { ...out, tables: merge('tables'), dashboards: merge('dashboards'), pdfs: merge('pdfs'), roles: merge('roles') };
 }
 
 export type { SchemaTable, WsPdf };

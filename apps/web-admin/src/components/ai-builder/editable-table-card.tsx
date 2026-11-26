@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import {
-  ArrowDown, ArrowUp, Database, Eye, EyeOff, GripVertical, HelpCircle, Link2, ListTree, Plus, Trash2, Undo2, X, icons, type LucideIcon,
+  ArrowDown, ArrowUp, Database, Eye, EyeOff, GripVertical, HelpCircle, Link2, ListTree, Plus, SlidersHorizontal, Trash2, Undo2, X, icons, type LucideIcon,
 } from 'lucide-react';
-import type { Entity } from '@crm-builder/shared';
+import type { Entity, EntityField } from '@crm-builder/shared';
+import { FieldConditionsEditor, describeCondition } from '@/components/entity-editor/condition-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { RecordFormFields } from '@/components/data/record-form-dialog';
@@ -76,6 +77,7 @@ export function EditableTableCard({
   const [showForm, setShowForm] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [demoType, setDemoType] = useState<string | null>(null);
+  const [rulesOf, setRulesOf] = useState<string | null>(null);
   const Icon = (icons as Record<string, LucideIcon>)[table.icon || ''] ?? Database;
   const color = colorOf(table.color || 'blue', AI_COLORS.blue);
   const isExisting = (key: string) => !!existingKeys?.has(key);
@@ -127,6 +129,13 @@ export function EditableTableCard({
   }, [preview, names, table.key, table.name]);
 
   const pick = (types: string[]) => table.fields.filter((f) => !f.removed && types.includes(f.type));
+  // Os campos no formato do editor de regras (o mesmo da tela da tabela)
+  const ruleFields = useMemo(() => table.fields.filter((f) => !f.removed).map((f) => ({
+    slug: f.key, name: f.label, label: f.label, type: f.type, required: f.required,
+    options: (f.options || []).map((o) => ({ value: o.value ?? o.label, label: o.label })),
+    visibleIf: f.visibleIf ?? undefined, requiredIf: f.requiredIf ?? undefined, readOnlyIf: f.readOnlyIf ?? undefined,
+  })) as unknown as EntityField[], [table.fields]);
+  const RULES = [['visibleIf', 'Aparece só quando'], ['requiredIf', 'Obrigatório quando'], ['readOnlyIf', 'Só leitura quando']] as const;
   const statusField = table.fields.find((f) => f.key === table.statusField);
 
   return (
@@ -259,11 +268,43 @@ export function EditableTableCard({
                         </button>
                       )}
                       <span className="ml-auto flex items-center">
+                        {f.type !== 'section-title' && f.type !== 'sub-entity' && (
+                          <Button
+                            size="icon" variant="ghost"
+                            className={cn('h-7 w-7', RULES.some(([p]) => f[p]) && 'text-primary')}
+                            onClick={() => setRulesOf((k) => (k === f.key ? null : f.key))}
+                            aria-label="Regras do campo" title="Regras: aparece, obrigatório ou só leitura quando..."
+                            aria-expanded={rulesOf === f.key}
+                            data-testid="ai-field-rules"
+                          >
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         <Button size="icon" variant="ghost" className="h-7 w-7" disabled={i === 0} onClick={() => move(i, i - 1)} aria-label="Subir"><ArrowUp className="h-3.5 w-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7" disabled={i === table.fields.length - 1} onClick={() => move(i, i + 1)} aria-label="Descer"><ArrowDown className="h-3.5 w-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => removeField(i)} aria-label="Excluir campo" data-testid="ai-field-remove"><Trash2 className="h-3.5 w-3.5" /></Button>
                       </span>
                     </div>
+
+                    {RULES.some(([p]) => f[p]) && rulesOf !== f.key && (
+                      <div className="flex flex-wrap gap-1 pl-6" data-testid="ai-field-rule-summary">
+                        {RULES.filter(([p]) => f[p]).map(([p, label]) => (
+                          <span key={p} className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
+                            {label} {describeCondition(f[p] as never, ruleFields)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {rulesOf === f.key && (
+                      <div className="pl-6" data-testid="ai-field-rules-editor">
+                        <FieldConditionsEditor
+                          field={ruleFields.find((x) => x.slug === f.key)!}
+                          allFields={ruleFields}
+                          // Desligar a regra manda null: num campo que ja existe, sem a regra = tirar
+                          onChange={(patch) => setField(i, Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v ?? null])))}
+                        />
+                      </div>
+                    )}
 
                     {CHOICE.has(f.type) && (
                       <div className="flex flex-wrap items-center gap-1.5 pl-6" {...(tour && i === table.fields.findIndex((x) => CHOICE.has(x.type)) ? t('ai-options') : {})}>

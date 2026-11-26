@@ -9,6 +9,7 @@ import {
 } from './dashboard-proposal';
 import { normalizePdf, type AiPdfSection } from './pdf-proposal';
 import type { SchemaField, SchemaTable } from './tenant-schema';
+import { normalizeRoles, type BaseRole, type RolePlan, type WsRole } from './workspace-roles';
 
 /**
  * Construtor da tela inicial: um rascunho so para tabelas, paineis e PDFs, novos ou
@@ -29,8 +30,14 @@ export interface WsField {
   relatedTable?: string;
   helpText?: string;
   placeholder?: string;
+  /** Regras do campo: aparece / obrigatorio / so leitura quando outro campo tem um valor (null = tirar). */
+  visibleIf?: WsCondition | null;
+  requiredIf?: WsCondition | null;
+  readOnlyIf?: WsCondition | null;
   removed?: boolean;
 }
+
+export interface WsCondition { field: string; operator: string; value?: unknown }
 
 export interface WsTable {
   key: string;
@@ -75,6 +82,7 @@ export interface WorkspaceDraft {
   tables: WsTable[];
   dashboards: WsDashboard[];
   pdfs: WsPdf[];
+  roles?: WsRole[];
 }
 
 // ── O que ja existe ─────────────────────────────────────────────────────
@@ -120,10 +128,15 @@ export interface WorkspaceBase {
   roles: DashboardRole[];
   /** Nomes de painel ja usados (inclusive os automaticos e os excluidos: o nome e unico). */
   takenDashboardNames: string[];
+  /** Cargos com tudo o que o construtor mexe (roles acima e so id e nome, para os paineis). */
+  roleList: BaseRole[];
+  /** Nivel de quem mexe (menor = mais poder) e se tem acesso total. */
+  actorRank: number;
+  actorAll: boolean;
 }
 
 export type ChangeKind = 'create' | 'update' | 'delete';
-export type ChangeModule = 'table' | 'dashboard' | 'pdf';
+export type ChangeModule = 'table' | 'dashboard' | 'pdf' | 'role';
 export type Mark = 'new' | 'changed' | 'removed';
 
 export interface WsChange {
@@ -140,6 +153,7 @@ export interface WsMarks {
   tables: Record<string, { status: Mark; fields: Record<string, Mark> }>;
   dashboards: Record<string, Mark>;
   pdfs: Record<string, Mark>;
+  roles: Record<string, Mark>;
 }
 
 /** Tabela como o formulario a desenha (previa do "Ver formulario"). */
@@ -194,6 +208,9 @@ export function entityToDraft(e: BaseEntity): WsTable {
       relatedTable: f.type === 'relation' ? f.relatedEntitySlug : undefined,
       helpText: f.helpText || undefined,
       placeholder: f.placeholder || undefined,
+      visibleIf: f.visibleIf || undefined,
+      requiredIf: f.requiredIf || undefined,
+      readOnlyIf: f.readOnlyIf || undefined,
     })) as WsField;
   });
   const status = e.fields.find((f) => f.slug === s.statusField);
@@ -340,7 +357,7 @@ export interface NormalizedWorkspace {
     /** PDF que da para ver com dados de exemplo (a tabela ja existe). */
     pdfs: Record<string, { previewable: boolean }>;
   };
-  plan: { tables: TablePlan[]; dashboards: DashboardPlan[]; pdfs: PdfPlan[]; group: string | null };
+  plan: { tables: TablePlan[]; dashboards: DashboardPlan[]; pdfs: PdfPlan[]; roles: RolePlan[]; group: string | null };
 }
 
 interface TableCtx {
@@ -431,6 +448,71 @@ function mergeOptions(o: RawField, wanted: WsOption[], notes: string[]): unknown
   return stringStyle && out.every((x) => !x.color && x.value === x.label) ? out.map((x) => x.label) : out;
 }
 
+const COND_OPS = ['equals', 'not_equals', 'contains', 'gt', 'lt', 'is_empty', 'is_not_empty'];
+const COND_OP_LABEL: Record<string, string> = {
+  equals: 'for', not_equals: 'não for', contains: 'contiver', gt: 'for maior que', lt: 'for menor que', is_empty: 'estiver vazio', is_not_empty: 'estiver preenchido',
+};
+const NUMERIC_TYPES = new Set(['number', 'currency', 'percentage', 'rating', 'slider']);
+export const RULE_PROPS = ['visibleIf', 'requiredIf', 'readOnlyIf'] as const;
+type RuleProp = (typeof RULE_PROPS)[number];
+const RULE_LABEL: Record<RuleProp, string> = { visibleIf: 'aparece só', requiredIf: 'obrigatório', readOnlyIf: 'só leitura' };
+
+/** Condicao valida contra os campos da tabela (valor no tipo que o formulario compara). */
+function normalizeCondition(c: unknown, fields: RawField[], self: string, where: string, warnings: string[]): WsCondition | null {
+  const cond = (c && typeof c === 'object' ? c : {}) as Partial<WsCondition>;
+  const ref = clip(cond.field, 80);
+  const target = fields.find((f) => f.slug === ref) ?? fields.find((f) => fieldLabel(f).toLowerCase() === ref.toLowerCase());
+  if (!target || target.slug === self) {
+    warnings.push(`${where}: a regra usa um campo que não existe nesta tabela; ficou de fora.`);
+    return null;
+  }
+  const operator = COND_OPS.includes(String(cond.operator)) ? String(cond.operator) : null;
+  if (!operator) {
+    warnings.push(`${where}: condição da regra desconhecida; ficou de fora.`);
+    return null;
+  }
+  if (operator === 'is_empty' || operator === 'is_not_empty') return { field: target.slug, operator };
+  let value: unknown = cond.value;
+  if (target.type === 'boolean') value = value === true || /^(true|sim|1)$/i.test(String(value));
+  else if (NUMERIC_TYPES.has(target.type)) value = Number(value);
+  else {
+    const text = clip(value, 120);
+    const options = optionsOf(target);
+    const opt = options.find((o) => o.value === text || o.label.toLowerCase() === text.toLowerCase());
+    if (options.length && !opt) warnings.push(`${where}: "${fieldLabel(target)}" não tem a opção "${text}".`);
+    value = opt ? opt.value : text;
+  }
+  return { field: target.slug, operator, value };
+}
+
+function describeCondition(prop: RuleProp, c: WsCondition, fields: RawField[]): string {
+  const target = fields.find((f) => f.slug === c.field);
+  const name = target ? fieldLabel(target) : c.field;
+  const opt = target ? optionsOf(target).find((o) => o.value === c.value) : undefined;
+  const shown = c.value === true ? 'Sim' : c.value === false ? 'Não' : opt?.label ?? (c.value === undefined ? '' : String(c.value));
+  return `${RULE_LABEL[prop]} quando "${name}" ${COND_OP_LABEL[c.operator] ?? c.operator}${shown ? ` "${shown}"` : ''}`;
+}
+
+/** Aplica as regras pedidas (undefined = igual, null = tirar). Devolve as frases do que mudou. */
+function applyRules(next: RawField, want: Partial<WsField>, fields: RawField[], where: string, warnings: string[]): string[] {
+  const notes: string[] = [];
+  for (const prop of RULE_PROPS) {
+    const asked = want[prop];
+    if (asked === undefined) continue;
+    const before = next[prop] as WsCondition | undefined;
+    if (asked === null) {
+      if (before) { delete next[prop]; notes.push(`sem a regra "${RULE_LABEL[prop]}"`); }
+      continue;
+    }
+    const cond = normalizeCondition(asked, fields, next.slug, where, warnings);
+    // O banco devolve as chaves em outra ordem: compara campo, condicao e valor
+    if (!cond || (before && before.field === cond.field && before.operator === cond.operator && before.value === cond.value)) continue;
+    next[prop] = cond;
+    notes.push(describeCondition(prop, cond, fields));
+  }
+  return notes;
+}
+
 /** Tabela que ja existe: aplica so o que veio no rascunho, mantendo o resto. */
 function normalizeExisting(t: Partial<WsTable>, e: BaseEntity, ctx: TableCtx) {
   const name = clip(t.name, 60) || e.name;
@@ -440,7 +522,7 @@ function normalizeExisting(t: Partial<WsTable>, e: BaseEntity, ctx: TableCtx) {
   const taken = new Set(e.fields.map((f) => f.slug));
   const seen = new Set<string>();
   const refs: PendingRef[] = [];
-  type Item = { raw: RawField; span: number; orig?: number; isNew?: boolean };
+  type Item = { raw: RawField; span: number; orig?: number; isNew?: boolean; want?: Partial<WsField>; notes?: string[] };
   const items: Item[] = [];
   const removed: RawField[] = [];
   let widthChanged = false;
@@ -502,11 +584,7 @@ function normalizeExisting(t: Partial<WsTable>, e: BaseEntity, ctx: TableCtx) {
         widthChanged = true;
         notes.push('largura mudou');
       }
-      if (JSON.stringify(next) !== JSON.stringify(o)) {
-        fieldMarks[o.slug] = 'changed';
-        details.push(`campo "${fieldLabel(next)}": ${notes.join(', ') || 'ajustado'}`);
-      }
-      items.push({ raw: next, span, orig: idx });
+      items.push({ raw: next, span, orig: idx, want: f, notes });
       continue;
     }
     if (idx !== undefined || f?.removed === true) continue; // repetido ou excluir campo que nao existe
@@ -515,7 +593,7 @@ function normalizeExisting(t: Partial<WsTable>, e: BaseEntity, ctx: TableCtx) {
     if (built.ref) refs.push(built.ref);
     fieldMarks[built.raw.slug] = 'new';
     details.push(`campo novo "${fieldLabel(built.raw)}"`);
-    items.push({ raw: built.raw, span: built.span, isNew: true });
+    items.push({ raw: built.raw, span: built.span, isNew: true, want: f });
   }
 
   // Campos que o rascunho nao citou ficam onde estavam (depois do campo anterior a eles)
@@ -526,6 +604,42 @@ function normalizeExisting(t: Partial<WsTable>, e: BaseEntity, ctx: TableCtx) {
     items.forEach((it, j) => { if (it.orig !== undefined && it.orig < i) at = j; });
     items.splice(at + 1, 0, item);
   });
+
+  // Lista parcial (a IA manda so o que muda): a ordem dos que ja existem nao muda e os
+  // novos vao para o fim. So a lista inteira (a tela) reordena.
+  if (!e.fields.every((f) => seen.has(f.slug))) {
+    const originals = items.filter((it) => it.orig !== undefined).sort((a, b) => a.orig! - b.orig!);
+    items.splice(0, items.length, ...originals, ...items.filter((it) => it.orig === undefined));
+  }
+
+  // Regras dos campos (precisam da lista final: podem apontar para um campo novo)
+  const finalFields = items.map((it) => it.raw);
+  for (const it of items) {
+    if (!it.want) continue;
+    const ruleNotes = applyRules(it.raw, it.want, finalFields, `${name} › ${fieldLabel(it.raw)}`, ctx.warnings);
+    if (it.isNew) {
+      if (ruleNotes.length) details.push(`campo "${fieldLabel(it.raw)}": ${ruleNotes.join(', ')}`);
+      continue;
+    }
+    const o = e.fields[it.orig!];
+    const notes = [...(it.notes ?? []), ...ruleNotes];
+    if (JSON.stringify(it.raw) !== JSON.stringify(o)) {
+      fieldMarks[o.slug] = 'changed';
+      details.push(`campo "${fieldLabel(it.raw)}": ${notes.join(', ') || 'ajustado'}`);
+    }
+  }
+  // Regra que apontava para um campo excluido sai junto
+  for (const it of items) {
+    for (const prop of RULE_PROPS) {
+      const c = it.raw[prop] as WsCondition | undefined;
+      if (c && !items.some((x) => x.raw.slug === c.field)) {
+        it.raw = { ...it.raw };
+        delete it.raw[prop];
+        details.push(`campo "${fieldLabel(it.raw)}": sem a regra "${RULE_LABEL[prop]}" (o campo dela foi excluído)`);
+        if (it.orig !== undefined) fieldMarks[it.raw.slug] = 'changed';
+      }
+    }
+  }
 
   const kept = items.filter((it) => it.orig !== undefined).map((it) => it.orig!);
   const reordered = kept.some((v, i) => i > 0 && v < kept[i - 1]);
@@ -656,7 +770,7 @@ export function normalizeWorkspace(raw: unknown, base: WorkspaceBase, keptByDash
   const input = (raw && typeof raw === 'object' ? raw : {}) as Partial<WorkspaceDraft>;
   const warnings: string[] = [];
   const changes: WsChange[] = [];
-  const marks: WsMarks = { tables: {}, dashboards: {}, pdfs: {} };
+  const marks: WsMarks = { tables: {}, dashboards: {}, pdfs: {}, roles: {} };
   const existingBySlug = new Map(base.entities.map((e) => [e.slug, e]));
   const rawTables = (Array.isArray(input.tables) ? input.tables : []) as Partial<WsTable>[];
 
@@ -691,6 +805,18 @@ export function normalizeWorkspace(raw: unknown, base: WorkspaceBase, keptByDash
   np.tables.forEach((nt, i) => {
     const existingParent = fresh[i]?.existingParent;
     const clean = np.proposal.tables[i] as AiTableProposal;
+    // Regras dos campos da tabela nova (o normalizador de tabelas nao as conhece)
+    const rawFields = (Array.isArray(proposalTables[i]?.fields) ? proposalTables[i].fields : []) as Partial<WsField>[];
+    const ntFields = nt.fields as unknown as RawField[];
+    for (const f of rawFields) {
+      if (!f || !RULE_PROPS.some((p) => f[p])) continue;
+      const slug = slugify(clip(f.key, 60) || clip(f.label, 80), '_');
+      const target = ntFields.find((x) => x.slug === slug);
+      if (!target) continue;
+      applyRules(target, f, ntFields, `${nt.namePlural} › ${fieldLabel(target)}`, warnings);
+      const cf = (clean.fields as unknown as WsField[]).find((x) => x.key === target.slug);
+      if (cf) for (const p of RULE_PROPS) if (target[p]) cf[p] = target[p] as WsCondition;
+    }
     tablePlans.push({ key: nt.key, kind: 'create', name: nt.namePlural, created: nt, ...(existingParent ? { existingParent } : {}) });
     draftTables.push({ ...(clean as unknown as WsTable), ...(existingParent ? { parentKey: existingParent } : {}) });
     previewTables.push({ ...nt, parentKey: nt.parentKey ?? existingParent ?? null, fields: nt.fields as unknown as Array<Record<string, unknown>> });
@@ -901,14 +1027,20 @@ export function normalizeWorkspace(raw: unknown, base: WorkspaceBase, keptByDash
     previewPdfs[clean.key] = { previewable: realTables.has(table) };
   }
 
+  // 6. Cargos (tabela nova entra pela chave dela; o nome real vem ao aplicar)
+  const roles = normalizeRoles(input.roles, base.roleList, base.actorRank, base.actorAll, vschema, (ref) => newKeys.get(ref) ?? ref, []);
+  warnings.push(...roles.warnings);
+  for (const c of roles.changes) changes.push({ module: 'role', ...c });
+  marks.roles = roles.marks;
+
   const group = clip(input.group, 40) || null;
   return {
     reply: clip(input.reply, 1500) || 'Pronto, veja as mudanças ao lado.',
     warnings: [...new Set(warnings)],
-    draft: { reply: clip(input.reply, 1500), ...(group ? { group } : {}), tables: draftTables, dashboards: draftDashboards, pdfs: draftPdfs },
+    draft: { reply: clip(input.reply, 1500), ...(group ? { group } : {}), tables: draftTables, dashboards: draftDashboards, pdfs: draftPdfs, roles: roles.draft },
     changes,
     marks,
     preview: { tables: previewTables, dashboards: previewDashboards, pdfs: previewPdfs },
-    plan: { tables: tablePlans, dashboards: dashboardPlans, pdfs: pdfPlans, group },
+    plan: { tables: tablePlans, dashboards: dashboardPlans, pdfs: pdfPlans, roles: roles.plans, group },
   };
 }
