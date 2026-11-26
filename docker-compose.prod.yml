@@ -91,6 +91,10 @@ services:
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
+      # Conector do iFood: credencial de PRODUCAO (aplicativo da IOS System homologado
+      # no iFood). Diferente da de dev (IFOOD_*_DEV). Vazio = conector desligado.
+      IFOOD_CLIENT_ID: ${IFOOD_CLIENT_ID:-}
+      IFOOD_CLIENT_SECRET: ${IFOOD_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -246,8 +250,8 @@ services:
       AI_BUILDER_PROVIDER: ${AI_BUILDER_PROVIDER_DEV:-}
       AI_BRIDGE_URL: ${AI_BRIDGE_URL_DEV:-}
       AI_BRIDGE_TOKEN: ${AI_BRIDGE_TOKEN_DEV:-}
-      # Conector do iFood (aplicativo centralizado da IOS System no portal de desenvolvedores).
-      # Sem as duas variaveis o conector fica desligado. Um ambiente por credencial: dois
+      # Conector do iFood: credencial de TESTE (loja de teste do portal de desenvolvedores).
+      # Prod usa outra (IFOOD_CLIENT_ID/IFOOD_CLIENT_SECRET). Sem as duas o conector fica desligado. Um ambiente por credencial: dois
       # servidores lendo a mesma fila de eventos dividem os pedidos entre si.
       IFOOD_CLIENT_ID: ${IFOOD_CLIENT_ID_DEV:-}
       IFOOD_CLIENT_SECRET: ${IFOOD_CLIENT_SECRET_DEV:-}
