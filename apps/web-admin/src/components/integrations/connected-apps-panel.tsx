@@ -206,7 +206,7 @@ function DeliveryCenter() {
             {(data.stores || []).map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
                 <span className="flex-1 font-medium">{s.name}</span>
-                <span className="text-xs text-muted-foreground">iFood: {s.ifoodId || '—'} · 99Food: {s.food99Id || '—'}</span>
+                <span className="text-xs text-muted-foreground">iFood: {s.ifoodId ? 'conectada' : '—'} · 99Food: {s.food99Id ? 'conectada' : '—'}</span>
                 {s.active ? <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3" /> recebendo</Badge> : <Badge variant="outline">pausada</Badge>}
               </li>
             ))}
