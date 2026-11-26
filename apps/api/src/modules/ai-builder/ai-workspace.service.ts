@@ -18,6 +18,9 @@ import { normalizeDashboard, type KeptWidget } from './dashboard-proposal';
 import { normalizePdf } from './pdf-proposal';
 import { describeSchema, loadTenantSchema, type SchemaTable } from './tenant-schema';
 import { roleToDraft, type BaseRole } from './workspace-roles';
+import { automationToDraft, type BaseAutomation } from './workspace-automations';
+import { EntityAutomationService } from '../entity-automation/entity-automation.service';
+import type { CreateAutomationDto } from '../entity-automation/dto/create-automation.dto';
 import { CustomRoleService } from '../custom-role/custom-role.service';
 import type { CreateCustomRoleDto } from '../custom-role/dto/custom-role.dto';
 import { AI_WORKSPACE_JSON_SCHEMA, AI_WORKSPACE_SYSTEM_PROMPT } from './workspace-prompt';
@@ -38,6 +41,7 @@ const PERMISSION: Record<ChangeModule, { module: string; sub?: string; label: st
   dashboard: { module: 'dashboard', label: 'painéis' },
   pdf: { module: 'templates', sub: 'pdfTemplates', label: 'modelos de PDF' },
   role: { module: 'roles', label: 'cargos' },
+  automation: { module: 'automations', sub: 'entityAutomation', label: 'automações' },
 };
 const ACTION: Record<ChangeKind, { perm: string; verb: string }> = {
   create: { perm: 'canCreate', verb: 'criar' },
@@ -82,11 +86,12 @@ export class AiWorkspaceService {
     private readonly auditService: AuditService,
     private readonly queryService: EntityDataQueryService,
     private readonly customRoleService: CustomRoleService,
+    private readonly automationService: EntityAutomationService,
   ) {}
 
   private async loadBase(user: CurrentUser): Promise<{ base: WorkspaceBase; kept: Map<string, Map<string, KeptWidget>>; dashboards: BaseDashboard[] }> {
     const tenantId = getEffectiveTenantId(user);
-    const [schema, entities, dashboards, deletedDashboards, pdfs, roleRows] = await Promise.all([
+    const [schema, entities, dashboards, deletedDashboards, pdfs, roleRows, automationRows, members] = await Promise.all([
       loadTenantSchema(this.prisma, tenantId),
       this.prisma.entity.findMany({
         where: { tenantId },
@@ -113,6 +118,17 @@ export class AiWorkspaceService {
           _count: { select: { tenantAccessUsers: { where: { deletedAt: null, user: { deletedAt: null } } } } },
         },
         orderBy: { rank: 'asc' },
+      }),
+      this.prisma.entityAutomation.findMany({
+        where: { tenantId },
+        select: { id: true, name: true, description: true, entityId: true, isActive: true, trigger: true, triggerConfig: true, conditions: true, actions: true },
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+      }),
+      this.prisma.userTenantAccess.findMany({
+        where: { tenantId, deletedAt: null, user: { deletedAt: null } },
+        select: { user: { select: { id: true, name: true } } },
+        take: 500,
       }),
     ]);
     const roles = roleRows.map((r) => ({ id: r.id, name: r.name }));
@@ -156,6 +172,16 @@ export class AiWorkspaceService {
       roleList,
       actorRank: user.customRole?.rank ?? 999999,
       actorAll: hasFullTenantAccess(user.customRole?.modulePermissions),
+      automations: automationRows
+        .filter((a) => slugById.has(a.entityId))
+        .map((a): BaseAutomation => ({
+          id: a.id, name: a.name, description: a.description || '', entityId: a.entityId, tableSlug: slugById.get(a.entityId)!,
+          isActive: a.isActive, trigger: a.trigger,
+          triggerConfig: (a.triggerConfig && typeof a.triggerConfig === 'object' ? a.triggerConfig : null) as Record<string, unknown> | null,
+          conditions: (Array.isArray(a.conditions) ? a.conditions : []) as Array<Record<string, unknown>>,
+          actions: (Array.isArray(a.actions) ? a.actions : []) as Array<Record<string, unknown>>,
+        })),
+      people: members.map((m) => ({ id: m.user.id, name: m.user.name })),
     };
     const kept = new Map(editable.map((d) => [d.id, dashboardToDraft(d, roles, schema).kept]));
     return { base, kept, dashboards: editable };
@@ -183,6 +209,9 @@ export class AiWorkspaceService {
       })),
       pdfs: base.pdfs.map(pdfToDraft),
       roles: base.roleList.map((r) => roleToDraft(r, base.actorRank)),
+      automations: base.automations.map(automationToDraft),
+      // So para a tela escolher quem recebe o aviso (a IA nao recebe nomes de pessoas)
+      people: base.people,
     };
   }
 
@@ -232,6 +261,9 @@ export class AiWorkspaceService {
       '',
       'CARGOS QUE JÁ EXISTEM (no formato do rascunho; "locked": true = do nível de quem pede ou acima, não dá para mudar; "people" = quantas pessoas têm):',
       JSON.stringify(base.roleList.map((r) => roleToDraft(r, base.actorRank))),
+      '',
+      'AUTOMAÇÕES QUE JÁ EXISTEM (no formato do rascunho; "person" é o código de alguém da equipe):',
+      base.automations.length ? JSON.stringify(base.automations.map(automationToDraft)) : '(nenhuma)',
     ];
     const output = await this.ai.ask('workspace', tenantId, AI_WORKSPACE_SYSTEM_PROMPT, AI_WORKSPACE_JSON_SCHEMA, context, dto, current, base.schema);
     // O rascunho guarda o que ja estava nele: o que a IA esqueceu de repetir continua
@@ -404,7 +436,23 @@ export class AiWorkspaceService {
       });
     }
 
-    // 4. Paineis e PDFs: conferidos de novo com as tabelas reais (as novas ja tem nome definitivo)
+    // 4. Automacoes (tabela nova ja tem id)
+    const entityIdOf = new Map((await this.prisma.entity.findMany({ where: { tenantId }, select: { id: true, slug: true } })).map((e) => [e.slug, e.id]));
+    for (const p of n.plan.automations.filter((x) => x.kind !== 'delete')) {
+      await step('automation', p.kind, p.key, p.name, async () => {
+        const dto = p.data as unknown as CreateAutomationDto;
+        if (p.kind === 'create') {
+          const entityId = created.get(p.table)?.id ?? entityIdOf.get(p.table);
+          if (!entityId) throw new BadRequestException('A tabela da automação não foi encontrada.');
+          return (await this.automationService.create(tenantId, entityId, dto)).id;
+        }
+        snapshots[`automation:${p.base!.id}`] = p.base;
+        await this.automationService.update(tenantId, p.base!.entityId, p.base!.id, dto);
+        return p.base!.id;
+      });
+    }
+
+    // 5. Paineis e PDFs: conferidos de novo com as tabelas reais (as novas ja tem nome definitivo)
     const schema = failed ? [] : await loadTenantSchema(this.prisma, tenantId);
     const realSlug = (ref: unknown) => (typeof ref === 'string' ? created.get(ref)?.slug ?? ref : ref);
     const fixDashboard = (d: WsDashboard): WsDashboard => ({
@@ -446,7 +494,14 @@ export class AiWorkspaceService {
       });
     }
 
-    // 5. Exclusoes por ultimo (cargos, PDFs, paineis e tabelas; tabelas vao para a lixeira)
+    // 6. Exclusoes por ultimo (automacoes, cargos, PDFs, paineis e tabelas; tabelas vao para a lixeira)
+    for (const p of n.plan.automations.filter((x) => x.kind === 'delete')) {
+      await step('automation', 'delete', p.key, p.name, async () => {
+        snapshots[`automation:${p.base!.id}`] = p.base;
+        await this.automationService.remove(tenantId, p.base!.entityId, p.base!.id);
+        return p.base!.id;
+      });
+    }
     for (const p of n.plan.roles.filter((x) => x.kind === 'delete')) {
       await step('role', 'delete', p.key, p.name, async () => {
         snapshots[`role:${p.base!.id}`] = p.base;
@@ -490,17 +545,17 @@ export class AiWorkspaceService {
  * A IA devolve o rascunho inteiro; se esquecer um item que ja estava nele, o item
  * continua (desfazer e com a pessoa, na tela, ou pedindo "desfaça").
  */
-function mergeForgotten(output: unknown, current: { tables: Array<{ key: string }>; dashboards: Array<{ key: string }>; pdfs: Array<{ key: string }>; roles?: Array<{ key: string }> } | null): unknown {
+function mergeForgotten(output: unknown, current: { tables: Array<{ key: string }>; dashboards: Array<{ key: string }>; pdfs: Array<{ key: string }>; roles?: Array<{ key: string }>; automations?: Array<{ key: string }> } | null): unknown {
   if (!output || typeof output !== 'object') return output;
   const out = output as Record<string, unknown>;
-  const merge = (name: 'tables' | 'dashboards' | 'pdfs' | 'roles') => {
+  const merge = (name: 'tables' | 'dashboards' | 'pdfs' | 'roles' | 'automations') => {
     const list = Array.isArray(out[name]) ? (out[name] as Array<{ key?: string; undo?: boolean }>) : [];
     // "undo": a pessoa pediu para desfazer a mudanca (o item volta a ser como esta)
     const keys = new Set(list.map((x) => x?.key));
     const kept = list.filter((x) => x && x.undo !== true);
     return [...kept, ...(current?.[name] ?? []).filter((x) => !keys.has(x.key))];
   };
-  return { ...out, tables: merge('tables'), dashboards: merge('dashboards'), pdfs: merge('pdfs'), roles: merge('roles') };
+  return { ...out, tables: merge('tables'), dashboards: merge('dashboards'), pdfs: merge('pdfs'), roles: merge('roles'), automations: merge('automations') };
 }
 
 export type { SchemaTable, WsPdf };

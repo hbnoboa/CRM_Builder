@@ -11,7 +11,7 @@ import { pdfTemplateKeys } from './use-pdf-templates';
  */
 
 export type WsMark = 'new' | 'changed' | 'removed';
-export type WsModule = 'table' | 'dashboard' | 'pdf' | 'role';
+export type WsModule = 'table' | 'dashboard' | 'pdf' | 'role' | 'automation';
 export type WsKind = 'create' | 'update' | 'delete';
 
 export type WsField = AiFieldDraft;
@@ -97,6 +97,34 @@ export interface WsRole {
   system?: boolean;
 }
 
+export interface WsAutoAction {
+  type: 'notify' | 'email' | 'set_field' | 'webhook' | 'keep';
+  /** notify: id (ou nome) de alguem da equipe; vazio = quem fez a alteracao. */
+  person?: string;
+  title?: string;
+  message?: string;
+  to?: string;
+  subject?: string;
+  body?: string;
+  field?: string;
+  value?: unknown;
+  url?: string;
+  /** Acao de uma automacao que ja existe (posicao dela). */
+  ref?: number;
+}
+
+export interface WsAutomation {
+  key: string;
+  existing?: boolean;
+  removed?: boolean;
+  name: string;
+  table: string;
+  active?: boolean;
+  when: { event: 'created' | 'updated' | 'deleted' | 'field_changed' | 'manual' | 'keep' | string; field?: string; to?: unknown };
+  conditions?: Array<{ field: string; operator: string; value?: unknown }>;
+  actions: WsAutoAction[];
+}
+
 export interface WorkspaceDraft {
   reply: string;
   group?: string;
@@ -104,6 +132,7 @@ export interface WorkspaceDraft {
   dashboards: WsDashboard[];
   pdfs: WsPdf[];
   roles?: WsRole[];
+  automations?: WsAutomation[];
 }
 
 export interface WsChange {
@@ -121,6 +150,7 @@ export interface WsMarks {
   dashboards: Record<string, WsMark>;
   pdfs: Record<string, WsMark>;
   roles?: Record<string, WsMark>;
+  automations?: Record<string, WsMark>;
 }
 
 export type WsDashboardPayload = AiDashboardResult['dashboard'];
@@ -146,6 +176,9 @@ export interface WorkspaceState {
   dashboards: Array<{ draft: WsDashboard; payload: WsDashboardPayload }>;
   pdfs: WsPdf[];
   roles: WsRole[];
+  automations: WsAutomation[];
+  /** Equipe, para escolher quem recebe o aviso. */
+  people: Array<{ id: string; name: string }>;
 }
 
 export interface WorkspaceApplyResult {
@@ -166,8 +199,8 @@ export interface WorkspaceHistoryItem {
   failed: WorkspaceApplyResult['failed'];
 }
 
-export const EMPTY_DRAFT: WorkspaceDraft = { reply: '', tables: [], dashboards: [], pdfs: [], roles: [] };
-export const EMPTY_MARKS: WsMarks = { tables: {}, dashboards: {}, pdfs: {}, roles: {} };
+export const EMPTY_DRAFT: WorkspaceDraft = { reply: '', tables: [], dashboards: [], pdfs: [], roles: [], automations: [] };
+export const EMPTY_MARKS: WsMarks = { tables: {}, dashboards: {}, pdfs: {}, roles: {}, automations: {} };
 
 export const workspaceKeys = {
   all: ['ai-workspace'] as const,

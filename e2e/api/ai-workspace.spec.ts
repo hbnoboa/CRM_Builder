@@ -140,6 +140,45 @@ test.describe.serial('construtor da tela inicial', () => {
     expect((await denied.json()).message).toMatch(/criar cargos/);
   });
 
+  test('automacao: cria pelo nome da pessoa, muda mantendo o resto e exclui confirmando', async ({ request }) => {
+    const proposal = {
+      ...draft([]),
+      automations: [{
+        key: 'automacao-nova-1', name: 'Avisar cliente Prata', table: 'clientes',
+        when: { event: 'field_changed', field: 'Tipo', to: 'Prata' },
+        conditions: [{ field: 'nome', operator: 'is_not_empty' }],
+        actions: [
+          { type: 'notify', person: 'dono qa', title: 'Cliente Prata', message: '{{record.nome}} virou Prata' },
+          { type: 'set_field', field: 'vip', value: 'sim' },
+          { type: 'webhook', url: 'http://sem-https.example.com' },
+        ],
+      }],
+    };
+    const preview = await (await call(request, 'post', '/ai-builder/workspace/preview', tenant.owner, { expected: 200, data: { proposal } })).json();
+    expect(preview.changes[0]).toMatchObject({ module: 'automation', kind: 'create' });
+    expect(preview.warnings.join(' ')).toMatch(/https/);
+    await call(request, 'post', '/ai-builder/workspace/apply', tenant.owner, { expected: 200, data: { proposal } });
+
+    const state = await (await call(request, 'get', '/ai-builder/workspace', tenant.owner, { expected: 200 })).json();
+    const auto = state.automations.find((a: { name: string }) => a.name === 'Avisar cliente Prata');
+    const prata = (await get(request, tenant.owner, clientesId)).fields.find((f) => f.slug === 'tipo')!.options!.find((o) => o.label === 'Prata')!;
+    expect(auto.when).toEqual({ event: 'field_changed', field: 'tipo', to: prata.value });
+    expect(auto.actions.map((a: { type: string }) => a.type)).toEqual(['notify', 'set_field']);
+    expect(auto.actions[0].person).toBe(tenant.owner.userId);
+
+    // Muda so o titulo do aviso: o resto (condicao, segunda acao) fica
+    const changed = { ...auto, actions: [{ ...auto.actions[0], title: 'Cliente virou Prata' }, auto.actions[1]] };
+    const p2 = await (await call(request, 'post', '/ai-builder/workspace/preview', tenant.owner, { expected: 200, data: { proposal: { ...draft([]), automations: [changed] } } })).json();
+    expect(p2.changes).toHaveLength(1);
+    await call(request, 'post', '/ai-builder/workspace/apply', tenant.owner, { expected: 200, data: { proposal: { ...draft([]), automations: [changed] } } });
+
+    const removal = { ...draft([]), automations: [{ ...changed, removed: true }] };
+    await call(request, 'post', '/ai-builder/workspace/apply', tenant.owner, { expected: 400, data: { proposal: removal } });
+    await call(request, 'post', '/ai-builder/workspace/apply', tenant.owner, { expected: 200, data: { proposal: removal, confirmRemovals: true } });
+    const after = await (await call(request, 'get', '/ai-builder/workspace', tenant.owner, { expected: 200 })).json();
+    expect(after.automations).toHaveLength(0);
+  });
+
   test('excluir tabela confirmando leva para a lixeira e fica no historico', async ({ request }) => {
     const state = await (await call(request, 'get', '/ai-builder/workspace', tenant.owner, { expected: 200 })).json();
     const visitas = state.tables.find((t: { key: string }) => t.key === 'visitas');
@@ -151,7 +190,7 @@ test.describe.serial('construtor da tela inicial', () => {
     expect(after.tables.map((t: { key: string }) => t.key)).not.toContain('visitas');
 
     const history = await (await call(request, 'get', '/ai-builder/workspace/history', tenant.owner, { expected: 200 })).json();
-    expect(history).toHaveLength(5);
+    expect(history).toHaveLength(8);
     const first = history[history.length - 1];
     expect(first.by).toBe('Dono QA');
     expect(first.request).toEqual(['Renomeie VIP, ponha o tipo, tire o CPF e crie visitas']);

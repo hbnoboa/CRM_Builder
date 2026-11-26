@@ -10,6 +10,7 @@ import {
 import { normalizePdf, type AiPdfSection } from './pdf-proposal';
 import type { SchemaField, SchemaTable } from './tenant-schema';
 import { normalizeRoles, type BaseRole, type RolePlan, type WsRole } from './workspace-roles';
+import { normalizeAutomations, type AutomationPlan, type BaseAutomation, type Person, type WsAutomation } from './workspace-automations';
 
 /**
  * Construtor da tela inicial: um rascunho so para tabelas, paineis e PDFs, novos ou
@@ -83,6 +84,7 @@ export interface WorkspaceDraft {
   dashboards: WsDashboard[];
   pdfs: WsPdf[];
   roles?: WsRole[];
+  automations?: WsAutomation[];
 }
 
 // ── O que ja existe ─────────────────────────────────────────────────────
@@ -133,10 +135,13 @@ export interface WorkspaceBase {
   /** Nivel de quem mexe (menor = mais poder) e se tem acesso total. */
   actorRank: number;
   actorAll: boolean;
+  automations: BaseAutomation[];
+  /** Equipe da empresa (so no servidor: acha a pessoa dos avisos pelo nome). */
+  people: Person[];
 }
 
 export type ChangeKind = 'create' | 'update' | 'delete';
-export type ChangeModule = 'table' | 'dashboard' | 'pdf' | 'role';
+export type ChangeModule = 'table' | 'dashboard' | 'pdf' | 'role' | 'automation';
 export type Mark = 'new' | 'changed' | 'removed';
 
 export interface WsChange {
@@ -154,6 +159,7 @@ export interface WsMarks {
   dashboards: Record<string, Mark>;
   pdfs: Record<string, Mark>;
   roles: Record<string, Mark>;
+  automations: Record<string, Mark>;
 }
 
 /** Tabela como o formulario a desenha (previa do "Ver formulario"). */
@@ -357,7 +363,7 @@ export interface NormalizedWorkspace {
     /** PDF que da para ver com dados de exemplo (a tabela ja existe). */
     pdfs: Record<string, { previewable: boolean }>;
   };
-  plan: { tables: TablePlan[]; dashboards: DashboardPlan[]; pdfs: PdfPlan[]; roles: RolePlan[]; group: string | null };
+  plan: { tables: TablePlan[]; dashboards: DashboardPlan[]; pdfs: PdfPlan[]; roles: RolePlan[]; automations: AutomationPlan[]; group: string | null };
 }
 
 interface TableCtx {
@@ -770,7 +776,7 @@ export function normalizeWorkspace(raw: unknown, base: WorkspaceBase, keptByDash
   const input = (raw && typeof raw === 'object' ? raw : {}) as Partial<WorkspaceDraft>;
   const warnings: string[] = [];
   const changes: WsChange[] = [];
-  const marks: WsMarks = { tables: {}, dashboards: {}, pdfs: {}, roles: {} };
+  const marks: WsMarks = { tables: {}, dashboards: {}, pdfs: {}, roles: {}, automations: {} };
   const existingBySlug = new Map(base.entities.map((e) => [e.slug, e]));
   const rawTables = (Array.isArray(input.tables) ? input.tables : []) as Partial<WsTable>[];
 
@@ -1033,14 +1039,20 @@ export function normalizeWorkspace(raw: unknown, base: WorkspaceBase, keptByDash
   for (const c of roles.changes) changes.push({ module: 'role', ...c });
   marks.roles = roles.marks;
 
+  // 7. Automacoes
+  const autos = normalizeAutomations(input.automations, base.automations, vschema, base.people, (ref) => newKeys.get(ref) ?? ref);
+  warnings.push(...autos.warnings);
+  for (const c of autos.changes) changes.push({ module: 'automation', ...c });
+  marks.automations = autos.marks;
+
   const group = clip(input.group, 40) || null;
   return {
     reply: clip(input.reply, 1500) || 'Pronto, veja as mudanças ao lado.',
     warnings: [...new Set(warnings)],
-    draft: { reply: clip(input.reply, 1500), ...(group ? { group } : {}), tables: draftTables, dashboards: draftDashboards, pdfs: draftPdfs, roles: roles.draft },
+    draft: { reply: clip(input.reply, 1500), ...(group ? { group } : {}), tables: draftTables, dashboards: draftDashboards, pdfs: draftPdfs, roles: roles.draft, automations: autos.draft },
     changes,
     marks,
     preview: { tables: previewTables, dashboards: previewDashboards, pdfs: previewPdfs },
-    plan: { tables: tablePlans, dashboards: dashboardPlans, pdfs: pdfPlans, roles: roles.plans, group },
+    plan: { tables: tablePlans, dashboards: dashboardPlans, pdfs: pdfPlans, roles: roles.plans, automations: autos.plans, group },
   };
 }
