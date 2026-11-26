@@ -19,6 +19,7 @@ import { CommandPickerDialog } from '@/components/chat/command-picker-dialog';
 import { NewChatDialog } from '@/components/chat/new-chat-dialog';
 import { NewDmDialog } from '@/components/chat/new-dm-dialog';
 import type { Entity } from '@/types';
+import { VoiceButton } from '@/components/voice/voice-button';
 
 interface EntityLite { id: string; slug: string; name: string; fields?: unknown[] }
 interface Channel { id: string; type: 'group' | 'dm'; entityId?: string | null; name?: string | null; createdById?: string; entity?: { slug: string; name: string; icon?: string; color?: string } }
@@ -1024,6 +1025,7 @@ export default function ChatPage() {
                     disabled={botThinking || sendingFiles}
                     data-testid="chat-input"
                   />
+                  <VoiceButton compact value={draft} onChange={setDraft} disabled={botThinking || sendingFiles} />
                   <Button type="submit" size="icon" disabled={sendingFiles || (!draft.trim() && files.length === 0)} data-testid="chat-send">
                     {sendingFiles ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
