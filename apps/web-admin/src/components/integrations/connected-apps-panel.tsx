@@ -2,13 +2,14 @@
 
 import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bike, CheckCircle2, Clock, ExternalLink, HelpCircle, Loader2, Play, Plus, Puzzle, Square, Store } from 'lucide-react';
+import { Bike, CheckCircle2, Clock, ExternalLink, HelpCircle, Link2, Loader2, Play, Plug, Plus, Puzzle, Square, Store, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/api';
@@ -25,14 +26,21 @@ interface DeliveryStatus {
   demo?: { until: string; every: number } | null;
 }
 
+interface IfoodStatus {
+  available: boolean;
+  configured: boolean;
+  stores: Array<{ id: string; name: string; merchantId: string | null; merchantName: string | null }>;
+}
+
 const KEY = ['delivery-status'];
+const IFOOD_KEY = ['delivery-ifood'];
 
 /** Apps prontos que a empresa liga ao sistema (um cartao por app). */
 const APPS = [
   {
     key: 'ifood', name: 'iFood', mark: 'iF', color: '#ea1d2c',
     summary: 'Pedidos das suas lojas no iFood entram na central de pedidos.',
-    hover: 'Ao conectar, você autoriza as suas lojas no iFood. Daí em diante os pedidos entram sozinhos na central de pedidos, e aceitar ou mudar a situação aqui avisa o iFood (o cliente acompanha pelo app). Falta o acesso da IOS System ao portal de desenvolvedores do iFood.',
+    hover: 'Ao conectar, você autoriza as suas lojas no iFood. Daí em diante os pedidos entram sozinhos na central de pedidos, e aceitar ou mudar a situação aqui avisa o iFood (o cliente acompanha pelo app).',
   },
   {
     key: 'food99', name: '99Food', mark: '99', color: '#f5b800',
@@ -54,12 +62,22 @@ function Hint({ text, children }: { text: string; children: ReactNode }) {
  * Apps conectados: um cartao por app pronto (iFood, 99Food...) com o botao de conectar
  * e, para os apps de delivery, a central de pedidos (montar, lojas e demonstracao).
  */
+const STATE: Record<string, { label: string; icon: typeof Clock; variant: 'outline' | 'secondary' }> = {
+  'waiting-access': { label: 'aguardando acesso', icon: Clock, variant: 'outline' },
+  ready: { label: 'pronto para conectar', icon: Plug, variant: 'outline' },
+  connected: { label: 'conectado', icon: CheckCircle2, variant: 'secondary' },
+};
+
 export function ConnectedAppsPanel() {
+  const { data } = useQuery({ queryKey: KEY, queryFn: async () => (await api.get<DeliveryStatus>('/delivery')).data });
   return (
     <TooltipProvider>
       <div className="space-y-6" data-testid="connected-apps">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {APPS.map((app) => (
+          {APPS.map((app) => {
+            const state = STATE[data?.connectors?.[app.key as 'ifood' | 'food99'] ?? 'waiting-access'] ?? STATE['waiting-access'];
+            const Icon = state.icon;
+            return (
             <Hint key={app.key} text={app.hover}>
               <Card className="cursor-help transition-colors hover:border-primary/40" data-testid={`app-card-${app.key}`} tabIndex={0}>
                 <CardContent className="flex items-start gap-3 p-4">
@@ -67,14 +85,15 @@ export function ConnectedAppsPanel() {
                   <span className="min-w-0 flex-1 space-y-1">
                     <span className="flex items-center justify-between gap-2">
                       <span className="font-medium">{app.name}</span>
-                      <Badge variant="outline" className="gap-1 font-normal"><Clock className="h-3 w-3" /> aguardando acesso</Badge>
+                      <Badge variant={state.variant} className="gap-1 font-normal" data-testid={`app-state-${app.key}`}><Icon className="h-3 w-3" /> {state.label}</Badge>
                     </span>
                     <span className="block text-xs text-muted-foreground">{app.summary}</span>
                   </span>
                 </CardContent>
               </Card>
             </Hint>
-          ))}
+            );
+          })}
           <Hint text="Mercado Pago, WhatsApp, Google Agenda, um ERP... Os apps entram aqui conforme os clientes pedem. Para algo pontual, use Avisar outros sistemas ou Chaves de API.">
             <Card className="cursor-help border-dashed" tabIndex={0} data-testid="app-card-more">
               <CardContent className="flex items-start gap-3 p-4 text-muted-foreground">
@@ -196,6 +215,8 @@ function DeliveryCenter() {
         </CardContent>
       </Card>
 
+      {data.connectors?.ifood !== 'waiting-access' && <IfoodStores />}
+
       <Card data-testid="delivery-demo">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Demonstração</CardTitle>
@@ -232,5 +253,79 @@ function DeliveryCenter() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** iFood: liga cada loja da central a uma loja do iFood pelo codigo da loja. */
+function IfoodStores() {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({ queryKey: IFOOD_KEY, queryFn: async () => (await api.get<IfoodStatus>('/delivery/ifood')).data });
+  const [codes, setCodes] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const save = async (storeId: string, call: () => Promise<IfoodStatus>, ok: string) => {
+    setBusy(storeId);
+    try {
+      queryClient.setQueryData(IFOOD_KEY, await call());
+      void queryClient.invalidateQueries({ queryKey: KEY });
+      setCodes((c) => ({ ...c, [storeId]: '' }));
+      toast.success(ok);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Não deu certo. Tente de novo.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!data?.available) return null;
+  return (
+    <Card data-testid="ifood-stores">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <span className="flex h-6 w-6 items-center justify-center rounded text-[10px] font-bold text-white" style={{ backgroundColor: '#ea1d2c' }}>iF</span>
+          Lojas no iFood
+        </CardTitle>
+        <CardDescription>
+          No Portal do Parceiro do iFood, autorize o aplicativo CRM Builder para a loja e copie o código dela (ID da loja).
+          Cole aqui na loja certa: os pedidos passam a entrar sozinhos na central, e aceitar, preparar, despachar ou cancelar aqui avisa o iFood.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y rounded-lg border text-sm">
+          {data.stores.map((s) => (
+            <li key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2" data-testid={`ifood-store-${s.id}`}>
+              <span className="min-w-32 flex-1 font-medium">{s.name}</span>
+              {s.merchantId ? (
+                <>
+                  <Badge variant="secondary" className="gap-1"><Link2 className="h-3 w-3" /> {s.merchantName || s.merchantId}</Badge>
+                  <Button
+                    size="sm" variant="ghost" disabled={busy !== null}
+                    onClick={() => void save(s.id, async () => (await api.delete<IfoodStatus>(`/delivery/ifood/link/${s.id}`)).data, 'Loja desligada do iFood')}
+                  >
+                    <Unlink className="mr-1.5 h-4 w-4" /> Desligar
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Input
+                    className="h-8 w-80 max-w-full font-mono text-xs" placeholder="Código da loja no iFood"
+                    value={codes[s.id] ?? ''} onChange={(e) => setCodes((c) => ({ ...c, [s.id]: e.target.value }))}
+                    data-testid={`ifood-code-${s.id}`}
+                  />
+                  <Button
+                    size="sm" disabled={busy !== null || !(codes[s.id] ?? '').trim()}
+                    onClick={() => void save(s.id, async () => (await api.post<IfoodStatus>('/delivery/ifood/link', { storeId: s.id, merchantId: (codes[s.id] ?? '').trim() })).data, 'Loja ligada ao iFood')}
+                    data-testid={`ifood-link-${s.id}`}
+                  >
+                    {busy === s.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
+                    Conectar
+                  </Button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }

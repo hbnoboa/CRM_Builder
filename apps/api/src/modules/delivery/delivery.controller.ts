@@ -1,7 +1,7 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
@@ -10,6 +10,7 @@ import { CurrentUser as CurrentUserType } from '../../common/types';
 import { ServiceScope } from '../../common/service-scope/service-scope.decorator';
 import { checkModulePermission } from '../../common/utils/check-module-permission';
 import { DeliveryService } from './delivery.service';
+import { IfoodService } from './ifood.service';
 
 class DeliverySetupDto {
   @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(60, { each: true })
@@ -32,6 +33,14 @@ class DeliveryDemoDto {
   every?: number;
 }
 
+class IfoodLinkDto {
+  @IsString() @MaxLength(40)
+  storeId!: string;
+
+  @IsUUID()
+  merchantId!: string;
+}
+
 /** Apps de delivery (fase 1): modelo da central de pedidos e pedidos de demonstracao. */
 @ApiTags('Delivery')
 @Controller('delivery')
@@ -39,7 +48,7 @@ class DeliveryDemoDto {
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class DeliveryController {
-  constructor(private readonly service: DeliveryService) {}
+  constructor(private readonly service: DeliveryService, private readonly ifood: IfoodService) {}
 
   @Get()
   @ApiOperation({ summary: 'Central de pedidos: montada?, lojas, conectores e modo demonstracao' })
@@ -81,5 +90,29 @@ export class DeliveryController {
   stopDemo(@CurrentUser() user: CurrentUserType) {
     checkModulePermission(user, 'settings', 'canUpdate');
     return this.service.stopDemo(user);
+  }
+
+  @Get('ifood')
+  @ApiOperation({ summary: 'iFood: conector ligado? e quais lojas estao ligadas' })
+  ifoodStatus(@CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.ifood.status(user);
+  }
+
+  @Post('ifood/link')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: 'Liga uma loja da central a uma loja do iFood (codigo da loja no iFood)' })
+  ifoodLink(@Body() dto: IfoodLinkDto, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.ifood.link(user, dto.storeId, dto.merchantId);
+  }
+
+  @Delete('ifood/link/:storeId')
+  @ApiOperation({ summary: 'Desliga uma loja do iFood' })
+  ifoodUnlink(@Param('storeId') storeId: string, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.ifood.unlink(user, storeId);
   }
 }

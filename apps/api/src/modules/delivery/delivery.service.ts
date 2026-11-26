@@ -8,6 +8,7 @@ import { DataService } from '../data/data.service';
 import { DashboardTemplateService } from '../dashboard-template/dashboard-template.service';
 import { AiWorkspaceService } from '../ai-builder/ai-workspace.service';
 import { DEFAULT_STORES, MENU, deliveryStarterDraft, fakeCustomer } from './delivery-starter';
+import { IfoodClient } from './ifood.client';
 
 /** Onde o modelo ficou (slugs das tabelas criadas) e o modo demonstracao. */
 export interface DeliveryConfig {
@@ -15,7 +16,16 @@ export interface DeliveryConfig {
   dashboardId?: string;
   /** Pedidos de demonstracao chegando sozinhos ate `until` (epoch ms), um a cada `every` min. */
   demo?: { until: number; every: number; last: number };
+  /** Lojas ligadas ao iFood: codigo da loja no iFood -> loja da central. */
+  ifood?: IfoodLinks;
 }
+
+export interface IfoodLinks {
+  on: boolean;
+  merchants: Record<string, { storeId: string; store: string; name?: string }>;
+}
+
+export type DeliveryEntities = { stores: Entity; menu: Entity; orders: Entity; items: Entity };
 
 type Option = { value: string; label: string };
 type RawField = { slug: string; type: string; options?: Array<string | Option> };
@@ -44,6 +54,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     private readonly dataService: DataService,
     private readonly dashboardService: DashboardTemplateService,
     private readonly queryService: EntityDataQueryService,
+    private readonly ifood: IfoodClient,
   ) {}
 
   onModuleInit() {
@@ -54,13 +65,13 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  private async config(tenantId: string): Promise<DeliveryConfig | null> {
+  async config(tenantId: string): Promise<DeliveryConfig | null> {
     const t = await this.prisma.tenant.findFirst({ where: { id: tenantId }, select: { settings: true } });
     const d = ((t?.settings || {}) as { delivery?: DeliveryConfig }).delivery;
     return d?.tables ? d : null;
   }
 
-  private async saveConfig(tenantId: string, patch: Partial<DeliveryConfig> | null) {
+  async saveConfig(tenantId: string, patch: Partial<DeliveryConfig> | null) {
     const t = await this.prisma.tenant.findFirst({ where: { id: tenantId }, select: { settings: true } });
     const settings = { ...((t?.settings || {}) as Record<string, unknown>) };
     const current = (settings.delivery || {}) as DeliveryConfig;
@@ -68,7 +79,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.tenant.update({ where: { id: tenantId }, data: { settings: settings as Prisma.InputJsonValue } });
   }
 
-  private async entities(tenantId: string, cfg: DeliveryConfig) {
+  async entities(tenantId: string, cfg: DeliveryConfig): Promise<DeliveryEntities> {
     const rows = await this.prisma.entity.findMany({ where: { tenantId, slug: { in: Object.values(cfg.tables) } } });
     const by = (slug: string) => {
       const e = rows.find((r) => r.slug === slug);
@@ -79,7 +90,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Valor gravado de uma opcao pelo nome (o construtor gera o valor a partir do nome). */
-  private optionValue(entity: Entity, field: string, label: string): string {
+  optionValue(entity: Entity, field: string, label: string): string {
     const f = ((entity.fields as unknown as RawField[]) || []).find((x) => x.slug === field);
     const o = (f?.options || []).map((x) => (typeof x === 'string' ? { value: x, label: x } : x)).find((x) => x.label === label);
     return o?.value ?? label;
@@ -108,8 +119,11 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
         const d = (s.data || {}) as Record<string, unknown>;
         return { id: s.id, name: String(d.nome ?? ''), active: d.ativa !== false, ifoodId: String(d.ifood_id ?? ''), food99Id: String(d.food99_id ?? '') };
       }),
-      // Conectores de verdade: fases 2 (iFood) e 3 (99Food)
-      connectors: { ifood: 'waiting-access', food99: 'waiting-access' },
+      // Conectores: iFood (fase 2) e 99Food (fase 3, ainda sem acesso)
+      connectors: {
+        ifood: !this.ifood.configured ? 'waiting-access' : Object.keys(cfg.ifood?.merchants ?? {}).length ? 'connected' : 'ready',
+        food99: 'waiting-access',
+      },
       demo: demo ? { until: new Date(demo.until).toISOString(), every: demo.every } : null,
     };
   }
@@ -153,7 +167,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Pedido de mentira montado com as lojas e o cardapio da empresa. */
-  private async fakeOrder(tenantId: string, e: Awaited<ReturnType<DeliveryService['entities']>>, when: Date, status: string) {
+  private async fakeOrder(tenantId: string, e: DeliveryEntities, when: Date, status: string) {
     const storeRows = await this.prisma.entityData.findMany({ where: { tenantId, entityId: e.stores.id, deletedAt: null }, select: { data: true } });
     const menuRows = await this.prisma.entityData.findMany({ where: { tenantId, entityId: e.menu.id, deletedAt: null }, select: { data: true } });
     const storeNames = storeRows.map((r) => (r.data as Record<string, unknown>)).filter((d) => d.ativa !== false).map((d) => String(d.nome));
@@ -195,7 +209,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Pedidos de exemplo das ultimas 3 semanas (para os graficos) e alguns em andamento agora. */
-  private async backfill(tenantId: string, e: Awaited<ReturnType<DeliveryService['entities']>>, userId: string) {
+  private async backfill(tenantId: string, e: DeliveryEntities, userId: string) {
     const now = Date.now();
     const create = async (when: Date, status: string) => {
       const o = await this.fakeOrder(tenantId, e, when, status);
