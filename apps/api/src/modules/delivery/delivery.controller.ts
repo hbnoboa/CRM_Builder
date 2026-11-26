@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AuthThrottlerGuard } from '../../common/guards/auth-throttler.guard';
@@ -31,6 +31,11 @@ class DeliveryDemoDto {
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(30)
   every?: number;
+}
+
+class IfoodAuthorizationDto {
+  @IsString() @MinLength(4) @MaxLength(300)
+  authorizationCode!: string;
 }
 
 class IfoodLinkDto {
@@ -97,6 +102,26 @@ export class DeliveryController {
   ifoodStatus(@CurrentUser() user: CurrentUserType) {
     checkModulePermission(user, 'settings', 'canUpdate');
     return this.ifood.status(user);
+  }
+
+  @Post('ifood/authorize')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'iFood: gera o codigo que o dono confirma no Portal do Parceiro' })
+  ifoodAuthorize(@CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.ifood.authorize(user);
+  }
+
+  @Post('ifood/authorize/finish')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'iFood: conclui a autorizacao com o codigo que o portal mostrou' })
+  ifoodFinish(@Body() dto: IfoodAuthorizationDto, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.ifood.finishAuthorization(user, dto.authorizationCode);
   }
 
   @Post('ifood/link')

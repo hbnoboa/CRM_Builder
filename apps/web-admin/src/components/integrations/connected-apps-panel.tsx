@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bike, CheckCircle2, Clock, ExternalLink, HelpCircle, Link2, Loader2, Play, Plug, Plus, Puzzle, Square, Store, Unlink } from 'lucide-react';
+import { AlertTriangle, Bike, CheckCircle2, Copy, Clock, ExternalLink, HelpCircle, Link2, Loader2, Play, Plug, Plus, Puzzle, Square, Store, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/api';
@@ -33,6 +34,12 @@ interface DeliveryStatus {
 interface IfoodStatus {
   available: boolean;
   configured: boolean;
+  authorized: boolean;
+  broken: string | null;
+  authorizedAt?: string | null;
+  authorizedBy?: string | null;
+  pending: { userCode: string; url: string; until: string } | null;
+  merchants: Array<{ id: string; name: string }>;
   stores: Array<{ id: string; name: string; merchantId: string | null; merchantName: string | null }>;
 }
 
@@ -44,7 +51,7 @@ const APPS = [
   {
     key: 'ifood', name: 'iFood', mark: 'iF', color: '#ea1d2c',
     summary: 'Pedidos das suas lojas no iFood entram na central de pedidos.',
-    hover: 'Ao conectar, você autoriza as suas lojas no iFood. Daí em diante os pedidos entram sozinhos na central de pedidos, e aceitar ou mudar a situação aqui avisa o iFood (o cliente acompanha pelo app).',
+    hover: 'Ao conectar, o dono da loja confirma um código no Portal do Parceiro do iFood e escolhe as lojas. Daí em diante os pedidos entram sozinhos na central de pedidos, e aceitar ou mudar a situação aqui avisa o iFood (o cliente acompanha pelo app).',
   },
   {
     key: 'food99', name: '99Food', mark: '99', color: '#f5b800',
@@ -70,6 +77,7 @@ const STATE: Record<string, { label: string; icon: typeof Clock; variant: 'outli
   'waiting-access': { label: 'aguardando acesso', icon: Clock, variant: 'outline' },
   ready: { label: 'pronto para conectar', icon: Plug, variant: 'outline' },
   connected: { label: 'conectado', icon: CheckCircle2, variant: 'secondary' },
+  reconnect: { label: 'autorize de novo', icon: AlertTriangle, variant: 'outline' },
 };
 
 export function ConnectedAppsPanel() {
@@ -83,7 +91,7 @@ export function ConnectedAppsPanel() {
             const key = data?.connectors?.[app.key as 'ifood' | 'food99'] ?? 'waiting-access';
             const state = STATE[key] ?? STATE['waiting-access'];
             // Por enquanto so o iFood tem conector; a 99Food entra na fase 3
-            const action = app.key === 'ifood' && key !== 'waiting-access' ? (key === 'connected' ? 'Gerenciar' : 'Conectar') : null;
+            const action = app.key === 'ifood' && key !== 'waiting-access' ? (key === 'connected' ? 'Gerenciar' : key === 'reconnect' ? 'Autorizar de novo' : 'Conectar') : null;
             const Icon = state.icon;
             return (
             <Hint key={app.key} text={app.hover}>
@@ -258,27 +266,83 @@ function DeliveryCenter() {
   );
 }
 
-/** iFood: liga cada loja da central a uma loja do iFood pelo codigo da loja, ou desconecta tudo. */
+/**
+ * iFood: o dono autoriza com um codigo (prova que as lojas sao dele), depois cada loja
+ * da central e ligada a uma das lojas que ele liberou. Tambem desconecta tudo.
+ */
 function IfoodDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const queryClient = useQueryClient();
   const { data } = useQuery({ queryKey: IFOOD_KEY, queryFn: async () => (await api.get<IfoodStatus>('/delivery/ifood')).data, enabled: open });
-  const [codes, setCodes] = useState<Record<string, string>>({});
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  const [authCode, setAuthCode] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const linked = (data?.stores ?? []).filter((s) => s.merchantId).length;
 
-  const save = async (key: string, call: () => Promise<IfoodStatus>, ok: string) => {
+  const save = async (key: string, call: () => Promise<IfoodStatus>, ok: string | null) => {
     setBusy(key);
     try {
       queryClient.setQueryData(IFOOD_KEY, await call());
       void queryClient.invalidateQueries({ queryKey: KEY });
-      setCodes((c) => ({ ...c, [key]: '' }));
-      toast.success(ok);
+      setPicks((c) => ({ ...c, [key]: '' }));
+      if (ok) toast.success(ok);
+      return true;
     } catch (error) {
       toast.error(getErrorMessage(error, 'Não deu certo. Tente de novo.'));
+      return false;
     } finally {
       setBusy(null);
     }
   };
+
+  const newCode = () => save('code', async () => (await api.post<IfoodStatus>('/delivery/ifood/authorize')).data, null);
+  const finish = async () => {
+    if (await save('finish', async () => (await api.post<IfoodStatus>('/delivery/ifood/authorize/finish', { authorizationCode: authCode.trim() })).data, 'iFood autorizado')) setAuthCode('');
+  };
+
+  const authorizeStep = data && (
+    <div className="space-y-3 rounded-lg border p-4 text-sm" data-testid="ifood-authorize">
+      {data.broken && <p className="flex items-center gap-1.5 text-amber-700"><AlertTriangle className="h-4 w-4" /> {data.broken}</p>}
+      {!data.pending ? (
+        <>
+          <p>Para provar que as lojas são suas, o dono da conta da loja no iFood confirma um código no Portal do Parceiro. Leva um minuto.</p>
+          <Button onClick={() => void newCode()} disabled={busy !== null} data-testid="ifood-new-code">
+            {busy === 'code' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
+            Gerar código de autorização
+          </Button>
+        </>
+      ) : (
+        <>
+          <ol className="list-decimal space-y-2 pl-5">
+            <li>
+              Abra o <a href={data.pending.url} target="_blank" rel="noreferrer" className="font-medium text-primary underline">Portal do Parceiro do iFood <ExternalLink className="inline h-3 w-3" /></a> e
+              entre com o login de dono da loja.
+            </li>
+            <li className="space-y-1">
+              <span>Confira se o código é este e autorize o CRM Builder:</span>
+              <span className="flex items-center gap-2">
+                <code className="rounded bg-muted px-2 py-1 text-base font-semibold tracking-widest" data-testid="ifood-user-code">{data.pending.userCode}</code>
+                <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Copiar código" onClick={() => void navigator.clipboard?.writeText(data.pending!.userCode)}><Copy className="h-3.5 w-3.5" /></Button>
+              </span>
+            </li>
+            <li className="space-y-1.5">
+              <span>O iFood mostra um código de autorização. Copie e cole aqui:</span>
+              <span className="flex flex-wrap gap-2">
+                <Input className="h-9 w-80 max-w-full font-mono text-xs" value={authCode} onChange={(e) => setAuthCode(e.target.value)} placeholder="Código de autorização do iFood" data-testid="ifood-auth-code" />
+                <Button onClick={() => void finish()} disabled={busy !== null || authCode.trim().length < 4} data-testid="ifood-finish">
+                  {busy === 'finish' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
+                  Concluir
+                </Button>
+              </span>
+            </li>
+          </ol>
+          <p className="text-xs text-muted-foreground">
+            O código vale até {new Date(data.pending.until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.{' '}
+            <button type="button" className="underline" onClick={() => void newCode()} disabled={busy !== null}>Gerar outro</button>
+          </p>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -289,8 +353,7 @@ function IfoodDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
             iFood
           </DialogTitle>
           <DialogDescription>
-            No Portal do Parceiro do iFood, autorize o aplicativo CRM Builder para a loja e copie o código dela (ID da loja).
-            Cole na loja certa: os pedidos passam a entrar sozinhos na central, e aceitar, preparar, despachar ou cancelar aqui avisa o iFood.
+            Os pedidos das lojas ligadas entram sozinhos na central, e aceitar, preparar, despachar ou cancelar aqui avisa o iFood.
           </DialogDescription>
         </DialogHeader>
 
@@ -298,45 +361,62 @@ function IfoodDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
           <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : !data.configured ? (
           <p className="text-sm text-muted-foreground">Monte a central de pedidos primeiro (logo abaixo, nesta página). Depois as lojas aparecem aqui para conectar.</p>
+        ) : !data.authorized ? (
+          authorizeStep
         ) : (
-          <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-lg border text-sm" data-testid="ifood-stores">
-            {data.stores.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2" data-testid={`ifood-store-${s.id}`}>
-                <span className="min-w-32 flex-1 font-medium">{s.name}</span>
-                {s.merchantId ? (
-                  <>
-                    <Badge variant="secondary" className="gap-1"><Link2 className="h-3 w-3" /> {s.merchantName || 'conectada'}</Badge>
-                    <Button
-                      size="sm" variant="ghost" disabled={busy !== null}
-                      onClick={() => void save(s.id, async () => (await api.delete<IfoodStatus>(`/delivery/ifood/link/${s.id}`)).data, 'Loja desligada do iFood')}
-                    >
-                      <Unlink className="mr-1.5 h-4 w-4" /> Desligar
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Input
-                      className="h-8 w-72 max-w-full font-mono text-xs" placeholder="Código da loja no iFood"
-                      value={codes[s.id] ?? ''} onChange={(e) => setCodes((c) => ({ ...c, [s.id]: e.target.value }))}
-                      data-testid={`ifood-code-${s.id}`}
-                    />
-                    <Button
-                      size="sm" disabled={busy !== null || !(codes[s.id] ?? '').trim()}
-                      onClick={() => void save(s.id, async () => (await api.post<IfoodStatus>('/delivery/ifood/link', { storeId: s.id, merchantId: (codes[s.id] ?? '').trim() })).data, 'Loja conectada ao iFood')}
-                      data-testid={`ifood-link-${s.id}`}
-                    >
-                      {busy === s.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
-                      Conectar
-                    </Button>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-2">
+            {data.merchants.length === 0 && (
+              <p className="text-sm text-amber-700">O dono não liberou nenhuma loja do iFood para o CRM Builder. Libere no Portal do Parceiro ou autorize de novo.</p>
+            )}
+            <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-lg border text-sm" data-testid="ifood-stores">
+              {data.stores.map((s) => (
+                <li key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2" data-testid={`ifood-store-${s.id}`}>
+                  <span className="min-w-32 flex-1 font-medium">{s.name}</span>
+                  {s.merchantId ? (
+                    <>
+                      <Badge variant="secondary" className="gap-1"><Link2 className="h-3 w-3" /> {s.merchantName || 'conectada'}</Badge>
+                      <Button
+                        size="sm" variant="ghost" disabled={busy !== null}
+                        onClick={() => void save(s.id, async () => (await api.delete<IfoodStatus>(`/delivery/ifood/link/${s.id}`)).data, 'Loja desligada do iFood')}
+                      >
+                        <Unlink className="mr-1.5 h-4 w-4" /> Desligar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Select value={picks[s.id] ?? ''} onValueChange={(v) => setPicks((c) => ({ ...c, [s.id]: v }))} disabled={data.merchants.length === 0}>
+                        <SelectTrigger className="h-8 w-64 max-w-full text-xs" data-testid={`ifood-pick-${s.id}`}><SelectValue placeholder="Escolha a loja no iFood" /></SelectTrigger>
+                        <SelectContent>
+                          {data.merchants.map((m) => {
+                            const usedBy = data.stores.find((x) => x.merchantId === m.id);
+                            return <SelectItem key={m.id} value={m.id} disabled={!!usedBy}>{m.name}{usedBy ? ` (em ${usedBy.name})` : ''}</SelectItem>;
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm" disabled={busy !== null || !picks[s.id]}
+                        onClick={() => void save(s.id, async () => (await api.post<IfoodStatus>('/delivery/ifood/link', { storeId: s.id, merchantId: picks[s.id] })).data, 'Loja conectada ao iFood')}
+                        data-testid={`ifood-link-${s.id}`}
+                      >
+                        {busy === s.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
+                        Conectar
+                      </Button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {data.authorizedAt && (
+              <p className="text-xs text-muted-foreground">
+                Autorizado{data.authorizedBy ? ` por ${data.authorizedBy}` : ''} em {new Date(data.authorizedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}.
+                Liberou mais lojas no iFood? Elas aparecem na lista sozinhas.
+              </p>
+            )}
+          </div>
         )}
 
         <DialogFooter className="gap-2 sm:justify-between">
-          {linked > 0 ? (
+          {data?.authorized || linked > 0 ? (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" className="text-destructive hover:text-destructive" disabled={busy !== null} data-testid="ifood-disconnect">
@@ -347,8 +427,8 @@ function IfoodDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
                 <AlertDialogHeader>
                   <AlertDialogTitle>Desconectar o iFood?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {linked === 1 ? 'A loja conectada para' : `As ${linked} lojas conectadas param`} de receber pedidos do iFood aqui. Os pedidos que já entraram continuam na central.
-                    Para voltar, é só conectar as lojas de novo.
+                    {linked > 0 ? `${linked === 1 ? 'A loja conectada para' : `As ${linked} lojas conectadas param`} de receber pedidos do iFood aqui. ` : ''}
+                    A autorização é apagada; para voltar, é preciso autorizar de novo. Os pedidos que já entraram continuam na central.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

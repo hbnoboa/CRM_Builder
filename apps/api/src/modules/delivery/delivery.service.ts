@@ -23,6 +23,14 @@ export interface DeliveryConfig {
 export interface IfoodLinks {
   on: boolean;
   merchants: Record<string, { storeId: string; store: string; name?: string }>;
+  /** Autorizacao do dono (tokens cifrados com secret-box) e as lojas que ele liberou. */
+  auth?: {
+    access: string; refresh: string; accessUntil: number;
+    merchants: Array<{ id: string; name: string }>;
+    at: string; by?: string | null; broken?: string | null;
+  };
+  /** Codigo esperando o dono confirmar no Portal do Parceiro (verificador cifrado). */
+  pending?: { verifier: string; userCode: string; url: string; until: number };
 }
 
 export type DeliveryEntities = { stores: Entity; menu: Entity; orders: Entity; items: Entity };
@@ -106,7 +114,9 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     const cfg = await this.config(tenantId);
     // O cartao do app mostra o estado mesmo antes de montar a central
     const connectors = (c?: DeliveryConfig) => ({
-      ifood: !this.ifood.configured ? 'waiting-access' : Object.keys(c?.ifood?.merchants ?? {}).length ? 'connected' : 'ready',
+      ifood: !this.ifood.configured ? 'waiting-access'
+        : c?.ifood?.auth?.broken ? 'reconnect'
+          : c?.ifood?.auth && Object.keys(c.ifood.merchants ?? {}).length ? 'connected' : 'ready',
       food99: 'waiting-access',
     });
     if (!cfg) return { configured: false, defaultStores: DEFAULT_STORES, connectors: connectors() };

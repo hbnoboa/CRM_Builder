@@ -9,7 +9,8 @@ import { invalidateEntityQueryCache } from '../../common/services/entity-query-c
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import { ORDER_STATUS } from './delivery-starter';
 import { DeliveryService, type DeliveryConfig, type DeliveryEntities, type IfoodLinks } from './delivery.service';
-import { IfoodClient, IfoodError, type IfoodEvent, type IfoodOrder } from './ifood.client';
+import { open, seal } from '../../common/utils/secret-box';
+import { IfoodClient, IfoodError, type IfoodAuth, type IfoodEvent, type IfoodOrder, type IfoodTokens, type IfoodUserCode } from './ifood.client';
 
 type Status = (typeof ORDER_STATUS)[number];
 
@@ -34,9 +35,11 @@ const rank = (s: string) => ORDER_STATUS.indexOf(s as Status);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) / 100 : undefined);
 
 /**
- * Conector do iFood (fase 2). Le a fila de eventos das lojas ligadas a cada 30 s (o
- * que tambem mantem a loja aberta no app), lanca o pedido na central e acompanha a
- * situacao. No sentido contrario, quando alguem muda a situacao de um pedido do iFood
+ * Conector do iFood (fase 2), aplicativo distribuido: cada empresa autoriza com o
+ * codigo do dono (prova que as lojas sao dela) e so liga lojas que o dono liberou.
+ * Le a fila de eventos das lojas ligadas a cada 30 s, com a autorizacao de cada
+ * empresa (o que tambem mantem a loja aberta no app), lanca o pedido na central e
+ * acompanha a situacao. No sentido contrario, quando alguem muda a situacao de um pedido do iFood
  * no sistema, avisa o iFood (aceitar, preparo, despacho, cancelamento).
  */
 @Injectable()
@@ -65,21 +68,99 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  // ---- Ligar lojas -------------------------------------------------------
+  // ---- Autorizacao do dono ------------------------------------------------
+
+  /** Token de acesso de cada empresa em memoria (o cifrado fica nas configuracoes). */
+  private readonly tokens = new Map<string, { value: string; until: number }>();
+  private readonly forceRefresh = new Set<string>();
+
+  /** Autorizacao da empresa: usa o token guardado e renova quando vence. */
+  private auth(tenantId: string): IfoodAuth {
+    return {
+      token: async () => {
+        const forced = this.forceRefresh.has(tenantId);
+        const cached = this.tokens.get(tenantId);
+        if (!forced && cached && cached.until > Date.now()) return cached.value;
+        const a = (await this.delivery.config(tenantId))?.ifood?.auth;
+        if (!a || a.broken) throw new IfoodError('A empresa ainda não autorizou o iFood (ou a autorização venceu).', 401);
+        if (!forced && a.accessUntil > Date.now() + 60_000) {
+          const value = open(a.access);
+          this.tokens.set(tenantId, { value, until: a.accessUntil - 60_000 });
+          return value;
+        }
+        let t: IfoodTokens;
+        try {
+          t = await this.client.refresh(open(a.refresh));
+        } catch (err) {
+          if (err instanceof IfoodError && err.status >= 400 && err.status < 500) {
+            await this.patchIfood(tenantId, { auth: { ...a, broken: 'A autorização do iFood venceu. Gere um código novo e autorize de novo.' } });
+            this.tokens.delete(tenantId);
+          }
+          throw err;
+        }
+        await this.saveTokens(tenantId, t);
+        return t.accessToken;
+      },
+      reset: () => {
+        this.tokens.delete(tenantId);
+        this.forceRefresh.add(tenantId);
+      },
+    };
+  }
+
+  /** Guarda os tokens cifrados (so a parte da autorizacao, sem reescrever o resto). */
+  private async saveTokens(tenantId: string, t: IfoodTokens) {
+    const accessUntil = Date.now() + Math.max((t.expiresIn ?? 3600) - 120, 60) * 1000;
+    const patch = { access: seal(t.accessToken), refresh: seal(t.refreshToken), accessUntil, broken: null };
+    await this.prisma.$executeRaw`
+      UPDATE "Tenant" SET settings = jsonb_set(settings::jsonb, '{delivery,ifood,auth}',
+        COALESCE(settings::jsonb #> '{delivery,ifood,auth}', '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb)
+      WHERE id = ${tenantId}`;
+    this.tokens.set(tenantId, { value: t.accessToken, until: accessUntil - 60_000 });
+    this.forceRefresh.delete(tenantId);
+  }
+
+  /** Muda partes do iFood nas configuracoes da empresa sem sobrescrever o resto (null apaga). */
+  private async patchIfood(tenantId: string, patch: Partial<Record<keyof IfoodLinks, unknown>>) {
+    const remove = Object.entries(patch).filter(([, v]) => v === null || v === undefined).map(([k]) => k);
+    const set = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== null && v !== undefined));
+    await this.prisma.$executeRaw`
+      UPDATE "Tenant" SET settings = jsonb_set(settings::jsonb, '{delivery,ifood}',
+        (COALESCE(settings::jsonb #> '{delivery,ifood}', '{"on": false, "merchants": {}}'::jsonb) || ${JSON.stringify(set)}::jsonb) - ${remove}::text[])
+      WHERE id = ${tenantId} AND settings::jsonb ? 'delivery'`;
+  }
 
   async status(user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
     const cfg = await this.delivery.config(tenantId);
     const e = cfg ? await this.delivery.entities(tenantId, cfg).catch(() => null) : null;
-    if (!cfg || !e) return { available: this.client.configured, configured: false, stores: [] };
+    const base = { available: this.client.configured };
+    if (!cfg || !e) return { ...base, configured: false, authorized: false, broken: null, pending: null, merchants: [], stores: [] };
+    const ifood = cfg.ifood;
+    let merchants = ifood?.auth?.merchants ?? [];
+    // Lista atualizada: o dono pode ter liberado mais lojas no portal
+    if (ifood?.auth && !ifood.auth.broken) {
+      const live = await this.client.merchants(this.auth(tenantId)).catch(() => null);
+      if (live && JSON.stringify(live.map((m) => m.id).sort()) !== JSON.stringify(merchants.map((m) => m.id).sort())) {
+        merchants = live.map((m) => ({ id: m.id, name: m.name }));
+        await this.patchIfood(tenantId, { auth: { ...ifood.auth, merchants } });
+      }
+    }
     const rows = await this.prisma.entityData.findMany({
       where: { tenantId, entityId: e.stores.id, deletedAt: null }, select: { id: true, data: true }, orderBy: { createdAt: 'asc' }, take: 50,
     });
-    const links = cfg.ifood?.merchants ?? {};
+    const links = ifood?.merchants ?? {};
     const byStore = new Map(Object.entries(links).map(([merchantId, l]) => [l.storeId, { merchantId, ...l }]));
+    const pending = ifood?.pending && ifood.pending.until > Date.now() ? ifood.pending : null;
     return {
-      available: this.client.configured,
+      ...base,
       configured: true,
+      authorized: !!ifood?.auth && !ifood.auth.broken,
+      broken: ifood?.auth?.broken ?? null,
+      authorizedAt: ifood?.auth?.at ?? null,
+      authorizedBy: ifood?.auth?.by ?? null,
+      pending: pending ? { userCode: pending.userCode, url: pending.url, until: new Date(pending.until).toISOString() } : null,
+      merchants,
       stores: rows.map((r) => {
         const link = byStore.get(r.id);
         return { id: r.id, name: String((r.data as Record<string, unknown>).nome ?? ''), merchantId: link?.merchantId ?? null, merchantName: link?.name ?? null };
@@ -87,41 +168,85 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  /** Liga uma loja da central a uma loja do iFood que ja autorizou o aplicativo. */
-  async link(user: CurrentUser, storeId: string, merchantId: string) {
+  /** Passo 1: gera o codigo que o dono confirma no Portal do Parceiro do iFood. */
+  async authorize(user: CurrentUser) {
     if (!this.client.configured) throw new BadRequestException('O conector do iFood ainda não está ligado neste servidor.');
+    const tenantId = getEffectiveTenantId(user);
+    if (!(await this.delivery.config(tenantId))) throw new BadRequestException('Monte a central de pedidos antes.');
+    let code: IfoodUserCode;
+    try {
+      code = await this.client.userCode();
+    } catch (err) {
+      throw new BadRequestException(`Não deu para gerar o código no iFood agora: ${(err as Error).message}`);
+    }
+    await this.patchIfood(tenantId, {
+      pending: { verifier: seal(code.authorizationCodeVerifier), userCode: code.userCode, url: code.verificationUrlComplete, until: Date.now() + (code.expiresIn ?? 600) * 1000 },
+    });
+    return this.status(user);
+  }
+
+  /** Passo 2: o dono colou o codigo de autorizacao que o portal mostrou. */
+  async finishAuthorization(user: CurrentUser, authorizationCode: string) {
+    const tenantId = getEffectiveTenantId(user);
+    const pending = (await this.delivery.config(tenantId))?.ifood?.pending;
+    if (!pending || pending.until < Date.now()) throw new BadRequestException('O código do iFood venceu. Gere outro e tente de novo.');
+    let tokens: IfoodTokens;
+    try {
+      tokens = await this.client.exchange(authorizationCode.trim(), open(pending.verifier));
+    } catch (err) {
+      if (err instanceof IfoodError && err.status >= 400 && err.status < 500) {
+        throw new BadRequestException('O iFood recusou o código de autorização. Confira se copiou o código inteiro, ou gere outro.');
+      }
+      throw new BadRequestException(`Não deu para falar com o iFood agora: ${(err as Error).message}`);
+    }
+    const merchants = await this.client.merchants({ token: async () => tokens.accessToken, reset: () => undefined });
+    await this.patchIfood(tenantId, {
+      pending: null,
+      auth: {
+        access: seal(tokens.accessToken), refresh: seal(tokens.refreshToken),
+        accessUntil: Date.now() + Math.max((tokens.expiresIn ?? 3600) - 120, 60) * 1000,
+        merchants: merchants.map((m) => ({ id: m.id, name: m.name })), at: new Date().toISOString(), by: user.name ?? null,
+      },
+    });
+    this.tokens.delete(tenantId);
+    this.forceRefresh.delete(tenantId);
+    return this.status(user);
+  }
+
+  // ---- Ligar lojas -------------------------------------------------------
+
+  /** Liga uma loja da central a uma loja do iFood que o dono autorizou. */
+  async link(user: CurrentUser, storeId: string, merchantId: string) {
     const tenantId = getEffectiveTenantId(user);
     const cfg = await this.delivery.config(tenantId);
     if (!cfg) throw new BadRequestException('Monte a central de pedidos antes.');
+    const auth = cfg.ifood?.auth;
+    if (!auth || auth.broken) throw new BadRequestException('Autorize o iFood antes de ligar as lojas.');
     const e = await this.delivery.entities(tenantId, cfg);
     const store = await this.prisma.entityData.findFirst({ where: { id: storeId, tenantId, entityId: e.stores.id, deletedAt: null } });
     if (!store) throw new NotFoundException('Loja não encontrada.');
     const storeName = String((store.data as Record<string, unknown>).nome ?? '');
-    const id = merchantId.trim();
+
+    // So lojas que o dono liberou para esta empresa (lista do proprio iFood)
+    let merchant = auth.merchants.find((m) => m.id === merchantId);
+    if (!merchant) {
+      const live = await this.client.merchants(this.auth(tenantId)).catch(() => []);
+      merchant = live.find((m) => m.id === merchantId);
+    }
+    if (!merchant) throw new BadRequestException('Essa loja não está entre as que o dono autorizou no iFood.');
 
     // Uma loja do iFood fica em uma empresa so
     const others = await this.prisma.tenant.findMany({
       where: { id: { not: tenantId }, settings: { path: ['delivery', 'ifood', 'on'], equals: true } }, select: { settings: true },
     });
-    if (others.some((t) => ((t.settings || {}) as { delivery?: DeliveryConfig }).delivery?.ifood?.merchants?.[id])) {
+    if (others.some((t) => ((t.settings || {}) as { delivery?: DeliveryConfig }).delivery?.ifood?.merchants?.[merchant!.id])) {
       throw new ConflictException('Essa loja do iFood já está ligada a outra empresa.');
     }
 
-    let merchant: { id: string; name: string } | null;
-    try {
-      merchant = await this.client.merchant(id);
-    } catch (err) {
-      if (err instanceof IfoodError && [400, 401, 403, 404].includes(err.status)) {
-        throw new BadRequestException('O iFood não liberou essa loja para o CRM Builder. Confira o código e, no Portal do Parceiro do iFood, autorize o aplicativo.');
-      }
-      throw new BadRequestException(`Não deu para falar com o iFood agora: ${(err as Error).message}`);
-    }
-    if (!merchant) throw new BadRequestException('O iFood não encontrou essa loja.');
-
     const merchants = { ...(cfg.ifood?.merchants ?? {}) };
-    for (const [k, l] of Object.entries(merchants)) if (l.storeId === storeId) delete merchants[k];
+    for (const [k, l] of Object.entries(merchants)) if (l.storeId === storeId || k === merchant.id) delete merchants[k];
     merchants[merchant.id] = { storeId, store: storeName, name: merchant.name };
-    await this.delivery.saveConfig(tenantId, { ifood: { on: true, merchants } });
+    await this.patchIfood(tenantId, { on: true, merchants });
     await this.prisma.entityData.update({
       where: { id: store.id }, data: { data: { ...(store.data as Record<string, unknown>), ifood_id: merchant.id } as Prisma.InputJsonValue },
     });
@@ -129,12 +254,13 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     return this.status(user);
   }
 
-  /** Desconecta o iFood da empresa: desliga todas as lojas. */
+  /** Desconecta o iFood da empresa: desliga as lojas e apaga a autorizacao. */
   async disconnect(user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
     const cfg = await this.delivery.config(tenantId);
     for (const l of Object.values(cfg?.ifood?.merchants ?? {})) await this.unlink(user, l.storeId);
     if (cfg?.ifood) await this.delivery.saveConfig(tenantId, { ifood: undefined });
+    this.tokens.delete(tenantId);
     return this.status(user);
   }
 
@@ -142,8 +268,8 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     const tenantId = getEffectiveTenantId(user);
     const cfg = await this.delivery.config(tenantId);
     if (!cfg?.ifood) return this.status(user);
-    const merchants = Object.fromEntries(Object.entries(cfg.ifood.merchants).filter(([, l]) => l.storeId !== storeId));
-    await this.delivery.saveConfig(tenantId, { ifood: { on: Object.keys(merchants).length > 0, merchants } });
+    const merchants = Object.fromEntries(Object.entries(cfg.ifood.merchants ?? {}).filter(([, l]) => l.storeId !== storeId));
+    await this.patchIfood(tenantId, { on: Object.keys(merchants).length > 0, merchants });
     // Tira o codigo da tabela Lojas tambem (senao a loja continua parecendo ligada)
     const e = await this.delivery.entities(tenantId, cfg).catch(() => null);
     if (!e) return this.status(user);
@@ -157,51 +283,55 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
 
   // ---- iFood -> central ---------------------------------------------------
 
-  /** Lojas ligadas de todas as empresas: codigo no iFood -> empresa e loja. */
-  private async links() {
+  /** Empresas com lojas ligadas e autorizacao valida. */
+  private async connectedTenants() {
     const tenants = await this.prisma.tenant.findMany({
       where: { settings: { path: ['delivery', 'ifood', 'on'], equals: true } }, select: { id: true, settings: true },
     });
-    const map = new Map<string, { tenantId: string; storeId: string; store: string }>();
-    for (const t of tenants) {
-      const ifood = ((t.settings || {}) as { delivery?: DeliveryConfig }).delivery?.ifood as IfoodLinks | undefined;
-      for (const [merchantId, l] of Object.entries(ifood?.merchants ?? {})) map.set(merchantId, { tenantId: t.id, storeId: l.storeId, store: l.store });
-    }
-    return map;
+    return tenants
+      .map((t) => ({ tenantId: t.id, ifood: ((t.settings || {}) as { delivery?: DeliveryConfig }).delivery?.ifood }))
+      .filter((t): t is { tenantId: string; ifood: IfoodLinks } => !!t.ifood?.auth && !t.ifood.auth.broken && Object.keys(t.ifood.merchants ?? {}).length > 0);
   }
 
   private async tick() {
     if (this.running) return;
     this.running = true;
     try {
-      const links = await this.links();
-      const ids = [...links.keys()];
-      for (let i = 0; i < ids.length; i += 50) {
-        const events = await this.client.poll(ids.slice(i, i + 50));
-        const done: string[] = [];
-        for (const ev of events) {
-          const link = ev.merchantId ? links.get(ev.merchantId) : undefined;
-          try {
-            this.logger.log(`iFood evento ${ev.code} pedido=${ev.orderId} loja=${ev.merchantId ?? '-'}`);
-            if (link) await this.handle(link.tenantId, link.storeId, link.store, ev);
-            done.push(ev.id);
-            this.tries.delete(ev.id);
-          } catch (err) {
-            const n = (this.tries.get(ev.id) ?? 0) + 1;
-            this.tries.set(ev.id, n);
-            this.logger.warn(`iFood evento ${ev.code} pedido=${ev.orderId} (tentativa ${n}): ${(err as Error).message}`);
-            if (n >= MAX_TRIES) {
-              done.push(ev.id);
-              this.tries.delete(ev.id);
-            }
-          }
-        }
-        await this.client.ack(done);
+      for (const t of await this.connectedTenants()) {
+        // Cada empresa com a autorizacao dela: um problema numa nao para as outras
+        await this.pollTenant(t.tenantId, t.ifood).catch((err) => this.logger.warn(`iFood polling tenant=${t.tenantId}: ${(err as Error).message}`));
       }
     } catch (err) {
       this.logger.error(`iFood polling: ${(err as Error).message}`);
     } finally {
       this.running = false;
+    }
+  }
+
+  private async pollTenant(tenantId: string, ifood: IfoodLinks) {
+    const auth = this.auth(tenantId);
+    const ids = Object.keys(ifood.merchants);
+    for (let i = 0; i < ids.length; i += 50) {
+      const events = await this.client.poll(auth, ids.slice(i, i + 50));
+      const done: string[] = [];
+      for (const ev of events) {
+        const link = ev.merchantId ? ifood.merchants[ev.merchantId] : undefined;
+        try {
+          this.logger.log(`iFood evento ${ev.code} pedido=${ev.orderId} loja=${ev.merchantId ?? '-'}`);
+          if (link) await this.handle(tenantId, auth, link.storeId, link.store, ev);
+          done.push(ev.id);
+          this.tries.delete(ev.id);
+        } catch (err) {
+          const n = (this.tries.get(ev.id) ?? 0) + 1;
+          this.tries.set(ev.id, n);
+          this.logger.warn(`iFood evento ${ev.code} pedido=${ev.orderId} (tentativa ${n}): ${(err as Error).message}`);
+          if (n >= MAX_TRIES) {
+            done.push(ev.id);
+            this.tries.delete(ev.id);
+          }
+        }
+      }
+      await this.client.ack(auth, done);
     }
   }
 
@@ -212,7 +342,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private async handle(tenantId: string, storeId: string, savedStore: string, ev: IfoodEvent) {
+  private async handle(tenantId: string, auth: IfoodAuth, storeId: string, savedStore: string, ev: IfoodEvent) {
     const cfg = await this.delivery.config(tenantId);
     if (!cfg) return;
     const e = await this.delivery.entities(tenantId, cfg);
@@ -222,7 +352,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     if (!existing) {
       // Pedido que a central ainda nao tem (normalmente o PLC, mas pode chegar fora de ordem)
       if (!status || status === 'Cancelado') return;
-      const order = await this.client.order(ev.orderId);
+      const order = await this.client.order(auth, ev.orderId);
       if (!order) throw new Error('pedido sem detalhes');
       // Nome de agora (a loja pode ter sido renomeada depois de ligar)
       const row = await this.prisma.entityData.findFirst({ where: { id: storeId, tenantId, entityId: e.stores.id, deletedAt: null }, select: { data: true } });
@@ -343,29 +473,30 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
   /** Alguem mudou a situacao de um pedido do iFood no sistema: repassa ao iFood. */
   private readonly onOrderChanged: RecordUpdateListener = async ({ tenantId, entity, recordId, previous, current, user }) => {
     const cfg = await this.delivery.config(tenantId);
-    if (!cfg?.ifood?.on || entity.slug !== cfg.tables.orders) return;
+    if (!cfg?.ifood?.on || !cfg.ifood.auth || entity.slug !== cfg.tables.orders) return;
     if (previous.situacao === current.situacao) return;
     const orderId = typeof current.codigo_app === 'string' ? current.codigo_app : '';
     // So pedido que veio do iFood (o codigo e um UUID); os de demonstracao tem codigo inventado
     if (!UUID.test(orderId) || this.label(entity as Entity, 'app', current.app) !== 'iFood') return;
     const from = this.label(entity as Entity, 'situacao', previous.situacao);
     const to = this.label(entity as Entity, 'situacao', current.situacao);
+    const auth = this.auth(tenantId);
 
     try {
       if (to === 'Cancelado') {
-        const reasons = await this.client.cancellationReasons(orderId);
+        const reasons = await this.client.cancellationReasons(auth, orderId);
         const code = reasons[0]?.cancelCodeId ?? reasons[0]?.code;
         if (!code) throw new Error('o iFood não deixou cancelar este pedido agora');
         const reason = typeof current.motivo_cancelamento === 'string' && current.motivo_cancelamento ? current.motivo_cancelamento : reasons[0]?.description ?? 'Cancelado pela loja';
-        await this.client.requestCancellation(orderId, reason.slice(0, 250), code);
+        await this.client.requestCancellation(auth, orderId, reason.slice(0, 250), code);
         return;
       }
       if (rank(to) <= rank(from) || to === 'Entregue') return; // o iFood conclui a entrega sozinho
-      if (rank(from) < rank('Aceito')) await this.client.action(orderId, 'confirm');
-      if (to === 'Em preparo') await this.client.action(orderId, 'startPreparation');
+      if (rank(from) < rank('Aceito')) await this.client.action(auth, orderId, 'confirm');
+      if (to === 'Em preparo') await this.client.action(auth, orderId, 'startPreparation');
       if (to === 'Saiu para entrega') {
-        const order = await this.client.order(orderId);
-        await this.client.action(orderId, (order?.orderType ?? '').toUpperCase() === 'TAKEOUT' ? 'readyToPickup' : 'dispatch');
+        const order = await this.client.order(auth, orderId);
+        await this.client.action(auth, orderId, (order?.orderType ?? '').toUpperCase() === 'TAKEOUT' ? 'readyToPickup' : 'dispatch');
       }
     } catch (err) {
       const message = (err as Error).message;
