@@ -6,10 +6,11 @@ import { GestaoPageHeader } from '@/components/gestao/gestao-ui';
 import { ApiKeysPanel } from '@/components/integrations/api-keys-panel';
 import { WebhooksPanel } from '@/components/integrations/webhooks-panel';
 import { AutomationsPanel } from '@/components/integrations/automations-panel';
+import { DeliveryPanel } from '@/components/integrations/delivery-panel';
 import { useTenantFeatures } from '@/components/subscription/subscription-widgets';
 import { usePermissions } from '@/hooks/use-permissions';
 
-/** Integracoes da empresa: chaves de API, webhooks e o indice das automacoes. */
+/** Integracoes da empresa: chaves de API, webhooks, o indice das automacoes e os apps de delivery. */
 export default function GestaoIntegrationsPage() {
   const t = useTranslations('gestao.integrations');
   const { hasModulePermission, hasModuleAccess } = usePermissions();
@@ -19,6 +20,7 @@ export default function GestaoIntegrationsPage() {
     hasModulePermission('apis', 'canRead') && 'keys',
     hasModuleAccess('automations') && features.webhooks && 'webhooks',
     hasModuleAccess('automations') && features.automations && 'automations',
+    hasModulePermission('settings', 'canUpdate') && 'delivery',
   ].filter((x): x is string => !!x);
 
   return (
@@ -34,6 +36,7 @@ export default function GestaoIntegrationsPage() {
           <TabsContent value="keys"><ApiKeysPanel /></TabsContent>
           <TabsContent value="webhooks"><WebhooksPanel /></TabsContent>
           <TabsContent value="automations"><AutomationsPanel /></TabsContent>
+          <TabsContent value="delivery"><DeliveryPanel /></TabsContent>
         </Tabs>
       )}
     </div>

@@ -2114,7 +2114,8 @@
       "tabs": {
         "keys": "Chaves de API",
         "webhooks": "Avisar outros sistemas",
-        "automations": "Automações"
+        "automations": "Automações",
+        "delivery": "Apps de delivery"
       },
       "keys": {
         "title": "Chaves de API",

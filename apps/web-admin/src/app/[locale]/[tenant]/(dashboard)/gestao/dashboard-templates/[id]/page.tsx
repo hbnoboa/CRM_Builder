@@ -2599,6 +2599,7 @@ function TemplateBuilderContent() {
   const [priority, setPriority] = useState(0);
   const [isActive, setIsActive] = useState(true);
   const [headerCountEntitySlug, setHeaderCountEntitySlug] = useState('');
+  const [newRecordAlert, setNewRecordAlert] = useState(false);
   const [tabs, setTabs] = useState<{ id: string; label: string; icon?: string; widgetIds: string[] }[]>([]);
   const [activeEditorTabId, setActiveEditorTabId] = useState<string | null>(null);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
@@ -2645,6 +2646,7 @@ function TemplateBuilderContent() {
     setPriority(template.priority || 0);
     setIsActive(template.isActive !== false);
     setHeaderCountEntitySlug(((template as { settings?: { headerCountEntitySlug?: string } }).settings?.headerCountEntitySlug) || '');
+    setNewRecordAlert(!!(template as { settings?: { newRecordAlert?: boolean } }).settings?.newRecordAlert);
     const loadedTabs = (template as { tabs?: typeof tabs }).tabs || [];
     setTabs(loadedTabs);
     if (loadedTabs.length > 0) setActiveEditorTabId(loadedTabs[0].id);
@@ -2798,7 +2800,7 @@ function TemplateBuilderContent() {
         priority,
         isActive,
         tabs: tabs.length > 0 ? tabs : undefined,
-        settings: { headerCountEntitySlug: headerCountEntitySlug || undefined },
+        settings: { headerCountEntitySlug: headerCountEntitySlug || undefined, newRecordAlert: newRecordAlert || undefined },
       };
       if (isCreateMode) {
         const result = await createTemplate.mutateAsync(payload);
@@ -3216,6 +3218,13 @@ function TemplateBuilderContent() {
                 </Select>
                 <p className="text-xs text-muted-foreground">Qual tabela o contador de registros do topo deve refletir</p>
               </div>
+              <label className="flex items-start gap-2 text-sm">
+                <Switch checked={newRecordAlert} onCheckedChange={setNewRecordAlert} data-testid="dashboard-new-record-alert" />
+                <span>
+                  Tocar um som quando chegar registro novo
+                  <span className="block text-xs text-muted-foreground">Bom para pedidos e chamados: quem está com o painel aberto ouve e vê o registro que chegou.</span>
+                </span>
+              </label>
               <div className="space-y-1.5">
                 <Label className="text-sm">Cargos atribuidos</Label>
                 <div className="border rounded-md p-2 max-h-40 overflow-auto space-y-1">
