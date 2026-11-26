@@ -57,6 +57,15 @@ const TABLE = {
   additionalProperties: false,
 };
 
+/** Bloco do construtor: painel que ja existe pode ter larguras fora de 3/4/6/8/12. */
+const WS_WIDGET = {
+  ...WIDGET_SCHEMA,
+  properties: {
+    ...WIDGET_SCHEMA.properties,
+    width: { type: 'integer', description: 'bloco novo: 3, 4, 6, 8 ou 12; bloco que já existe: a largura dele, igual' },
+  },
+};
+
 const DASHBOARD = {
   type: 'object',
   properties: {
@@ -72,7 +81,7 @@ const DASHBOARD = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'array', items: WIDGET_SCHEMA } } },
+        properties: { label: { type: 'string' }, rows: { type: 'array', items: { type: 'array', items: WS_WIDGET } } },
         required: ['label', 'rows'],
         additionalProperties: false,
       },
@@ -124,6 +133,7 @@ O RASCUNHO GUARDA SÓ O QUE MUDA:
 - Opção de lista que já existe: mande com o "value" dela (o valor gravado não muda, só o nome e a cor). Opção sem "value" é nova.
 - O tipo de um campo que já existe não muda (os registros já têm dados). Para outro tipo, crie um campo novo.
 - Mantenha no rascunho tudo o que já estava nele. Para desfazer a mudança de um item (a pessoa pediu), mande o item só com key, name, namePlural/description e "undo": true.
+- Numa tabela, painel ou PDF que já existe, nome, descrição, ícone e cor ficam como estão (copie igual), a não ser que a pessoa peça para mudar.
 - Exclua só quando a pessoa pedir claramente. Excluir tabela leva os registros para a lixeira; na "reply" avise o que vai junto.
 
 TABELAS:
@@ -137,7 +147,7 @@ TABELAS:
 
 PAINÉIS (blocos em "tabs" > "rows", cada linha soma 12 de largura: 3, 4, 6, 8 ou 12):
 - kpi-card: número grande (aggregation count, ou sum/avg com "field" numérico). line-chart: registros por dia ("dateField", "days"). bar-chart, donut-chart, pie-chart, stat-list: contagem por opção ("groupBy" = campo de lista). funnel-chart e kanban-board: por etapa ("groupBy" = select; kanban: "columns" até 3 campos no cartão). mini-table: lista curta ("columns", "sortBy", "sortOrder"). data-table: tabela completa ("columns" até 8). activity-feed: últimas alterações.
-- Painel que já existe: os blocos têm "ref". Bloco que fica como está: mande igual, com o mesmo "ref". Bloco "keep" é um bloco que você não sabe montar: mantenha com o mesmo "ref" ou tire.
+- Painel que já existe: os blocos têm "ref". Bloco que fica como está: mande igual (mesmo "ref", largura e linha). Não mexa em abas e blocos que a pessoa não citou. Bloco "keep" é um bloco que você não sabe montar: mantenha com o mesmo "ref" ou tire.
 - Para mudar um painel que já existe, mande-o INTEIRO (todas as abas e blocos que ficam).
 - Comece com números no alto, gráficos no meio e listas embaixo; de 4 a 10 blocos. "roles" = cargos que veem (vazio = todos).
 - Use só tabelas e campos que existem ou que estão no rascunho (tabela nova: o "key" dela).

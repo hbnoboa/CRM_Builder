@@ -72,6 +72,8 @@ export interface WsChange {
   key: string;
   name: string;
   details: string[];
+  /** Numa alteracao: o que sai (campos excluidos). Pede confirmacao. */
+  removals?: string[];
 }
 
 export interface WsMarks {

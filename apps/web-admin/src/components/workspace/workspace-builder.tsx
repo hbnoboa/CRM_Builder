@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Skeleton } from '@/components/ui/skeleton';
 import { AiBuilderLayout, AiChatPanel, AiWarnings, useAiConversation } from '@/components/ai-builder/ai-chat-panel';
 import { EditableTableCard, MarkBadge } from '@/components/ai-builder/editable-table-card';
+import { useLocale } from 'next-intl';
 import { usePermissions } from '@/hooks/use-permissions';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,7 @@ function withoutItem(draft: WorkspaceDraft, module: WsModule, key: string): Work
  */
 export function WorkspaceBuilder() {
   const { hasModulePermission } = usePermissions();
+  const locale = useLocale();
   const { data: state, isLoading, refetch } = useWorkspaceState();
   const chat = useAiConversation<WorkspaceResult>('/ai-builder/workspace/propose');
   const { result, replaceResult } = chat;
@@ -150,7 +152,7 @@ export function WorkspaceBuilder() {
   };
 
   // ── Aplicar ──
-  const removals = changes.filter((c) => c.kind === 'delete');
+  const removals = changes.filter((c) => c.kind === 'delete' || c.removals?.length);
   const apply = async () => {
     setApplying(true);
     try {
@@ -331,7 +333,7 @@ export function WorkspaceBuilder() {
                 <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
                   <span className="font-medium text-foreground">{h.by}</span>
                   {h.impersonatedBy && <span>(pelo suporte: {h.impersonatedBy})</span>}
-                  <span>{new Date(h.at).toLocaleString()}</span>
+                  <span>{new Date(h.at).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })}</span>
                   {h.viaAi && <span className="inline-flex items-center gap-1 text-primary"><Sparkles className="h-3 w-3" /> com a IA</span>}
                 </p>
                 {h.request.length > 0 && (
@@ -390,6 +392,8 @@ export function WorkspaceBuilder() {
           hasResult={!!result}
           reply={result?.reply}
           wide
+          previewAlways
+          previewLabel="Sistema"
           chat={(
             <AiChatPanel
               messages={chat.messages}
@@ -424,7 +428,13 @@ export function WorkspaceBuilder() {
             <div className="space-y-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200" data-testid="ws-removals">
               <p className="flex items-center gap-1.5 font-medium"><AlertTriangle className="h-4 w-4" /> Exclusões</p>
               <ul className="list-inside list-disc text-xs">
-                {removals.map((c) => <li key={`${c.module}:${c.key}`}>{MODULE_LABEL[c.module]} {c.name}: {c.details.join('; ')}</li>)}
+                {removals.map((c) => (
+                  <li key={`${c.module}:${c.key}`}>
+                    {c.kind === 'delete'
+                      ? <>{MODULE_LABEL[c.module]} {c.name}: {c.details.join('; ')}</>
+                      : <>Em {c.name}: {c.removals!.join(', ')} (os dados gravados nele deixam de aparecer)</>}
+                  </li>
+                ))}
               </ul>
               <label className="flex items-start gap-2 text-xs">
                 <Checkbox checked={confirmRemovals} onCheckedChange={(v) => setConfirmRemovals(v === true)} data-testid="ws-confirm-removals" />

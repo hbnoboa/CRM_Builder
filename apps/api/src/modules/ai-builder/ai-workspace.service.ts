@@ -277,9 +277,11 @@ export class AiWorkspaceService {
     for (const c of n.changes) {
       const p = PERMISSION[c.module];
       if (!allowed(user, p.module, ACTION[c.kind].perm, p.sub)) missing.add(`${ACTION[c.kind].verb} ${p.label}`);
+      // Tirar campo esconde dados: precisa da mesma permissao de excluir
+      if (c.removals?.length && !allowed(user, p.module, 'canDelete', p.sub)) missing.add(`excluir campos de ${p.label}`);
     }
     if (missing.size) throw new ForbiddenException(`Seu cargo não permite ${[...missing].join(', ')}. Peça para um administrador aplicar.`);
-    if (n.changes.some((c) => c.kind === 'delete') && dto.confirmRemovals !== true) {
+    if (n.changes.some((c) => c.kind === 'delete' || c.removals?.length) && dto.confirmRemovals !== true) {
       throw new BadRequestException('Confirme as exclusões antes de aplicar.');
     }
 

@@ -132,6 +132,8 @@ export interface WsChange {
   key: string;
   name: string;
   details: string[];
+  /** Numa alteracao: o que sai (campos excluidos). Pede confirmacao e permissao de excluir. */
+  removals?: string[];
 }
 
 export interface WsMarks {
@@ -734,7 +736,10 @@ export function normalizeWorkspace(raw: unknown, base: WorkspaceBase, keptByDash
     draftTables.push(existingDraftAfter(e, r.update.fields, r.removed, r.update.settings, r.update));
     previewTables.push(previewOfEntity(e, r.update.fields, r.update.settings, r.update));
     marks.tables[key] = { status: 'changed', fields: r.fieldMarks };
-    changes.push({ module: 'table', kind: 'update', key, name: e.namePlural, details: r.details });
+    changes.push({
+      module: 'table', kind: 'update', key, name: e.namePlural, details: r.details,
+      ...(r.removed.length ? { removals: r.removed.map((f) => `campo "${fieldLabel(f)}"`) } : {}),
+    });
   }
 
   // 3. Lista nova dentro de uma tabela que ja existe: o pai ganha o campo de lista
@@ -808,8 +813,21 @@ export function normalizeWorkspace(raw: unknown, base: WorkspaceBase, keptByDash
       if (clean.description !== (existing.description || '')) details.push('descrição mudou');
       if (!sameJson(n.roleNames, before.roleNames)) details.push(`quem vê: ${n.roleNames.length ? n.roleNames.join(', ') : 'todos os cargos'}`);
       if (!sameJson(n.proposal.tabs, before.proposal.tabs)) {
-        const count = (p: AiDashboardProposal) => p.tabs.reduce((s, t) => s + t.rows.flat().length, 0);
-        details.push(`blocos mudaram (${count(before.proposal)} → ${count(n.proposal)})`);
+        const was = before.dashboard.widgets;
+        const now = n.dashboard.widgets;
+        const added = Object.keys(now).filter((id) => !was[id]);
+        const gone = Object.keys(was).filter((id) => !now[id]);
+        const changed = Object.keys(now).filter((id) => was[id] && !sameJson(was[id], now[id]));
+        const tabsBefore = new Set(before.proposal.tabs.map((t) => t.label));
+        const newTabs = n.proposal.tabs.filter((t) => !tabsBefore.has(t.label)).map((t) => `"${t.label}"`);
+        const plural = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+        const parts = [
+          added.length && plural(added.length, 'bloco novo', 'blocos novos'),
+          gone.length && plural(gone.length, 'bloco tirado', 'blocos tirados'),
+          changed.length && plural(changed.length, 'bloco mudado', 'blocos mudados'),
+          newTabs.length && `aba nova ${newTabs.join(', ')}`,
+        ].filter(Boolean) as string[];
+        details.push(parts.length ? parts.join(', ') : 'ordem ou largura dos blocos mudou');
       }
       if (details.length === 0) continue;
       dashboardPlans.push({ key: existing.id, kind: 'update', name: existing.name, base: existing, draft: clean, payload, roleNames: n.roleNames });

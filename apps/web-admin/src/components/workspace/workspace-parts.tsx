@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, BarChart3, ChevronDown, ChevronRight, ExternalLink,
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { EntityDashboard } from '@/components/dashboard-widgets/entity-dashboard';
 import { MarkBadge } from '@/components/ai-builder/editable-table-card';
 import api from '@/lib/api';
