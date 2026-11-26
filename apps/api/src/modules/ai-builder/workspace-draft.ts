@@ -505,7 +505,8 @@ function applyRules(next: RawField, want: Partial<WsField>, fields: RawField[], 
       continue;
     }
     const cond = normalizeCondition(asked, fields, next.slug, where, warnings);
-    if (!cond || JSON.stringify(cond) === JSON.stringify(before)) continue;
+    // O banco devolve as chaves em outra ordem: compara campo, condicao e valor
+    if (!cond || (before && before.field === cond.field && before.operator === cond.operator && before.value === cond.value)) continue;
     next[prop] = cond;
     notes.push(describeCondition(prop, cond, fields));
   }

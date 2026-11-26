@@ -67,6 +67,8 @@ export interface WsRole {
   locked?: boolean;
   /** So na tela: quantas pessoas tem o cargo. */
   people?: number;
+  /** So na tela: cargo padrao do sistema (nao se exclui nem muda de nome). */
+  system?: boolean;
 }
 
 export interface BaseRole {
@@ -155,7 +157,7 @@ export function roleToDraft(r: BaseRole, actorRank: number): WsRole {
   return JSON.parse(JSON.stringify({
     key: r.id, existing: true, name: r.name, description: r.description || '', color: r.color || undefined,
     isDefault: r.isDefault, allAccess: hasAll(mp), modules: hasAll(mp) ? undefined : modules, tables,
-    locked: r.rank <= actorRank, people: r.people,
+    locked: r.rank <= actorRank, people: r.people, system: r.isSystem || undefined,
   })) as WsRole;
 }
 

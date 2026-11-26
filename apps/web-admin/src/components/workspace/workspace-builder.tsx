@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, BarChart3, Check, Database, FileText, History, ListChecks, Loader2, Lock, Plus, RotateCcw, Sparkles, Trash2, Undo2,
+  AlertTriangle, BarChart3, Check, Database, FileText, History, ListChecks, Loader2, Lock, Plus, RotateCcw, ShieldCheck, Sparkles, Trash2, Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -20,21 +20,23 @@ import type { EntityField } from '@/types';
 import type { AiPreviewTable } from '@/hooks/use-ai-builder';
 import {
   EMPTY_DRAFT, EMPTY_MARKS, previewWorkspace, useWorkspaceApply, useWorkspaceHistory, useWorkspaceState,
-  type WorkspaceDraft, type WorkspaceResult, type WsChange, type WsDashboard, type WsModule, type WsPdf, type WsTable,
+  type WorkspaceDraft, type WorkspaceResult, type WsChange, type WsDashboard, type WsModule, type WsPdf, type WsRole, type WsTable,
 } from '@/hooks/use-workspace';
 import { DashboardItem, ItemShell, PdfItem } from './workspace-parts';
+import { RoleItem, type RoleTableInfo } from './workspace-roles';
 
 const EXAMPLES = [
   'Quero controlar as vistorias de veículos, com fotos, não conformidades e um laudo em PDF.',
   'Coloque um campo de placa obrigatório nos veículos.',
   'Monte um painel com os números do dia e o que está atrasado.',
-  'Tenho uma oficina: clientes, carros e ordens de serviço com as peças usadas.',
+  'Crie o cargo Supervisor: vê os veículos e as não conformidades, mas não exclui nada.',
+  'Deixe o campo Motivo obrigatório quando a situação for Reprovado.',
 ];
 const MAX_UNDO = 30;
-type Tab = 'tables' | 'dashboards' | 'pdfs' | 'changes' | 'history';
+type Tab = 'tables' | 'dashboards' | 'pdfs' | 'roles' | 'changes' | 'history';
 const BLANK: WorkspaceResult = { reply: '', warnings: [], proposal: EMPTY_DRAFT as unknown as Record<string, unknown>, changes: [], marks: EMPTY_MARKS, preview: { tables: [], dashboards: {}, pdfs: {} } };
 const KIND_LABEL = { create: 'Criar', update: 'Alterar', delete: 'Excluir' } as const;
-const MODULE_LABEL: Record<WsModule, string> = { table: 'Tabela', dashboard: 'Painel', pdf: 'PDF' };
+const MODULE_LABEL: Record<WsModule, string> = { table: 'Tabela', dashboard: 'Painel', pdf: 'PDF', role: 'Cargo' };
 const newTableKey = () => `tabela-${Date.now().toString(36)}`;
 
 /** Tira do rascunho o item (desfaz a mudanca dele). */
@@ -43,6 +45,7 @@ function withoutItem(draft: WorkspaceDraft, module: WsModule, key: string): Work
     return { ...draft, tables: draft.tables.filter((t) => t.key !== key).map((t) => (t.parentKey === key && !t.existing ? { ...t, parentKey: undefined } : t)) };
   }
   if (module === 'dashboard') return { ...draft, dashboards: draft.dashboards.filter((d) => d.key !== key) };
+  if (module === 'role') return { ...draft, roles: (draft.roles || []).filter((r) => r.key !== key) };
   return { ...draft, pdfs: draft.pdfs.filter((p) => p.key !== key) };
 }
 
@@ -75,6 +78,8 @@ export function WorkspaceBuilder() {
     tableDelete: hasModulePermission('entities', 'canDelete'),
     dashboardDelete: hasModulePermission('dashboard', 'canDelete'),
     pdfDelete: hasModulePermission('templates', 'canDelete'),
+    roleDelete: hasModulePermission('roles', 'canDelete'),
+    roleCreate: hasModulePermission('roles', 'canCreate'),
   };
 
   /** Mexida a mao: aparece na hora e o servidor confere logo depois (sem IA). */
@@ -136,11 +141,42 @@ export function WorkspaceBuilder() {
     return [...draft.pdfs.filter((p) => !p.existing), ...(state?.pdfs ?? []).map((b) => byKey.get(b.key) ?? b)];
   }, [draft.pdfs, state?.pdfs]);
 
+  const roles = useMemo(() => {
+    const draftRoles = draft.roles || [];
+    const byKey = new Map(draftRoles.map((r) => [r.key, r]));
+    return [...draftRoles.filter((r) => !r.existing), ...(state?.roles ?? []).map((b) => (byKey.get(b.key) ? { ...b, ...byKey.get(b.key)!, people: b.people } : b))];
+  }, [draft.roles, state?.roles]);
+  // Tabelas para as regras dos cargos: as que existem (menos as excluidas) e as novas
+  const roleTables = useMemo(() => {
+    const out: Record<string, RoleTableInfo> = {};
+    for (const t of tables) {
+      if (t.removed) continue;
+      const fields = (previews.get(t.key)?.fields ?? []) as unknown as Array<{ slug: string; label?: string; name?: string; type: string; options?: Array<string | { value: string; label: string }> }>;
+      out[t.key] = {
+        name: t.namePlural,
+        fields: fields.filter((f) => !['section-title', 'sub-entity'].includes(f.type)).map((f) => ({
+          slug: f.slug, label: f.label || f.name || f.slug, type: f.type,
+          options: (f.options || []).map((o) => (typeof o === 'string' ? { value: o, label: o } : { value: o.value, label: o.label })),
+        })),
+      };
+    }
+    return out;
+  }, [tables, previews]);
+
   // ── Mudancas no rascunho ──
   const putTable = (next: WsTable) => edit({ ...draft, tables: draft.tables.some((t) => t.key === next.key) ? draft.tables.map((t) => (t.key === next.key ? next : t)) : [...draft.tables, next] });
   const putDashboard = (next: WsDashboard) => edit({ ...draft, dashboards: draft.dashboards.some((d) => d.key === next.key) ? draft.dashboards.map((d) => (d.key === next.key ? next : d)) : [...draft.dashboards, next] });
   const putPdf = (next: WsPdf) => edit({ ...draft, pdfs: draft.pdfs.some((p) => p.key === next.key) ? draft.pdfs.map((p) => (p.key === next.key ? next : p)) : [...draft.pdfs, next] });
+  const putRole = (next: WsRole) => {
+    const list = draft.roles || [];
+    edit({ ...draft, roles: list.some((r) => r.key === next.key) ? list.map((r) => (r.key === next.key ? next : r)) : [...list, next] });
+  };
   const drop = (module: WsModule, key: string) => edit(withoutItem(draft, module, key));
+  const addRole = () => {
+    const key = `cargo-novo-${Date.now().toString(36)}`;
+    putRole({ key, name: 'Novo cargo', description: '', modules: { dashboard: 'read', data: 'read' }, tables: [] });
+    setOpened((o) => ({ ...o, [`r:${key}`]: true }));
+  };
   const isOpen = (id: string, mark?: string) => opened[id] ?? (!!mark && mark !== 'removed');
   const toggle = (id: string, mark?: string) => setOpened((o) => ({ ...o, [id]: !isOpen(id, mark) }));
 
@@ -188,6 +224,7 @@ export function WorkspaceBuilder() {
     { key: 'tables', label: 'Tabelas', icon: Database, count: counts.tables },
     { key: 'dashboards', label: 'Painéis', icon: BarChart3, count: counts.dashboards },
     { key: 'pdfs', label: 'PDFs', icon: FileText, count: counts.pdfs },
+    { key: 'roles', label: 'Cargos', icon: ShieldCheck, count: roles.length },
     { key: 'changes', label: 'Mudanças', icon: ListChecks, count: changes.length },
     { key: 'history', label: 'Histórico', icon: History },
   ];
@@ -217,7 +254,7 @@ export function WorkspaceBuilder() {
 
       <AiWarnings warnings={result?.warnings ?? []} />
 
-      {(tab === 'tables' || tab === 'dashboards' || tab === 'pdfs') && (
+      {(tab === 'tables' || tab === 'dashboards' || tab === 'pdfs' || tab === 'roles') && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <span>Clique para abrir e mexer. O que muda fica marcado; nada é salvo antes de aplicar.</span>
           <span className="flex items-center gap-1">
@@ -316,6 +353,30 @@ export function WorkspaceBuilder() {
               onRestore={() => drop('pdf', p.key)}
               canRemove={!p.existing || can.pdfDelete}
               tableName={names[p.table] ?? p.table}
+            />
+          ))}
+        </div>
+      )}
+
+      {tab === 'roles' && (
+        <div className="space-y-2" data-testid="ws-roles">
+          {can.roleCreate && (
+            <Button variant="outline" size="sm" className="w-full border-dashed" onClick={addRole} data-testid="ws-add-role">
+              <Plus className="mr-1.5 h-4 w-4" /> Cargo novo (à mão)
+            </Button>
+          )}
+          {roles.filter((r) => marked(marks.roles?.[r.key])).map((r) => (
+            <RoleItem
+              key={r.key}
+              role={r}
+              mark={marks.roles?.[r.key]}
+              open={isOpen(`r:${r.key}`, marks.roles?.[r.key])}
+              onToggle={() => toggle(`r:${r.key}`, marks.roles?.[r.key])}
+              onChange={(next) => putRole(r.existing ? { ...next, existing: true } : next)}
+              onRemove={() => (r.existing ? putRole({ ...r, removed: true }) : drop('role', r.key))}
+              onRestore={() => drop('role', r.key)}
+              canRemove={!r.existing || (can.roleDelete && !r.system)}
+              tables={roleTables}
             />
           ))}
         </div>
@@ -462,7 +523,7 @@ function ChangeList({ changes, draft, onUndo, compact }: { changes: WsChange[]; 
   }
   const inDraft = (c: WsChange) => {
     if (!draft) return false;
-    const list = c.module === 'table' ? draft.tables : c.module === 'dashboard' ? draft.dashboards : draft.pdfs;
+    const list = c.module === 'table' ? draft.tables : c.module === 'dashboard' ? draft.dashboards : c.module === 'role' ? draft.roles || [] : draft.pdfs;
     return list.some((x) => x.key === c.key);
   };
   const mark = { create: 'new', update: 'changed', delete: 'removed' } as const;
