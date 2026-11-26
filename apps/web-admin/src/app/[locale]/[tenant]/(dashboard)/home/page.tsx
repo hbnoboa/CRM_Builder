@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useQuery } from '@tanstack/react-query';
-import { AlarmClock, ArrowRight, Clock, Database, Plus, ShieldCheck, TableProperties } from 'lucide-react';
+import { AlarmClock, ArrowRight, Clock, Database, Hammer, Plus, ShieldCheck, Sun, TableProperties } from 'lucide-react';
 import { Link } from '@/i18n/tenant-navigation';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -16,6 +16,10 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { OnboardingChecklist } from '@/components/subscription/subscription-widgets';
 import { HelpButton } from '@/components/help/help-button';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { WorkspaceBuilder } from '@/components/workspace/workspace-builder';
+
+const VIEW_KEY = 'home:view';
 
 interface HomeTable {
   slug: string;
@@ -94,6 +98,22 @@ export default function HomePage() {
   // Lancar agora: tabelas principais em que a pessoa pode criar (sub-tabelas nascem pelo registro pai)
   const quick = tables.filter((tb) => !tb.isSub && hasEntityPermission(tb.slug, 'canCreate')).slice(0, 4);
   const canCreateTable = hasModulePermission('entities', 'canCreate');
+  // Quem monta o sistema (tabelas, paineis ou PDFs) ganha a aba Construir
+  const canBuild = canAccessAdminArea && (['entities', 'dashboard', 'templates'] as const).some((m) =>
+    (['canCreate', 'canUpdate', 'canDelete'] as const).some((a) => hasModulePermission(m, a)));
+  const [chosen, setChosen] = useState<'today' | 'build' | null>(null);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_KEY);
+      if (saved === 'today' || saved === 'build') setChosen(saved);
+    } catch { /* sem armazenamento */ }
+  }, []);
+  // Sem escolha guardada: empresa sem tabelas comeca construindo
+  const view = !canBuild ? 'today' : chosen ?? (data && tables.length === 0 ? 'build' : 'today');
+  const choose = (v: 'today' | 'build') => {
+    setChosen(v);
+    try { localStorage.setItem(VIEW_KEY, v); } catch { /* sem armazenamento */ }
+  };
 
   return (
     <div className="space-y-8">
@@ -101,6 +121,26 @@ export default function HomePage() {
         <p className="text-sm text-muted-foreground first-letter:uppercase">{today}</p>
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">{t('greeting', { name: firstName })}<HelpButton topic="screen.home" /></h1>
       </div>
+
+      {canBuild && (
+        <div className="inline-flex rounded-lg bg-muted p-1" role="tablist" data-testid="home-views">
+          {([['today', Sun, t('tabToday')], ['build', Hammer, t('tabBuild')]] as const).map(([key, Icon, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => choose(key)}
+              className={cn('flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors', view === key ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground')}
+              data-testid={`home-view-${key}`}
+            >
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {view === 'build' ? <WorkspaceBuilder /> : (<>
 
       <OnboardingChecklist />
 
@@ -258,6 +298,7 @@ export default function HomePage() {
           <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
       )}
+      </>)}
     </div>
   );
 }

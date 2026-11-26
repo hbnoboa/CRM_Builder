@@ -12,7 +12,8 @@ export const AI_WIDGET_TYPES = [
 type AiWidgetType = (typeof AI_WIDGET_TYPES)[number];
 
 export interface AiWidgetProposal {
-  type: AiWidgetType;
+  /** 'keep': bloco de um painel que ja existe e que a IA nao sabe montar (fica como esta). */
+  type: AiWidgetType | 'keep';
   title: string;
   table: string;
   width?: number;
@@ -26,6 +27,8 @@ export interface AiWidgetProposal {
   columns?: string[];
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  /** Bloco de um painel que ja existe: id dele (sem mudanca, fica igual). */
+  ref?: string;
 }
 
 export interface AiDashboardProposal {
@@ -37,10 +40,10 @@ export interface AiDashboardProposal {
   tabs: Array<{ label: string; rows: AiWidgetProposal[][] }>;
 }
 
-const WIDGET_SCHEMA = {
+export const WIDGET_SCHEMA = {
   type: 'object',
   properties: {
-    type: { type: 'string', enum: [...AI_WIDGET_TYPES] },
+    type: { type: 'string', enum: [...AI_WIDGET_TYPES, 'keep'] },
     title: { type: 'string' },
     table: { type: 'string' },
     width: { type: 'integer', enum: [3, 4, 6, 8, 12] },
@@ -52,6 +55,7 @@ const WIDGET_SCHEMA = {
     columns: { type: 'array', items: { type: 'string' } },
     sortBy: { type: 'string' },
     sortOrder: { type: 'string', enum: ['asc', 'desc'] },
+    ref: { type: 'string' },
   },
   required: ['type', 'title', 'table'],
   additionalProperties: false,
@@ -252,8 +256,31 @@ function widgetConfig(w: AiWidgetProposal, table: SchemaTable): { config: Record
   }
 }
 
+/** Bloco de um painel que ja existe: volta igual se a IA nao mexer nele. */
+export interface KeptWidget {
+  type: string;
+  title: string;
+  config: Record<string, unknown>;
+  w: number;
+  h: number;
+  /** widgetSignature() do bloco como a IA o ve. */
+  signature: string;
+}
+
+/** O que define o bloco (sem titulo e largura): igual = nada mudou. */
+export function widgetSignature(w: Partial<AiWidgetProposal>): string {
+  const cols = Array.isArray(w.columns) ? w.columns : [];
+  return JSON.stringify([w.type, w.table ?? '', w.field ?? '', w.aggregation ?? '', w.groupBy ?? '', w.dateField ?? '', w.days ?? '', cols, w.sortBy ?? '', w.sortOrder ?? '']);
+}
+
 /** Valida e monta o painel real a partir da resposta da IA. */
-export function normalizeDashboard(raw: unknown, tables: SchemaTable[], roles: DashboardRole[]): NormalizedDashboard {
+export function normalizeDashboard(
+  raw: unknown,
+  tables: SchemaTable[],
+  roles: DashboardRole[],
+  /** Painel que ja existe: os blocos dele, pelo id (ref). */
+  kept?: Map<string, KeptWidget>,
+): NormalizedDashboard {
   const warnings: string[] = [];
   const input = (raw && typeof raw === 'object' ? raw : {}) as Partial<AiDashboardProposal>;
   const bySlug = new Map(tables.map((t) => [t.slug, t]));
@@ -268,8 +295,21 @@ export function normalizeDashboard(raw: unknown, tables: SchemaTable[], roles: D
   const tabs: DashboardPayload['tabs'] = [];
   const cleanTabs: AiDashboardProposal['tabs'] = [];
   let n = 0;
+  const usedIds = new Set<string>();
+  const newId = (type: string) => {
+    let id = `${type}-${++n}`;
+    while (usedIds.has(id) || kept?.has(id)) id = `${type}-${++n}`;
+    return id;
+  };
+  /** Bloco que ja existe e nao mudou (ou 'keep'): volta com a config original. */
+  const original = (w: Partial<AiWidgetProposal>): KeptWidget | undefined => {
+    const k = typeof w.ref === 'string' && !usedIds.has(w.ref) ? kept?.get(w.ref) : undefined;
+    if (!k) return undefined;
+    return w.type === 'keep' || widgetSignature(w) === k.signature ? k : undefined;
+  };
 
-  const rawTabs = (Array.isArray(input.tabs) ? input.tabs : []).slice(0, MAX_TABS);
+  // Painel que ja existe pode ter mais abas e blocos que o limite da IA: os dele ficam
+  const rawTabs = (Array.isArray(input.tabs) ? input.tabs : []).slice(0, kept?.size ? 20 : MAX_TABS);
   for (const [ti, tab] of rawTabs.entries()) {
     const label = clip(tab?.label, 40) || `Aba ${ti + 1}`;
     const tabId = `aba-${ti + 1}`;
@@ -283,18 +323,21 @@ export function normalizeDashboard(raw: unknown, tables: SchemaTable[], roles: D
       let line: AiWidgetProposal[] = [];
       let used = 0;
       for (const w of Array.isArray(row) ? row : []) {
+        const same = w ? original(w) : undefined;
         const type = (AI_WIDGET_TYPES as readonly string[]).includes(String(w?.type)) ? (w.type as AiWidgetType) : null;
-        if (!type) {
+        if (!type && !same) {
           warnings.push(`Bloco "${clip(w?.title, 40)}": tipo desconhecido, ficou de fora.`);
           continue;
         }
-        const width = WIDTHS.has(Number(w.width)) ? Number(w.width) : DEFAULT_WIDTH[type];
+        const width = WIDTHS.has(Number(w.width)) ? Number(w.width)
+          : same ? Math.min(12, Math.max(1, same.w))
+          : DEFAULT_WIDTH[type!];
         if (used + width > 12 && line.length) {
           queue.push(line);
           line = [];
           used = 0;
         }
-        line.push({ ...w, type, width });
+        line.push({ ...w, type: type ?? 'keep', width });
         used += width;
       }
       if (line.length) queue.push(line);
@@ -304,7 +347,22 @@ export function normalizeDashboard(raw: unknown, tables: SchemaTable[], roles: D
       const placed: Array<{ id: string; w: number; h: number }> = [];
       const cleanLine: AiWidgetProposal[] = [];
       for (const w of line) {
-        if (count >= MAX_WIDGETS_PER_TAB) break;
+        const same = original(w);
+        if (!same && count >= MAX_WIDGETS_PER_TAB) continue;
+        if (same) {
+          const id = w.ref!;
+          usedIds.add(id);
+          const title = clip(w.title, 60) || same.title;
+          widgets[id] = { type: same.type, title, config: same.config };
+          placed.push({ id, w: w.width!, h: same.h });
+          const { type: wType, table: wTable, field, aggregation, groupBy, dateField, days, columns, sortBy, sortOrder } = w;
+          cleanLine.push(JSON.parse(JSON.stringify({ type: wType, title, table: wTable, width: w.width, field, aggregation, groupBy, dateField, days, columns, sortBy, sortOrder, ref: id })) as AiWidgetProposal);
+          widgetIds.push(id);
+          count += 1;
+          continue;
+        }
+        if (w.type === 'keep') continue;
+        const wt = w.type as AiWidgetType;
         const title = clip(w.title, 60) || 'Bloco';
         const table = findTable(w.table) ?? main;
         if (!findTable(w.table)) warnings.push(`${title}: a tabela não foi encontrada; usei ${main.namePlural}.`);
@@ -313,10 +371,11 @@ export function normalizeDashboard(raw: unknown, tables: SchemaTable[], roles: D
           warnings.push(`${title}: ${table.namePlural} não tem um campo de lista de opções para isso; o bloco ficou de fora.`);
           continue;
         }
-        const id = `${w.type}-${++n}`;
-        widgets[id] = { type: w.type, title, config: built.config };
-        placed.push({ id, w: w.width!, h: HEIGHT[w.type] });
-        cleanLine.push({ type: w.type, title, table: table.slug, width: w.width, ...built.clean } as AiWidgetProposal);
+        const id = newId(wt);
+        usedIds.add(id);
+        widgets[id] = { type: wt, title, config: built.config };
+        placed.push({ id, w: w.width!, h: HEIGHT[wt] });
+        cleanLine.push({ type: wt, title, table: table.slug, width: w.width, ...built.clean } as AiWidgetProposal);
         widgetIds.push(id);
         count += 1;
       }

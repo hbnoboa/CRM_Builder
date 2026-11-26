@@ -275,7 +275,7 @@ export function isNarrowScreen(): boolean {
  * Conversa ao lado da proposta no computador; no celular, uma de cada vez
  * ("Conversa" / "Proposta"), indo para a proposta quando a IA responde.
  */
-export function AiBuilderLayout({ chat, preview, reply, hasResult, wide, forceTab }: {
+export function AiBuilderLayout({ chat, preview, reply, hasResult, wide, forceTab, previewLabel, previewAlways }: {
   chat: ReactNode;
   preview: ReactNode;
   /** Ultima resposta da IA, repetida acima da proposta no celular. */
@@ -285,6 +285,10 @@ export function AiBuilderLayout({ chat, preview, reply, hasResult, wide, forceTa
   wide?: boolean;
   /** Troca a aba do celular de fora (ex.: o tutorial mostrando a proposta). */
   forceTab?: { tab: 'chat' | 'preview'; n: number };
+  /** Nome da aba da proposta no celular (padrao "Proposta"). */
+  previewLabel?: string;
+  /** A aba da proposta ja abre antes da primeira resposta (construtor: o sistema todo). */
+  previewAlways?: boolean;
 }) {
   const [tab, setTab] = useState<'chat' | 'preview'>('chat');
   useEffect(() => {
@@ -301,11 +305,11 @@ export function AiBuilderLayout({ chat, preview, reply, hasResult, wide, forceTa
           <button
             key={t}
             type="button"
-            disabled={t === 'preview' && !hasResult}
+            disabled={t === 'preview' && !hasResult && !previewAlways}
             onClick={() => setTab(t)}
             className={cn('rounded-md py-2 text-sm font-medium transition-colors disabled:opacity-40', tab === t ? 'bg-background shadow-sm' : 'text-muted-foreground')}
           >
-            {t === 'chat' ? 'Conversa' : 'Proposta'}
+            {t === 'chat' ? 'Conversa' : previewLabel ?? 'Proposta'}
           </button>
         ))}
       </div>

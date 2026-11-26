@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import {
-  ArrowDown, ArrowUp, Database, Eye, EyeOff, GripVertical, HelpCircle, Link2, ListTree, Plus, Trash2, X, icons, type LucideIcon,
+  ArrowDown, ArrowUp, Database, Eye, EyeOff, GripVertical, HelpCircle, Link2, ListTree, Plus, Trash2, Undo2, X, icons, type LucideIcon,
 } from 'lucide-react';
 import type { Entity } from '@crm-builder/shared';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,19 @@ export const AI_COLORS: Record<string, string> = {
   blue: '#2563eb', green: '#16a34a', amber: '#d97706', red: '#dc2626', violet: '#7c3aed', orange: '#ea580c', teal: '#0d9488', gray: '#64748b',
 };
 const COLOR_NAMES = Object.keys(AI_COLORS);
+/** Nome da paleta ou cor ja gravada (#rrggbb). */
+const colorOf = (c: string | undefined, fallback: string) => AI_COLORS[c || ''] ?? (c?.startsWith('#') ? c : fallback);
+const MARK_LABEL = { new: 'novo', changed: 'alterado', removed: 'excluído' } as const;
+const MARK_CLASS = {
+  new: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  changed: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  removed: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300',
+} as const;
+
+export function MarkBadge({ mark, className }: { mark?: keyof typeof MARK_LABEL; className?: string }) {
+  if (!mark) return null;
+  return <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', MARK_CLASS[mark], className)} data-testid={`mark-${mark}`}>{MARK_LABEL[mark]}</span>;
+}
 const newKey = () => `campo_${Date.now().toString(36)}${Math.floor(Math.random() * 100)}`;
 
 interface EditableTableCardProps {
@@ -42,18 +55,32 @@ interface EditableTableCardProps {
   onRemove: () => void;
   /** Marca os elementos do tutorial (so na primeira tabela). */
   tour?: boolean;
+  /** Construtor: campos que ja existem (tipo travado; excluir so marca). */
+  existingKeys?: ReadonlySet<string>;
+  /** Construtor: o que mudou em cada campo. */
+  fieldMarks?: Record<string, keyof typeof MARK_LABEL>;
+  /** Construtor: tabelas que ja existem, para "lista dentro de". */
+  existingParents?: Record<string, string>;
+  removeLabel?: string;
+  canRemove?: boolean;
 }
 
 /**
  * Tabela proposta, editavel direto: nome, campos (nome, tipo, obrigatorio, ordem,
  * opcoes, ligacao), lista dentro de outra e ajustes. Nada e criado aqui.
  */
-export function EditableTableCard({ table, tables, names, existingNames, preview, onChange, onRemove, tour }: EditableTableCardProps) {
+export function EditableTableCard({
+  table, tables, names, existingNames, preview, onChange, onRemove, tour,
+  existingKeys, fieldMarks, existingParents, removeLabel, canRemove = true,
+}: EditableTableCardProps) {
   const [showForm, setShowForm] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [demoType, setDemoType] = useState<string | null>(null);
   const Icon = (icons as Record<string, LucideIcon>)[table.icon || ''] ?? Database;
-  const color = AI_COLORS[table.color || 'blue'] ?? AI_COLORS.blue;
+  const color = colorOf(table.color || 'blue', AI_COLORS.blue);
+  const isExisting = (key: string) => !!existingKeys?.has(key);
+  // Numa tabela que ja existe, "nenhum" precisa ir como '' (sem o ajuste = continua igual)
+  const none = table.existing ? '' : undefined;
   const children = tables.filter((t) => t.parentKey === table.key);
   const t = (attr: string) => (tour ? { 'data-tour': attr } : {});
 
@@ -69,6 +96,10 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
   };
   const removeField = (index: number) => {
     const key = table.fields[index].key;
+    if (isExisting(key)) {
+      setField(index, { removed: true });
+      return;
+    }
     set({
       fields: table.fields.filter((_, i) => i !== index),
       ...(table.titleField === key ? { titleField: undefined } : {}),
@@ -95,7 +126,7 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
     return { id: `ai-${table.key}`, slug: `__ai_${table.key}`, name: table.name, tenantId: '', fields, settings: preview.settings } as unknown as Entity;
   }, [preview, names, table.key, table.name]);
 
-  const pick = (types: string[]) => table.fields.filter((f) => types.includes(f.type));
+  const pick = (types: string[]) => table.fields.filter((f) => !f.removed && types.includes(f.type));
   const statusField = table.fields.find((f) => f.key === table.statusField);
 
   return (
@@ -128,11 +159,14 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
               <select
                 value={table.parentKey ?? ''}
                 onChange={(e) => set({ parentKey: e.target.value || undefined })}
-                className="h-7 rounded border bg-background px-1.5 text-xs"
+                className="h-7 rounded border bg-background px-1.5 text-xs disabled:opacity-70"
                 aria-label="Fica dentro de outra tabela"
+                disabled={table.existing}
+                title={table.existing ? 'Uma tabela que já existe não muda de lugar' : undefined}
               >
                 <option value="">Tabela principal</option>
                 {tables.filter((x) => x.key !== table.key).map((x) => <option key={x.key} value={x.key}>Lista dentro de {x.namePlural}</option>)}
+                {Object.entries(existingParents || {}).filter(([slug]) => slug !== table.key).map(([slug, name]) => <option key={slug} value={slug}>Lista dentro de {name}</option>)}
               </select>
             </div>
           </div>
@@ -141,9 +175,11 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
               {showForm ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
               {showForm ? 'Editar campos' : 'Ver formulário'}
             </Button>
-            <Button variant="ghost" size="sm" className="text-destructive" onClick={onRemove}>
-              <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Tirar tabela
-            </Button>
+            {canRemove && (
+              <Button variant="ghost" size="sm" className="text-destructive" onClick={onRemove} data-testid="table-remove">
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" /> {removeLabel ?? 'Tirar tabela'}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -158,6 +194,19 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
                 const kind = fieldKind(f.type);
                 const FieldIcon = kind.icon;
                 const first = tour && i === 0;
+                const locked = isExisting(f.key);
+                if (f.removed) {
+                  return (
+                    <li key={f.key} className="flex items-center gap-1.5 bg-red-50/60 px-2 py-2 dark:bg-red-950/20" data-testid="ai-field-removed">
+                      <FieldIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="flex-1 text-sm text-muted-foreground line-through">{f.label}</span>
+                      <MarkBadge mark="removed" />
+                      <Button size="sm" variant="ghost" className="h-7" onClick={() => setField(i, { removed: undefined })} data-testid="ai-field-restore">
+                        <Undo2 className="mr-1 h-3.5 w-3.5" /> Desfazer
+                      </Button>
+                    </li>
+                  );
+                }
                 return (
                   <li
                     key={f.key}
@@ -180,14 +229,18 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
                         data-testid="ai-field-label"
                         {...(first ? t('ai-field-name') : {})}
                       />
+                      <MarkBadge mark={fieldMarks?.[f.key]} />
                       <select
                         value={f.type}
                         onChange={(e) => changeType(i, e.target.value)}
-                        className="h-7 max-w-[10rem] rounded border bg-background px-1.5 text-xs"
+                        className="h-7 max-w-[10rem] rounded border bg-background px-1.5 text-xs disabled:opacity-70"
                         aria-label="Tipo do campo"
                         data-testid="ai-field-type"
+                        disabled={locked}
+                        title={locked ? 'O tipo de um campo que já tem dados não muda; crie outro campo' : undefined}
                         {...(first ? t('ai-field-type') : {})}
                       >
+                        {!TYPES.includes(f.type) && <option value={f.type}>{fieldKind(f.type).label}</option>}
                         {TYPES.map((type) => <option key={type} value={type}>{fieldKind(type).label}</option>)}
                       </select>
                       <button type="button" onClick={() => setDemoType(f.type)} className="text-muted-foreground hover:text-foreground" aria-label="Como esse tipo funciona">
@@ -224,7 +277,7 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
                                 setField(i, { options: (f.options || []).map((x, xi) => (xi === oi ? { ...x, color: next } : x)) });
                               }}
                               className="h-3.5 w-3.5 rounded-full border"
-                              style={{ backgroundColor: AI_COLORS[o.color || ''] ?? '#e5e7eb' }}
+                              style={{ backgroundColor: colorOf(o.color, '#e5e7eb') }}
                               aria-label="Trocar a cor"
                             />
                             <input
@@ -254,7 +307,8 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
                         <select
                           value={f.relatedTable ?? ''}
                           onChange={(e) => setField(i, { relatedTable: e.target.value })}
-                          className="h-7 rounded border bg-background px-1.5 text-xs"
+                          className="h-7 rounded border bg-background px-1.5 text-xs disabled:opacity-70"
+                          disabled={locked}
                         >
                           {tables.filter((x) => x.key !== table.key).map((x) => <option key={x.key} value={x.key}>{x.namePlural} (nova)</option>)}
                           {Object.entries(existingNames).map(([slug, name]) => <option key={slug} value={slug}>{name}</option>)}
@@ -284,11 +338,11 @@ export function EditableTableCard({ table, tables, names, existingNames, preview
             {/* Ajustes: o que identifica, situacao, prazo, responsavel */}
             <div className="grid gap-2 rounded-lg bg-muted/40 p-2.5 text-xs sm:grid-cols-2" {...t('ai-settings')}>
               <SettingSelect label="Identifica cada registro pelo" value={table.titleField} options={pick(['text', 'cpf', 'cnpj', 'email', 'phone', 'number'])}
-                onChange={(v) => set({ titleField: v })} />
+                onChange={(v) => set({ titleField: v ?? none })} />
               <SettingSelect label="Situação" value={table.statusField} options={pick(['select'])}
-                onChange={(v) => set({ statusField: v, doneOptions: undefined })} />
-              <SettingSelect label="Prazo" value={table.deadlineField} options={pick(['date', 'datetime'])} onChange={(v) => set({ deadlineField: v })} />
-              <SettingSelect label="Responsável" value={table.assigneeField} options={pick(['user-select'])} onChange={(v) => set({ assigneeField: v })} />
+                onChange={(v) => set({ statusField: v ?? none, doneOptions: table.existing ? [] : undefined })} />
+              <SettingSelect label="Prazo" value={table.deadlineField} options={pick(['date', 'datetime'])} onChange={(v) => set({ deadlineField: v ?? none })} />
+              <SettingSelect label="Responsável" value={table.assigneeField} options={pick(['user-select'])} onChange={(v) => set({ assigneeField: v ?? none })} />
               {statusField && (statusField.options || []).length > 0 && (
                 <div className="space-y-1 sm:col-span-2">
                   <p className="text-muted-foreground">Terminado quando a situação for:</p>

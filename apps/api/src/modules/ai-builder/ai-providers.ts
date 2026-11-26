@@ -4,7 +4,7 @@ import type { AiDashboardProposal } from './dashboard-proposal';
 import type { AiPdfProposal } from './pdf-proposal';
 import type { SchemaTable } from './tenant-schema';
 
-export type AiAssistantKind = 'tables' | 'dashboard' | 'pdf' | 'chat' | 'chat-text' | 'page';
+export type AiAssistantKind = 'tables' | 'dashboard' | 'pdf' | 'chat' | 'chat-text' | 'page' | 'workspace';
 
 /** Imagem enviada junto do pedido (modelo de pagina, por exemplo). */
 export interface AiImage {
@@ -53,6 +53,7 @@ export class MockAiProvider implements AiBuilderProvider {
 
   // eslint-disable-next-line @typescript-eslint/require-await
   async propose(input: AiProposeInput): Promise<AiProposeOutput> {
+    if (input.kind === 'workspace') return { output: mockWorkspace(input) };
     if (input.kind === 'dashboard') return { output: mockDashboard(input) };
     if (input.kind === 'page') return { output: mockPage(input) };
     if (input.kind === 'pdf') return { output: mockPdf(input) };
@@ -136,6 +137,38 @@ function mockChat({ lastMessage, tables }: AiProposeInput) {
   const sum = /^(resuma|escreva)\b.*?(\S+)$/i.exec(lastMessage);
   if (sum) return { reply: '', action: { type: /^resuma/i.test(lastMessage) ? 'summarize' : 'write', table: slug, record: sum[2], instruction: lastMessage } };
   return { reply: 'Posso contar, listar, criar ou alterar registros. Como ajudo?', action: { type: 'none' } };
+}
+
+/**
+ * Construtor de teste (sem rede): "exclua" tira a primeira tabela, "painel" cria um
+ * painel, "pdf" cria um PDF; o resto poe um campo Observações na primeira tabela.
+ */
+function mockWorkspace({ lastMessage, tables, current }: AiProposeInput) {
+  const m = lastMessage.toLowerCase();
+  const prev = (current || { tables: [], dashboards: [], pdfs: [] }) as { tables: unknown[]; dashboards: unknown[]; pdfs: unknown[] };
+  const main = tables.find((t) => !t.parentSlug) ?? tables[0];
+  const out = { reply: '', tables: [...prev.tables], dashboards: [...prev.dashboards], pdfs: [...prev.pdfs] };
+  if (!main) {
+    out.reply = 'Montei Clientes.';
+    out.tables.push({ key: 'clientes', name: 'Cliente', namePlural: 'Clientes', description: 'Quem você atende.', fields: [{ key: 'nome', label: 'Nome', type: 'text', required: true }] });
+  } else if (m.includes('exclu')) {
+    out.reply = `Vou excluir ${main.namePlural}.`;
+    out.tables.push({ key: main.slug, existing: true, removed: true, name: main.name, namePlural: main.namePlural, description: '', fields: [] });
+  } else if (m.includes('painel')) {
+    out.reply = `Montei um painel de ${main.namePlural}.`;
+    out.dashboards.push({
+      key: 'painel-novo-1', name: `Painel de ${main.namePlural}`, description: 'Números e a lista.', mainTable: main.slug,
+      tabs: [{ label: 'Visão geral', rows: [[{ type: 'kpi-card', title: 'Total', table: main.slug, width: 4, aggregation: 'count' }], [{ type: 'data-table', title: main.namePlural, table: main.slug, width: 12 }]] }],
+    });
+  } else if (m.includes('pdf')) {
+    out.reply = `Montei uma ficha de ${main.name}.`;
+    const simple = main.fields.filter((f) => !['sub-entity', 'section-title', 'image', 'file', 'signature'].includes(f.type)).slice(0, 4).map((f) => f.slug);
+    out.pdfs.push({ key: 'pdf-novo-1', name: `Ficha de ${main.name}`, description: 'Dados principais.', table: main.slug, title: main.name, sections: [{ kind: 'heading', title: 'Dados' }, { kind: 'fields', fields: simple, columns: 2 }] });
+  } else {
+    out.reply = `Coloquei o campo Observações em ${main.namePlural}. (${lastMessage.slice(0, 40)})`;
+    out.tables.push({ key: main.slug, existing: true, name: main.name, namePlural: main.namePlural, description: '', fields: [{ key: 'observacoes_ia', label: 'Observações', type: 'textarea' }] });
+  }
+  return out;
 }
 
 function mockDashboard({ current, tables }: AiProposeInput): AiDashboardProposal {
