@@ -125,6 +125,15 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     return this.status(user);
   }
 
+  /** Desconecta o iFood da empresa: desliga todas as lojas. */
+  async disconnect(user: CurrentUser) {
+    const tenantId = getEffectiveTenantId(user);
+    const cfg = await this.delivery.config(tenantId);
+    for (const l of Object.values(cfg?.ifood?.merchants ?? {})) await this.unlink(user, l.storeId);
+    if (cfg?.ifood) await this.delivery.saveConfig(tenantId, { ifood: undefined });
+    return this.status(user);
+  }
+
   async unlink(user: CurrentUser, storeId: string) {
     const tenantId = getEffectiveTenantId(user);
     const cfg = await this.delivery.config(tenantId);

@@ -109,6 +109,13 @@ export class DeliveryController {
     return this.ifood.link(user, dto.storeId, dto.merchantId);
   }
 
+  @Delete('ifood')
+  @ApiOperation({ summary: 'Desconecta o iFood da empresa (desliga todas as lojas)' })
+  ifoodDisconnect(@CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.ifood.disconnect(user);
+  }
+
   @Delete('ifood/link/:storeId')
   @ApiOperation({ summary: 'Desliga uma loja do iFood' })
   ifoodUnlink(@Param('storeId') storeId: string, @CurrentUser() user: CurrentUserType) {
