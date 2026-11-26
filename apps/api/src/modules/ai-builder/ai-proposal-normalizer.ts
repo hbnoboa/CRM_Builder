@@ -72,9 +72,9 @@ export interface NormalizedProposal {
 
 export const MAX_TABLES = 8;
 export const MAX_FIELDS = 40;
-const RESERVED = new Set(['id', 'createdat', 'updatedat', 'deletedat', 'tenantid']);
-const FULL_WIDTH: ReadonlySet<string> = new Set(['textarea', 'section-title', 'signature', 'map', 'sub-entity']);
-const CHOICE: ReadonlySet<string> = new Set(['select', 'multiselect']);
+export const RESERVED = new Set(['id', 'createdat', 'updatedat', 'deletedat', 'tenantid']);
+export const FULL_WIDTH: ReadonlySet<string> = new Set(['textarea', 'section-title', 'signature', 'map', 'sub-entity']);
+export const CHOICE: ReadonlySet<string> = new Set(['select', 'multiselect']);
 
 export function slugify(text: string, sep: '-' | '_'): string {
   return String(text ?? '')
@@ -86,28 +86,28 @@ export function slugify(text: string, sep: '-' | '_'): string {
     .slice(0, 40);
 }
 
-function uniqueKey(base: string, taken: Set<string>, sep: string): string {
+export function uniqueKey(base: string, taken: Set<string>, sep: string): string {
   let key = base;
   for (let i = 2; taken.has(key) || RESERVED.has(key.toLowerCase()); i++) key = `${base}${sep}${i}`;
   taken.add(key);
   return key;
 }
 
-const clip = (s: unknown, max: number): string => String(s ?? '').trim().slice(0, max);
+export const clip = (s: unknown, max: number): string => String(s ?? '').trim().slice(0, max);
 const isColor = (c: unknown): c is AiColor => typeof c === 'string' && c in AI_COLORS;
 const isType = (t: unknown): t is AiFieldType => (AI_FIELD_TYPES as readonly string[]).includes(String(t));
 
-/** Distribui os campos em linhas de 12 colunas, na ordem. */
-function layout(fields: Array<Omit<NormalizedField, 'gridRow' | 'gridColStart' | 'gridColSpan'> & { span: number }>): NormalizedField[] {
-  const out: NormalizedField[] = [];
-  let row = 1;
+/** Distribui os campos em linhas de 12 colunas, na ordem (a partir da linha startRow). */
+export function layout<T extends object>(fields: Array<T & { span: number }>, startRow = 1): Array<T & { gridRow: number; gridColStart: number; gridColSpan: number }> {
+  const out: Array<T & { gridRow: number; gridColStart: number; gridColSpan: number }> = [];
+  let row = startRow;
   let used = 0;
   for (const { span, ...f } of fields) {
     if (used > 0 && used + span > 12) {
       row += 1;
       used = 0;
     }
-    out.push({ ...f, gridRow: row, gridColStart: used + 1, gridColSpan: span });
+    out.push({ ...(f as unknown as T), gridRow: row, gridColStart: used + 1, gridColSpan: span });
     used += span;
     if (used >= 12) {
       row += 1;

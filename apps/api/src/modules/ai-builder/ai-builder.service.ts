@@ -58,7 +58,8 @@ export class AiBuilderService {
   }
 
   /** Chama a IA (so estrutura + conversa) e registra so metadados. */
-  private async ask(
+  /** Usado tambem pelo construtor da tela inicial (ai-workspace.service). */
+  async ask(
     kind: AiAssistantKind,
     tenantId: string,
     system: string,
