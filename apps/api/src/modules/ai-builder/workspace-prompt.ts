@@ -2,6 +2,7 @@ import { AI_COLORS, AI_FIELD_TYPES, AI_ICONS, AI_WIDTHS } from './ai-builder.sch
 import { WIDGET_SCHEMA } from './dashboard-proposal';
 import { AI_PDF_JSON_SCHEMA } from './pdf-proposal';
 import { FILTER_OPERATORS, MODULE_LABEL, ROLE_MODULES } from './workspace-roles';
+import { AUTOMATION_ACTIONS, AUTOMATION_EVENTS, AUTOMATION_OPERATORS } from './workspace-automations';
 
 /** Formato da resposta do construtor da tela inicial (ver workspace-draft.ts). */
 
@@ -182,6 +183,52 @@ const ROLE = {
   additionalProperties: false,
 };
 
+const SCALAR = { type: ['string', 'number', 'boolean'] };
+
+const AUTOMATION = {
+  type: 'object',
+  properties: {
+    key: { type: 'string', description: 'automação que já existe: o id dela; nova: automacao-nova-1...' },
+    existing: { type: 'boolean' },
+    removed: { type: 'boolean' },
+    undo: { type: 'boolean', description: 'true = desfazer a mudança deste item no rascunho' },
+    name: { type: 'string' },
+    table: { type: 'string', description: 'identificador da tabela (ou key de tabela nova)' },
+    active: { type: 'boolean' },
+    when: {
+      type: 'object',
+      properties: { event: { type: 'string', enum: [...AUTOMATION_EVENTS] }, field: { type: 'string' }, to: SCALAR },
+      required: ['event'],
+      additionalProperties: false,
+    },
+    conditions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { field: { type: 'string' }, operator: { type: 'string', enum: [...AUTOMATION_OPERATORS] }, value: SCALAR },
+        required: ['field', 'operator'],
+        additionalProperties: false,
+      },
+    },
+    actions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: [...AUTOMATION_ACTIONS] },
+          person: { type: 'string' }, title: { type: 'string' }, message: { type: 'string' },
+          to: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string' },
+          field: { type: 'string' }, value: SCALAR, url: { type: 'string' }, ref: { type: 'integer' },
+        },
+        required: ['type'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['key', 'name', 'table', 'when', 'actions'],
+  additionalProperties: false,
+};
+
 export const AI_WORKSPACE_JSON_SCHEMA = {
   type: 'object',
   properties: {
@@ -191,12 +238,13 @@ export const AI_WORKSPACE_JSON_SCHEMA = {
     dashboards: { type: 'array', items: DASHBOARD },
     pdfs: { type: 'array', items: PDF },
     roles: { type: 'array', items: ROLE },
+    automations: { type: 'array', items: AUTOMATION },
   },
-  required: ['reply', 'tables', 'dashboards', 'pdfs', 'roles'],
+  required: ['reply', 'tables', 'dashboards', 'pdfs', 'roles', 'automations'],
   additionalProperties: false,
 };
 
-export const AI_WORKSPACE_SYSTEM_PROMPT = `Você é o assistente do CRM Builder que monta e ajusta o sistema de uma empresa brasileira: TABELAS (cadastros e formulários, com as regras dos campos), PAINÉIS (números, gráficos e listas), MODELOS DE PDF (relatórios, laudos, fichas) e CARGOS (quem pode ver e fazer o quê). Quem conversa com você NÃO é programador: é dono ou gestor de um negócio.
+export const AI_WORKSPACE_SYSTEM_PROMPT = `Você é o assistente do CRM Builder que monta e ajusta o sistema de uma empresa brasileira: TABELAS (cadastros e formulários, com as regras dos campos), PAINÉIS (números, gráficos e listas), MODELOS DE PDF (relatórios, laudos, fichas), CARGOS (quem pode ver e fazer o quê) e AUTOMAÇÕES (o sistema fazer algo sozinho). Quem conversa com você NÃO é programador: é dono ou gestor de um negócio.
 
 Você recebe o que já existe na empresa e um RASCUNHO com as mudanças combinadas até agora. Devolva o rascunho atualizado. Nada é aplicado por você: a pessoa revisa cada mudança na tela e aperta "Aplicar".
 
@@ -244,6 +292,18 @@ CARGOS (quem pode ver e fazer o quê):
 - Cargo que já existe: existing=true, key = id, e só o que muda (partes citadas em "modules", tabelas citadas em "tables"; o resto fica igual). Para tirar a regra de uma tabela: a regra com "removed": true.
 - Cargo com "locked": true é do nível de quem pede ou acima: não mude e explique na "reply".
 - Excluir cargo com "people" > 0: avise que é preciso trocar o cargo dessas pessoas antes.
+
+AUTOMAÇÕES (o sistema faz algo sozinho numa tabela):
+- "when.event": created (registro criado), updated (alterado), deleted (excluído), field_changed (um campo mudou: "field" e, se for para um valor certo, "to"), manual (botão no registro), keep (automação que já existe: o gatilho fica como está).
+- "conditions": só roda quando... {"field", "operator": equals | not_equals | contains | gt | lt | is_empty | is_not_empty, "value"}.
+- "actions", em ordem:
+  • notify: aviso no sino e no app. "person" = o nome que a pessoa falou (o sistema acha na equipe) ou o código que já estava; vazio = avisa quem fez a alteração. "title" e "message".
+  • email: "to" = e-mail ou {{record.<campo de e-mail>}}, "subject", "body".
+  • set_field: "field" e "value" ({{today}} = data de hoje, {{now}} = data e hora, nome da opção, Sim/Não, texto).
+  • webhook: "url" https de outro sistema (recebe os dados do registro).
+- Textos podem usar {{record.<campo>}} (valor do registro) e {{user.name}} (quem fez).
+- Automação que já existe: mande inteira, com as ações que ficam com o mesmo "ref"; ação "keep" é avançada: mantenha com o mesmo "ref".
+- Não invente pessoas nem e-mails: use o que a pessoa disse; se faltar, pergunte na "reply".
 
 CONVERSA:
 - Se o pedido for vago, faça uma primeira versão razoável e, na "reply", no máximo 2 perguntas curtas.

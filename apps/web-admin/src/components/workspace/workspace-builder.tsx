@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, BarChart3, Check, Database, FileText, History, ListChecks, Loader2, Lock, Plus, RotateCcw, ShieldCheck, Sparkles, Trash2, Undo2,
+  AlertTriangle, BarChart3, Check, Database, FileText, History, ListChecks, Loader2, Lock, Plus, RotateCcw, ShieldCheck, Sparkles, Trash2, Undo2, Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -20,10 +20,11 @@ import type { EntityField } from '@/types';
 import type { AiPreviewTable } from '@/hooks/use-ai-builder';
 import {
   EMPTY_DRAFT, EMPTY_MARKS, previewWorkspace, useWorkspaceApply, useWorkspaceHistory, useWorkspaceState,
-  type WorkspaceDraft, type WorkspaceResult, type WsChange, type WsDashboard, type WsModule, type WsPdf, type WsRole, type WsTable,
+  type WorkspaceDraft, type WorkspaceResult, type WsChange, type WsDashboard, type WsAutomation, type WsModule, type WsPdf, type WsRole, type WsTable,
 } from '@/hooks/use-workspace';
 import { DashboardItem, ItemShell, PdfItem } from './workspace-parts';
 import { RoleItem, type RoleTableInfo } from './workspace-roles';
+import { AutomationItem } from './workspace-automations';
 
 const EXAMPLES = [
   'Quero controlar as vistorias de veículos, com fotos, não conformidades e um laudo em PDF.',
@@ -31,12 +32,13 @@ const EXAMPLES = [
   'Monte um painel com os números do dia e o que está atrasado.',
   'Crie o cargo Supervisor: vê os veículos e as não conformidades, mas não exclui nada.',
   'Deixe o campo Motivo obrigatório quando a situação for Reprovado.',
+  'Quando uma não conformidade grave for criada, avise o gerente.',
 ];
 const MAX_UNDO = 30;
-type Tab = 'tables' | 'dashboards' | 'pdfs' | 'roles' | 'changes' | 'history';
+type Tab = 'tables' | 'dashboards' | 'pdfs' | 'roles' | 'automations' | 'changes' | 'history';
 const BLANK: WorkspaceResult = { reply: '', warnings: [], proposal: EMPTY_DRAFT as unknown as Record<string, unknown>, changes: [], marks: EMPTY_MARKS, preview: { tables: [], dashboards: {}, pdfs: {} } };
 const KIND_LABEL = { create: 'Criar', update: 'Alterar', delete: 'Excluir' } as const;
-const MODULE_LABEL: Record<WsModule, string> = { table: 'Tabela', dashboard: 'Painel', pdf: 'PDF', role: 'Cargo' };
+const MODULE_LABEL: Record<WsModule, string> = { table: 'Tabela', dashboard: 'Painel', pdf: 'PDF', role: 'Cargo', automation: 'Automação' };
 const newTableKey = () => `tabela-${Date.now().toString(36)}`;
 
 /** Tira do rascunho o item (desfaz a mudanca dele). */
@@ -46,6 +48,7 @@ function withoutItem(draft: WorkspaceDraft, module: WsModule, key: string): Work
   }
   if (module === 'dashboard') return { ...draft, dashboards: draft.dashboards.filter((d) => d.key !== key) };
   if (module === 'role') return { ...draft, roles: (draft.roles || []).filter((r) => r.key !== key) };
+  if (module === 'automation') return { ...draft, automations: (draft.automations || []).filter((a) => a.key !== key) };
   return { ...draft, pdfs: draft.pdfs.filter((p) => p.key !== key) };
 }
 
@@ -80,6 +83,8 @@ export function WorkspaceBuilder() {
     pdfDelete: hasModulePermission('templates', 'canDelete'),
     roleDelete: hasModulePermission('roles', 'canDelete'),
     roleCreate: hasModulePermission('roles', 'canCreate'),
+    automationDelete: hasModulePermission('automations', 'canDelete'),
+    automationCreate: hasModulePermission('automations', 'canCreate'),
   };
 
   /** Mexida a mao: aparece na hora e o servidor confere logo depois (sem IA). */
@@ -163,6 +168,12 @@ export function WorkspaceBuilder() {
     return out;
   }, [tables, previews]);
 
+  const automations = useMemo(() => {
+    const list = draft.automations || [];
+    const byKey = new Map(list.map((a) => [a.key, a]));
+    return [...list.filter((a) => !a.existing), ...(state?.automations ?? []).map((b) => byKey.get(b.key) ?? b)];
+  }, [draft.automations, state?.automations]);
+
   // ── Mudancas no rascunho ──
   const putTable = (next: WsTable) => edit({ ...draft, tables: draft.tables.some((t) => t.key === next.key) ? draft.tables.map((t) => (t.key === next.key ? next : t)) : [...draft.tables, next] });
   const putDashboard = (next: WsDashboard) => edit({ ...draft, dashboards: draft.dashboards.some((d) => d.key === next.key) ? draft.dashboards.map((d) => (d.key === next.key ? next : d)) : [...draft.dashboards, next] });
@@ -172,6 +183,17 @@ export function WorkspaceBuilder() {
     edit({ ...draft, roles: list.some((r) => r.key === next.key) ? list.map((r) => (r.key === next.key ? next : r)) : [...list, next] });
   };
   const drop = (module: WsModule, key: string) => edit(withoutItem(draft, module, key));
+  const putAutomation = (next: WsAutomation) => {
+    const list = draft.automations || [];
+    edit({ ...draft, automations: list.some((a) => a.key === next.key) ? list.map((a) => (a.key === next.key ? next : a)) : [...list, next] });
+  };
+  const addAutomation = () => {
+    const key = `automacao-nova-${Date.now().toString(36)}`;
+    const table = Object.keys(roleTables)[0];
+    if (!table) return;
+    putAutomation({ key, name: 'Nova automação', table, active: true, when: { event: 'created' }, conditions: [], actions: [{ type: 'notify', person: '', title: '', message: '' }] });
+    setOpened((o) => ({ ...o, [`a:${key}`]: true }));
+  };
   const addRole = () => {
     const key = `cargo-novo-${Date.now().toString(36)}`;
     putRole({ key, name: 'Novo cargo', description: '', modules: { dashboard: 'read', data: 'read' }, tables: [] });
@@ -225,6 +247,7 @@ export function WorkspaceBuilder() {
     { key: 'dashboards', label: 'Painéis', icon: BarChart3, count: counts.dashboards },
     { key: 'pdfs', label: 'PDFs', icon: FileText, count: counts.pdfs },
     { key: 'roles', label: 'Cargos', icon: ShieldCheck, count: roles.length },
+    { key: 'automations', label: 'Automações', icon: Zap, count: automations.length },
     { key: 'changes', label: 'Mudanças', icon: ListChecks, count: changes.length },
     { key: 'history', label: 'Histórico', icon: History },
   ];
@@ -254,7 +277,7 @@ export function WorkspaceBuilder() {
 
       <AiWarnings warnings={result?.warnings ?? []} />
 
-      {(tab === 'tables' || tab === 'dashboards' || tab === 'pdfs' || tab === 'roles') && (
+      {(tab === 'tables' || tab === 'dashboards' || tab === 'pdfs' || tab === 'roles' || tab === 'automations') && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <span>Clique para abrir e mexer. O que muda fica marcado; nada é salvo antes de aplicar.</span>
           <span className="flex items-center gap-1">
@@ -377,6 +400,32 @@ export function WorkspaceBuilder() {
               onRestore={() => drop('role', r.key)}
               canRemove={!r.existing || (can.roleDelete && !r.system)}
               tables={roleTables}
+            />
+          ))}
+        </div>
+      )}
+
+      {tab === 'automations' && (
+        <div className="space-y-2" data-testid="ws-automations">
+          {can.automationCreate && (
+            <Button variant="outline" size="sm" className="w-full border-dashed" onClick={addAutomation} disabled={Object.keys(roleTables).length === 0} data-testid="ws-add-automation">
+              <Plus className="mr-1.5 h-4 w-4" /> Automação nova (à mão)
+            </Button>
+          )}
+          {automations.length === 0 && <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Nenhuma automação ainda. Peça na conversa: &quot;quando um veículo for concluído, avise o gerente&quot;.</p>}
+          {automations.filter((a) => marked(marks.automations?.[a.key])).map((a) => (
+            <AutomationItem
+              key={a.key}
+              automation={a}
+              mark={marks.automations?.[a.key]}
+              open={isOpen(`a:${a.key}`, marks.automations?.[a.key])}
+              onToggle={() => toggle(`a:${a.key}`, marks.automations?.[a.key])}
+              onChange={(next) => putAutomation(a.existing ? { ...next, existing: true } : next)}
+              onRemove={() => (a.existing ? putAutomation({ ...a, removed: true }) : drop('automation', a.key))}
+              onRestore={() => drop('automation', a.key)}
+              canRemove={!a.existing || can.automationDelete}
+              tables={roleTables}
+              people={state.people ?? []}
             />
           ))}
         </div>
@@ -523,7 +572,7 @@ function ChangeList({ changes, draft, onUndo, compact }: { changes: WsChange[]; 
   }
   const inDraft = (c: WsChange) => {
     if (!draft) return false;
-    const list = c.module === 'table' ? draft.tables : c.module === 'dashboard' ? draft.dashboards : c.module === 'role' ? draft.roles || [] : draft.pdfs;
+    const list = c.module === 'table' ? draft.tables : c.module === 'dashboard' ? draft.dashboards : c.module === 'role' ? draft.roles || [] : c.module === 'automation' ? draft.automations || [] : draft.pdfs;
     return list.some((x) => x.key === c.key);
   };
   const mark = { create: 'new', update: 'changed', delete: 'removed' } as const;
