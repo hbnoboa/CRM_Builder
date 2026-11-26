@@ -107,9 +107,20 @@ interface EntityField {
   relatedDisplayField?: string;
 }
 
+export type RecordUpdateListener = (change: {
+  tenantId: string; entity: Entity; recordId: string;
+  previous: Record<string, unknown>; current: Record<string, unknown>; user: CurrentUser;
+}) => unknown;
+
 @Injectable()
 export class DataService {
   private readonly logger = new Logger(DataService.name);
+  private readonly updateListeners: RecordUpdateListener[] = [];
+
+  /** Avisa outro modulo quando uma pessoa altera um registro (ex.: pedido do iFood aceito no painel). */
+  onRecordUpdated(listener: RecordUpdateListener) {
+    this.updateListeners.push(listener);
+  }
 
   constructor(
     private prisma: PrismaService,
@@ -1404,7 +1415,11 @@ export class DataService {
   }
 
   /** Alteracao vinda do link de acompanhamento (ex.: cliente enviou um documento). */
-  async updateFromSite(entity: Entity, recordId: string, patch: Record<string, unknown>, actorName: string): Promise<EntityData> {
+  async updateFromSite(
+    entity: Entity, recordId: string, patch: Record<string, unknown>, actorName: string,
+    /** notify=false: sem o aviso "fulano alterou" (ex.: situacao que muda sozinha no app de delivery). */
+    options: { notify?: boolean } = {},
+  ): Promise<EntityData> {
     const tenantId = entity.tenantId;
     const actor = { id: null, tenantId, name: actorName, email: '' } as unknown as CurrentUser;
     const current = await this.prisma.entityData.findFirst({ where: { id: recordId, tenantId, entityId: entity.id, deletedAt: null } });
@@ -1422,10 +1437,12 @@ export class DataService {
     this.materializer.materialize(entity as any, updated).catch((err) => this.logger.error(`Erro ao materializar computed fields: ${err.message}`));
 
     const titleField = settings?.titleField || 'nome';
-    this.notificationService.notifyRecordUpdated(
-      tenantId, entity.name, String(merged[titleField] || recordId), actorName, entity.slug, merged,
-      { actorId: undefined as unknown as string, creatorId: current.createdById },
-    ).catch((err) => this.logger.error('Failed to send notification', err));
+    if (options.notify !== false) {
+      this.notificationService.notifyRecordUpdated(
+        tenantId, entity.name, String(merged[titleField] || recordId), actorName, entity.slug, merged,
+        { actorId: undefined as unknown as string, creatorId: current.createdById },
+      ).catch((err) => this.logger.error('Failed to send notification', err));
+    }
     this.auditService.log(actor, {
       action: 'update', resource: 'entity_data', resourceId: recordId, oldData: previousData, newData: merged,
       metadata: { entitySlug: entity.slug, entityId: entity.id, source: 'site', actorName },
@@ -1620,6 +1637,11 @@ export class DataService {
         hasStatusChange = true;
         break;
       }
+    }
+
+    for (const listener of this.updateListeners) {
+      Promise.resolve(listener({ tenantId: effectiveTenantId, entity, recordId: updatedRecord.id, previous: previousData, current: mergedData as Record<string, unknown>, user: currentUser }))
+        .catch((err) => this.logger.error(`Erro no ouvinte de alteracao: ${(err as Error).message}`));
     }
 
     this.triggerAutomations(

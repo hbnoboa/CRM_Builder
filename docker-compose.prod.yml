@@ -246,6 +246,11 @@ services:
       AI_BUILDER_PROVIDER: ${AI_BUILDER_PROVIDER_DEV:-}
       AI_BRIDGE_URL: ${AI_BRIDGE_URL_DEV:-}
       AI_BRIDGE_TOKEN: ${AI_BRIDGE_TOKEN_DEV:-}
+      # Conector do iFood (aplicativo centralizado da IOS System no portal de desenvolvedores).
+      # Sem as duas variaveis o conector fica desligado. Um ambiente por credencial: dois
+      # servidores lendo a mesma fila de eventos dividem os pedidos entre si.
+      IFOOD_CLIENT_ID: ${IFOOD_CLIENT_ID_DEV:-}
+      IFOOD_CLIENT_SECRET: ${IFOOD_CLIENT_SECRET_DEV:-}
       # Paginas para clientes no subdominio (ex.: https://{empresa}.dev.iossystem.com.br).
       # Vazio = endereco /p/<empresa>/<pagina>. Ver docs/paginas-para-clientes.md
       SITE_PAGES_BASE_URL: ${SITE_PAGES_BASE_URL_DEV:-}
