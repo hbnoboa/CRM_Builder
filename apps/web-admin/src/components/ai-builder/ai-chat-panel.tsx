@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import api from '@/lib/api';
 import { getErrorMessage } from '@/lib/get-error-message';
 import { cn } from '@/lib/utils';
+import { VoiceButton } from '@/components/voice/voice-button';
 import type { AiChatMessage } from '@/hooks/use-ai-builder';
 
 /**
@@ -213,6 +214,7 @@ export function AiChatPanel({ messages, pending, hasResult, onSend, subtitle, ex
               <Lock className="h-3 w-3" /> {privacyNote ?? 'A IA vê só os nomes das tabelas e campos, nunca os seus registros.'}
             </p>
             <span className={cn('flex shrink-0 items-center gap-1.5', allowImages && 'justify-end')}>
+              <VoiceButton value={input} onChange={setInput} disabled={pending || disabled} />
               {allowImages && (
                 <>
                   <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple className="hidden" data-testid="ai-image-input"
