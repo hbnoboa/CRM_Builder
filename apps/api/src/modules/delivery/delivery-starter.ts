@@ -45,10 +45,10 @@ export function deliveryStarterDraft(stores: string[]) {
         fields: [
           { key: 'nome', label: 'Nome', type: 'text', required: true, width: 'half' },
           { key: 'telefone', label: 'Telefone', type: 'phone', width: 'quarter' },
-          { key: 'ativa', label: 'Recebendo pedidos', type: 'boolean', width: 'quarter' },
+          { key: 'ativa', label: 'Loja ativa', type: 'boolean', width: 'quarter', helpText: 'Só marca aqui no sistema: não pausa a loja no iFood nem na 99Food.' },
           { key: 'endereco', label: 'Endereço', type: 'text', width: 'full' },
-          { key: 'ifood_id', label: 'Código no iFood', type: 'text', width: 'half', helpText: 'Usado pela integração com o iFood.' },
-          { key: 'food99_id', label: 'Código na 99Food', type: 'text', width: 'half', helpText: 'Usado pela integração com a 99Food.' },
+          { key: 'ifood_id', label: 'Código no iFood', type: 'text', width: 'half', helpText: 'Preenchido ao conectar a loja em Integrações → Apps conectados → iFood.' },
+          { key: 'food99_id', label: 'Código na 99Food', type: 'text', width: 'half', helpText: 'Preenchido ao conectar a loja em Integrações → Apps conectados → 99Food.' },
         ],
       },
       {

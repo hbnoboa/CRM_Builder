@@ -25,7 +25,7 @@ interface DeliveryStatus {
   defaultStores?: string[];
   tables?: { stores: string; menu: string; orders: string; items: string };
   dashboardId?: string | null;
-  stores?: Array<{ id: string; name: string; active: boolean; ifoodId: string; food99Id: string }>;
+  stores?: Array<{ id: string; name: string }>;
   connectors?: { ifood: string; food99: string };
   demo?: { until: string; every: number } | null;
 }
@@ -137,7 +137,7 @@ export function ConnectedAppsPanel() {
   );
 }
 
-/** Central de pedidos: montar, lojas e pedidos de demonstracao. */
+/** Central de pedidos: montar, abrir e pedidos de demonstracao. */
 function DeliveryCenter() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({ queryKey: KEY, queryFn: async () => (await api.get<DeliveryStatus>('/delivery')).data });
@@ -209,34 +209,20 @@ function DeliveryCenter() {
             <p className="font-medium">Central de pedidos</p>
             <p className="text-sm text-muted-foreground">Pedidos ao vivo de {data.stores?.length ?? 0} lojas, com som quando chega pedido novo.</p>
           </div>
-          <Button asChild><Link href={panelHref}><ExternalLink className="mr-1.5 h-4 w-4" />Abrir a central</Link></Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild variant="outline"><Link href={`/data?entity=${data.tables!.stores}`}><Store className="mr-1.5 h-4 w-4" />Editar as lojas</Link></Button>
+            <Button asChild><Link href={panelHref}><ExternalLink className="mr-1.5 h-4 w-4" />Abrir a central</Link></Button>
+          </div>
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base"><Store className="h-4 w-4" /> Lojas</CardTitle>
-          <CardDescription>Os códigos de cada loja nos apps entram na tabela Lojas e são usados pela integração.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="divide-y rounded-lg border text-sm" data-testid="delivery-store-list">
-            {(data.stores || []).map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
-                <span className="flex-1 font-medium">{s.name}</span>
-                <span className="text-xs text-muted-foreground">iFood: {s.ifoodId ? 'conectada' : '—'} · 99Food: {s.food99Id ? 'conectada' : '—'}</span>
-                {s.active ? <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3" /> recebendo</Badge> : <Badge variant="outline">pausada</Badge>}
-              </li>
-            ))}
-          </ul>
-          <Button asChild variant="link" className="px-0"><Link href={`/data?entity=${data.tables!.stores}`}>Editar as lojas</Link></Button>
-        </CardContent>
-      </Card>
-
 
       <Card data-testid="delivery-demo">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Demonstração</CardTitle>
-          <CardDescription>Pedidos de mentira, como se viessem do iFood, da 99Food ou do balcão, para mostrar o sistema funcionando.</CardDescription>
+          <CardDescription>
+            Pedidos de mentira, como se viessem do iFood, da 99Food ou do balcão, para mostrar o sistema funcionando.
+            Eles não vão para os apps: mudar a situação de um pedido de demonstração não avisa o iFood.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
           <Button variant="outline" onClick={() => void run('one', async () => (await api.post('/delivery/simulate', { count: 1 })).data, 'Pedido de teste enviado')} disabled={busy !== null} data-testid="delivery-simulate">

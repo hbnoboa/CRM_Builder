@@ -41,7 +41,7 @@ class IfoodLinkDto {
   merchantId!: string;
 }
 
-/** Apps de delivery (fase 1): modelo da central de pedidos e pedidos de demonstracao. */
+/** Apps conectados de delivery: central de pedidos, demonstracao e conector do iFood. */
 @ApiTags('Delivery')
 @Controller('delivery')
 @ServiceScope('admin')
