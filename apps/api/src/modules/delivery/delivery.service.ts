@@ -104,9 +104,14 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   async status(user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
     const cfg = await this.config(tenantId);
-    if (!cfg) return { configured: false, defaultStores: DEFAULT_STORES };
+    // O cartao do app mostra o estado mesmo antes de montar a central
+    const connectors = (c?: DeliveryConfig) => ({
+      ifood: !this.ifood.configured ? 'waiting-access' : Object.keys(c?.ifood?.merchants ?? {}).length ? 'connected' : 'ready',
+      food99: 'waiting-access',
+    });
+    if (!cfg) return { configured: false, defaultStores: DEFAULT_STORES, connectors: connectors() };
     const e = await this.entities(tenantId, cfg).catch(() => null);
-    if (!e) return { configured: false, broken: true, defaultStores: DEFAULT_STORES };
+    if (!e) return { configured: false, broken: true, defaultStores: DEFAULT_STORES, connectors: connectors() };
     // Lojas pelo cargo de quem pede (pipeline central de leitura)
     const { where } = await this.queryService.buildWhere({ entitySlug: e.stores.slug, user });
     const stores = await this.prisma.entityData.findMany({ where, select: { id: true, data: true }, orderBy: { createdAt: 'asc' }, take: 50 });
@@ -120,10 +125,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
         return { id: s.id, name: String(d.nome ?? ''), active: d.ativa !== false, ifoodId: String(d.ifood_id ?? ''), food99Id: String(d.food99_id ?? '') };
       }),
       // Conectores: iFood (fase 2) e 99Food (fase 3, ainda sem acesso)
-      connectors: {
-        ifood: !this.ifood.configured ? 'waiting-access' : Object.keys(cfg.ifood?.merchants ?? {}).length ? 'connected' : 'ready',
-        food99: 'waiting-access',
-      },
+      connectors: connectors(cfg),
       demo: demo ? { until: new Date(demo.until).toISOString(), every: demo.every } : null,
     };
   }
@@ -140,7 +142,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
 
     const result = await this.workspace.apply({
       proposal: deliveryStarterDraft(names) as unknown as Record<string, unknown>,
-      conversation: ['Montar a central de pedidos de delivery (Integrações → Apps de delivery)'],
+      conversation: ['Montar a central de pedidos de delivery (Integrações → Apps conectados)'],
     }, user);
     if (result.failed) throw new BadRequestException(`Não deu para montar: ${result.failed.name}: ${result.failed.message}`);
 

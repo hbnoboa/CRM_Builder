@@ -5,6 +5,8 @@ import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { DataService, type RecordUpdateListener } from '../data/data.service';
 import { NotificationService } from '../notification/notification.service';
+import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
+import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import { ORDER_STATUS } from './delivery-starter';
 import { DeliveryService, type DeliveryConfig, type DeliveryEntities, type IfoodLinks } from './delivery.service';
 import { IfoodClient, IfoodError, type IfoodEvent, type IfoodOrder } from './ifood.client';
@@ -27,6 +29,7 @@ const FROM_IFOOD: Record<string, Status> = {
   CAN: 'Cancelado',
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const rank = (s: string) => ORDER_STATUS.indexOf(s as Status);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) / 100 : undefined);
 
@@ -67,8 +70,8 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
   async status(user: CurrentUser) {
     const tenantId = getEffectiveTenantId(user);
     const cfg = await this.delivery.config(tenantId);
-    if (!cfg) return { available: this.client.configured, configured: false, stores: [] };
-    const e = await this.delivery.entities(tenantId, cfg);
+    const e = cfg ? await this.delivery.entities(tenantId, cfg).catch(() => null) : null;
+    if (!cfg || !e) return { available: this.client.configured, configured: false, stores: [] };
     const rows = await this.prisma.entityData.findMany({
       where: { tenantId, entityId: e.stores.id, deletedAt: null }, select: { id: true, data: true }, orderBy: { createdAt: 'asc' }, take: 50,
     });
@@ -122,6 +125,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     await this.prisma.entityData.update({
       where: { id: store.id }, data: { data: { ...(store.data as Record<string, unknown>), ifood_id: merchant.id } as Prisma.InputJsonValue },
     });
+    await this.ensureStoreOption(e, storeName);
     return this.status(user);
   }
 
@@ -141,7 +145,8 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     const merchants = Object.fromEntries(Object.entries(cfg.ifood.merchants).filter(([, l]) => l.storeId !== storeId));
     await this.delivery.saveConfig(tenantId, { ifood: { on: Object.keys(merchants).length > 0, merchants } });
     // Tira o codigo da tabela Lojas tambem (senao a loja continua parecendo ligada)
-    const e = await this.delivery.entities(tenantId, cfg);
+    const e = await this.delivery.entities(tenantId, cfg).catch(() => null);
+    if (!e) return this.status(user);
     const store = await this.prisma.entityData.findFirst({ where: { id: storeId, tenantId, entityId: e.stores.id, deletedAt: null } });
     if (store && (store.data as Record<string, unknown>).ifood_id) {
       const { ifood_id: _removed, ...rest } = store.data as Record<string, unknown>;
@@ -157,10 +162,10 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     const tenants = await this.prisma.tenant.findMany({
       where: { settings: { path: ['delivery', 'ifood', 'on'], equals: true } }, select: { id: true, settings: true },
     });
-    const map = new Map<string, { tenantId: string; store: string }>();
+    const map = new Map<string, { tenantId: string; storeId: string; store: string }>();
     for (const t of tenants) {
       const ifood = ((t.settings || {}) as { delivery?: DeliveryConfig }).delivery?.ifood as IfoodLinks | undefined;
-      for (const [merchantId, l] of Object.entries(ifood?.merchants ?? {})) map.set(merchantId, { tenantId: t.id, store: l.store });
+      for (const [merchantId, l] of Object.entries(ifood?.merchants ?? {})) map.set(merchantId, { tenantId: t.id, storeId: l.storeId, store: l.store });
     }
     return map;
   }
@@ -178,7 +183,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
           const link = ev.merchantId ? links.get(ev.merchantId) : undefined;
           try {
             this.logger.log(`iFood evento ${ev.code} pedido=${ev.orderId} loja=${ev.merchantId ?? '-'}`);
-            if (link) await this.handle(link.tenantId, link.store, ev);
+            if (link) await this.handle(link.tenantId, link.storeId, link.store, ev);
             done.push(ev.id);
             this.tries.delete(ev.id);
           } catch (err) {
@@ -207,7 +212,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  private async handle(tenantId: string, store: string, ev: IfoodEvent) {
+  private async handle(tenantId: string, storeId: string, savedStore: string, ev: IfoodEvent) {
     const cfg = await this.delivery.config(tenantId);
     if (!cfg) return;
     const e = await this.delivery.entities(tenantId, cfg);
@@ -219,6 +224,10 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       if (!status || status === 'Cancelado') return;
       const order = await this.client.order(ev.orderId);
       if (!order) throw new Error('pedido sem detalhes');
+      // Nome de agora (a loja pode ter sido renomeada depois de ligar)
+      const row = await this.prisma.entityData.findFirst({ where: { id: storeId, tenantId, entityId: e.stores.id, deletedAt: null }, select: { data: true } });
+      const store = String((row?.data as Record<string, unknown> | undefined)?.nome ?? savedStore);
+      await this.ensureStoreOption(e, store);
       await this.createOrder(e, order, store, status);
       return;
     }
@@ -305,6 +314,25 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Loja cadastrada depois de montar a central nao esta na lista "Loja" dos pedidos:
+   * entra na lista para o pedido nao chegar sem loja (e o filtro do atendente funcionar).
+   */
+  private async ensureStoreOption(e: DeliveryEntities, store: string) {
+    if (!store || this.storeLabels(e.orders).includes(store)) return;
+    const fields = ((e.orders.fields as unknown as Array<{ slug: string; options?: Array<string | { value: string; label: string; color?: string }> }>) || []).map((f) => ({ ...f }));
+    const field = fields.find((f) => f.slug === 'loja');
+    if (!field) return;
+    const options = (field.options || []).map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+    const base = slugify(store, '_') || 'loja';
+    let value = base;
+    for (let i = 2; options.some((o) => o.value === value); i++) value = `${base}_${i}`;
+    field.options = [...options, { value, label: store, color: '#64748b' }];
+    const updated = await this.prisma.entity.update({ where: { id: e.orders.id }, data: { fields: fields as unknown as Prisma.InputJsonValue } });
+    invalidateEntityQueryCache(e.orders.slug);
+    e.orders = updated;
+  }
+
   private storeLabels(entity: Entity): string[] {
     const f = ((entity.fields as unknown as Array<{ slug: string; options?: Array<string | { label: string }> }>) || []).find((x) => x.slug === 'loja');
     return (f?.options || []).map((x) => (typeof x === 'string' ? x : x.label));
@@ -318,7 +346,8 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     if (!cfg?.ifood?.on || entity.slug !== cfg.tables.orders) return;
     if (previous.situacao === current.situacao) return;
     const orderId = typeof current.codigo_app === 'string' ? current.codigo_app : '';
-    if (!orderId || this.label(entity as Entity, 'app', current.app) !== 'iFood') return;
+    // So pedido que veio do iFood (o codigo e um UUID); os de demonstracao tem codigo inventado
+    if (!UUID.test(orderId) || this.label(entity as Entity, 'app', current.app) !== 'iFood') return;
     const from = this.label(entity as Entity, 'situacao', previous.situacao);
     const to = this.label(entity as Entity, 'situacao', current.situacao);
 
