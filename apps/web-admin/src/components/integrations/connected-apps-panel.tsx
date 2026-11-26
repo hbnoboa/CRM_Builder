@@ -8,7 +8,11 @@ import { Link } from '@/i18n/tenant-navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -70,12 +74,16 @@ const STATE: Record<string, { label: string; icon: typeof Clock; variant: 'outli
 
 export function ConnectedAppsPanel() {
   const { data } = useQuery({ queryKey: KEY, queryFn: async () => (await api.get<DeliveryStatus>('/delivery')).data });
+  const [ifoodOpen, setIfoodOpen] = useState(false);
   return (
     <TooltipProvider>
       <div className="space-y-6" data-testid="connected-apps">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {APPS.map((app) => {
-            const state = STATE[data?.connectors?.[app.key as 'ifood' | 'food99'] ?? 'waiting-access'] ?? STATE['waiting-access'];
+            const key = data?.connectors?.[app.key as 'ifood' | 'food99'] ?? 'waiting-access';
+            const state = STATE[key] ?? STATE['waiting-access'];
+            // Por enquanto so o iFood tem conector; a 99Food entra na fase 3
+            const action = app.key === 'ifood' && key !== 'waiting-access' ? (key === 'connected' ? 'Gerenciar' : 'Conectar') : null;
             const Icon = state.icon;
             return (
             <Hint key={app.key} text={app.hover}>
@@ -88,6 +96,14 @@ export function ConnectedAppsPanel() {
                       <Badge variant={state.variant} className="gap-1 font-normal" data-testid={`app-state-${app.key}`}><Icon className="h-3 w-3" /> {state.label}</Badge>
                     </span>
                     <span className="block text-xs text-muted-foreground">{app.summary}</span>
+                    {action && (
+                      <Button
+                        size="sm" variant={key === 'connected' ? 'outline' : 'default'} className="mt-1 h-8"
+                        onClick={() => setIfoodOpen(true)} data-testid={`app-action-${app.key}`}
+                      >
+                        <Plug className="mr-1.5 h-4 w-4" /> {action}
+                      </Button>
+                    )}
                   </span>
                 </CardContent>
               </Card>
@@ -116,6 +132,7 @@ export function ConnectedAppsPanel() {
           <DeliveryCenter />
         </section>
       </div>
+      <IfoodDialog open={ifoodOpen} onOpenChange={setIfoodOpen} />
     </TooltipProvider>
   );
 }
@@ -215,7 +232,6 @@ function DeliveryCenter() {
         </CardContent>
       </Card>
 
-      {data.connectors?.ifood !== 'waiting-access' && <IfoodStores />}
 
       <Card data-testid="delivery-demo">
         <CardHeader className="pb-2">
@@ -256,19 +272,20 @@ function DeliveryCenter() {
   );
 }
 
-/** iFood: liga cada loja da central a uma loja do iFood pelo codigo da loja. */
-function IfoodStores() {
+/** iFood: liga cada loja da central a uma loja do iFood pelo codigo da loja, ou desconecta tudo. */
+function IfoodDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const queryClient = useQueryClient();
-  const { data } = useQuery({ queryKey: IFOOD_KEY, queryFn: async () => (await api.get<IfoodStatus>('/delivery/ifood')).data });
+  const { data } = useQuery({ queryKey: IFOOD_KEY, queryFn: async () => (await api.get<IfoodStatus>('/delivery/ifood')).data, enabled: open });
   const [codes, setCodes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const linked = (data?.stores ?? []).filter((s) => s.merchantId).length;
 
-  const save = async (storeId: string, call: () => Promise<IfoodStatus>, ok: string) => {
-    setBusy(storeId);
+  const save = async (key: string, call: () => Promise<IfoodStatus>, ok: string) => {
+    setBusy(key);
     try {
       queryClient.setQueryData(IFOOD_KEY, await call());
       void queryClient.invalidateQueries({ queryKey: KEY });
-      setCodes((c) => ({ ...c, [storeId]: '' }));
+      setCodes((c) => ({ ...c, [key]: '' }));
       toast.success(ok);
     } catch (error) {
       toast.error(getErrorMessage(error, 'Não deu certo. Tente de novo.'));
@@ -277,55 +294,92 @@ function IfoodStores() {
     }
   };
 
-  if (!data?.available) return null;
   return (
-    <Card data-testid="ifood-stores">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <span className="flex h-6 w-6 items-center justify-center rounded text-[10px] font-bold text-white" style={{ backgroundColor: '#ea1d2c' }}>iF</span>
-          Lojas no iFood
-        </CardTitle>
-        <CardDescription>
-          No Portal do Parceiro do iFood, autorize o aplicativo CRM Builder para a loja e copie o código dela (ID da loja).
-          Cole aqui na loja certa: os pedidos passam a entrar sozinhos na central, e aceitar, preparar, despachar ou cancelar aqui avisa o iFood.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <ul className="divide-y rounded-lg border text-sm">
-          {data.stores.map((s) => (
-            <li key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2" data-testid={`ifood-store-${s.id}`}>
-              <span className="min-w-32 flex-1 font-medium">{s.name}</span>
-              {s.merchantId ? (
-                <>
-                  <Badge variant="secondary" className="gap-1"><Link2 className="h-3 w-3" /> {s.merchantName || s.merchantId}</Badge>
-                  <Button
-                    size="sm" variant="ghost" disabled={busy !== null}
-                    onClick={() => void save(s.id, async () => (await api.delete<IfoodStatus>(`/delivery/ifood/link/${s.id}`)).data, 'Loja desligada do iFood')}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl" data-testid="ifood-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded text-xs font-bold text-white" style={{ backgroundColor: '#ea1d2c' }}>iF</span>
+            iFood
+          </DialogTitle>
+          <DialogDescription>
+            No Portal do Parceiro do iFood, autorize o aplicativo CRM Builder para a loja e copie o código dela (ID da loja).
+            Cole na loja certa: os pedidos passam a entrar sozinhos na central, e aceitar, preparar, despachar ou cancelar aqui avisa o iFood.
+          </DialogDescription>
+        </DialogHeader>
+
+        {!data ? (
+          <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : !data.configured ? (
+          <p className="text-sm text-muted-foreground">Monte a central de pedidos primeiro (logo abaixo, nesta página). Depois as lojas aparecem aqui para conectar.</p>
+        ) : (
+          <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-lg border text-sm" data-testid="ifood-stores">
+            {data.stores.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2" data-testid={`ifood-store-${s.id}`}>
+                <span className="min-w-32 flex-1 font-medium">{s.name}</span>
+                {s.merchantId ? (
+                  <>
+                    <Badge variant="secondary" className="gap-1"><Link2 className="h-3 w-3" /> {s.merchantName || 'conectada'}</Badge>
+                    <Button
+                      size="sm" variant="ghost" disabled={busy !== null}
+                      onClick={() => void save(s.id, async () => (await api.delete<IfoodStatus>(`/delivery/ifood/link/${s.id}`)).data, 'Loja desligada do iFood')}
+                    >
+                      <Unlink className="mr-1.5 h-4 w-4" /> Desligar
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Input
+                      className="h-8 w-72 max-w-full font-mono text-xs" placeholder="Código da loja no iFood"
+                      value={codes[s.id] ?? ''} onChange={(e) => setCodes((c) => ({ ...c, [s.id]: e.target.value }))}
+                      data-testid={`ifood-code-${s.id}`}
+                    />
+                    <Button
+                      size="sm" disabled={busy !== null || !(codes[s.id] ?? '').trim()}
+                      onClick={() => void save(s.id, async () => (await api.post<IfoodStatus>('/delivery/ifood/link', { storeId: s.id, merchantId: (codes[s.id] ?? '').trim() })).data, 'Loja conectada ao iFood')}
+                      data-testid={`ifood-link-${s.id}`}
+                    >
+                      {busy === s.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
+                      Conectar
+                    </Button>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <DialogFooter className="gap-2 sm:justify-between">
+          {linked > 0 ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" className="text-destructive hover:text-destructive" disabled={busy !== null} data-testid="ifood-disconnect">
+                  <Unlink className="mr-1.5 h-4 w-4" /> Desconectar o iFood
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Desconectar o iFood?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {linked === 1 ? 'A loja conectada para' : `As ${linked} lojas conectadas param`} de receber pedidos do iFood aqui. Os pedidos que já entraram continuam na central.
+                    Para voltar, é só conectar as lojas de novo.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => void save('all', async () => (await api.delete<IfoodStatus>('/delivery/ifood')).data, 'iFood desconectado')}
                   >
-                    <Unlink className="mr-1.5 h-4 w-4" /> Desligar
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Input
-                    className="h-8 w-80 max-w-full font-mono text-xs" placeholder="Código da loja no iFood"
-                    value={codes[s.id] ?? ''} onChange={(e) => setCodes((c) => ({ ...c, [s.id]: e.target.value }))}
-                    data-testid={`ifood-code-${s.id}`}
-                  />
-                  <Button
-                    size="sm" disabled={busy !== null || !(codes[s.id] ?? '').trim()}
-                    onClick={() => void save(s.id, async () => (await api.post<IfoodStatus>('/delivery/ifood/link', { storeId: s.id, merchantId: (codes[s.id] ?? '').trim() })).data, 'Loja ligada ao iFood')}
-                    data-testid={`ifood-link-${s.id}`}
-                  >
-                    {busy === s.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
-                    Conectar
-                  </Button>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
+                    Desconectar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : <span />}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

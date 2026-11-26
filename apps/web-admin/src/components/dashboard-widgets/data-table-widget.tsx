@@ -1331,7 +1331,8 @@ function DataTableWidgetInner({ entitySlug, config, title, ctx }: DataTableWidge
       {ownsFab && <AppFab onClick={() => handleCreate()} label={tCommon('create')} />}
 
       {/* Table — min 10 rows visible */}
-      <div className="hidden rounded-md border overflow-auto flex-1 lg:block" style={{ minHeight: '340px' }}>
+      {/* Encolhe ate a altura do bloco e rola por dentro (com altura minima fixa, as ultimas linhas ficavam cortadas) */}
+      <div className="hidden min-h-[120px] flex-1 overflow-auto rounded-md border lg:block">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
