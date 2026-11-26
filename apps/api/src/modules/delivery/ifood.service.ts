@@ -161,6 +161,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
         for (const ev of events) {
           const link = ev.merchantId ? links.get(ev.merchantId) : undefined;
           try {
+            this.logger.log(`iFood evento ${ev.code} pedido=${ev.orderId} loja=${ev.merchantId ?? '-'}`);
             if (link) await this.handle(link.tenantId, link.store, ev);
             done.push(ev.id);
             this.tries.delete(ev.id);
