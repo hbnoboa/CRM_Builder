@@ -2115,7 +2115,7 @@
         "keys": "Chaves de API",
         "webhooks": "Avisar outros sistemas",
         "automations": "Automações",
-        "delivery": "Apps de delivery"
+        "apps": "Apps conectados"
       },
       "keys": {
         "title": "Chaves de API",
@@ -2206,6 +2206,12 @@
           "SCHEDULE": "agendada",
           "MANUAL": "manual"
         }
+      },
+      "tabHints": {
+        "apps": "Liga a empresa a apps prontos, como o iFood e a 99Food: você clica em Conectar, autoriza no app e os dados passam a ir e voltar sozinhos.",
+        "webhooks": "O sistema avisa outro sistema quando algo acontece aqui (registro criado, alterado, excluído). Você informa o endereço que recebe o aviso.",
+        "keys": "Para outro sistema entrar no nosso e ler ou gravar registros (um site, um ERP, uma planilha). A chave age com o cargo que você escolher.",
+        "automations": "Todas as automações das tabelas num lugar só: quando algo acontece, o sistema avisa alguém, manda e-mail ou preenche um campo sozinho."
       }
     },
     "security": {
