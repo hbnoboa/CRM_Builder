@@ -112,14 +112,40 @@ export type RecordUpdateListener = (change: {
   previous: Record<string, unknown>; current: Record<string, unknown>; user: CurrentUser;
 }) => unknown;
 
+export type RecordCreateListener = (change: {
+  tenantId: string; entity: Entity; recordId: string; current: Record<string, unknown>; user: CurrentUser;
+}) => unknown;
+
+export type RecordDeleteListener = (change: {
+  tenantId: string; entity: Entity; recordId: string; previous: Record<string, unknown>; user: CurrentUser;
+}) => unknown;
+
 @Injectable()
 export class DataService {
   private readonly logger = new Logger(DataService.name);
   private readonly updateListeners: RecordUpdateListener[] = [];
+  private readonly createListeners: RecordCreateListener[] = [];
+  private readonly deleteListeners: RecordDeleteListener[] = [];
 
   /** Avisa outro modulo quando uma pessoa altera um registro (ex.: pedido do iFood aceito no painel). */
   onRecordUpdated(listener: RecordUpdateListener) {
     this.updateListeners.push(listener);
+  }
+
+  /** Avisa outro modulo quando uma pessoa cria um registro (ex.: item do cardapio que vai para o iFood). */
+  onRecordCreated(listener: RecordCreateListener) {
+    this.createListeners.push(listener);
+  }
+
+  /** Avisa outro modulo quando uma pessoa manda um registro para a Lixeira. */
+  onRecordDeleted(listener: RecordDeleteListener) {
+    this.deleteListeners.push(listener);
+  }
+
+  private emitListeners<T>(listeners: Array<(change: T) => unknown>, change: T) {
+    for (const listener of listeners) {
+      Promise.resolve(listener(change)).catch((err) => this.logger.error(`Erro no ouvinte de alteracao: ${(err as Error).message}`));
+    }
   }
 
   constructor(
@@ -387,6 +413,10 @@ export class DataService {
       { id: record.id, ...dataWithComputedFields },
       currentUser,
     );
+
+    this.emitListeners(this.createListeners, {
+      tenantId: targetTenantId, entity: entity as Entity, recordId: record.id, current: dataWithComputedFields as Record<string, unknown>, user: currentUser,
+    });
 
     return { ...record, data: omitFields(record.data, hiddenFieldSlugs(fieldPerms)) };
   }
@@ -1671,10 +1701,7 @@ export class DataService {
       }
     }
 
-    for (const listener of this.updateListeners) {
-      Promise.resolve(listener({ tenantId: effectiveTenantId, entity, recordId: updatedRecord.id, previous: previousData, current: mergedData as Record<string, unknown>, user: currentUser }))
-        .catch((err) => this.logger.error(`Erro no ouvinte de alteracao: ${(err as Error).message}`));
-    }
+    this.emitListeners(this.updateListeners, { tenantId: effectiveTenantId, entity, recordId: updatedRecord.id, previous: previousData, current: mergedData as Record<string, unknown>, user: currentUser });
 
     this.triggerAutomations(
       hasStatusChange ? 'status-changed' : 'updated',
@@ -1866,6 +1893,7 @@ export class DataService {
         where: { id: { in: ids }, deletedAt: null },
         data: { deletedAt: now, deletedById: currentUser.id },
       });
+      this.emitListeners(this.deleteListeners, { tenantId: effectiveTenantId, entity: entity as Entity, recordId: id, previous: recordData, user: currentUser });
     }
 
     // Enviar notificacao para o tenant

@@ -3,13 +3,13 @@ import { Prisma, type Entity } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentUser } from '../../common/types';
 import { getEffectiveTenantId } from '../../common/utils/tenant.util';
-import { DataService, type RecordUpdateListener } from '../data/data.service';
+import { DataService, type RecordCreateListener, type RecordDeleteListener, type RecordUpdateListener } from '../data/data.service';
 import { NotificationService } from '../notification/notification.service';
 import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
 import { DELIVERY_CODE_HELP, ORDER_STATUS } from './delivery-starter';
 import { DeliveryService, type DeliveryConfig, type DeliveryEntities, type IfoodLinks } from './delivery.service';
 import { open, seal } from '../../common/utils/secret-box';
-import { IfoodMenuService } from './ifood-menu.service';
+import { IfoodMenuService, MENU_PUSH_FIELDS, changed, storeOf } from './ifood-menu.service';
 import { IfoodClient, IfoodError, type IfoodAuth, type IfoodEvent, type IfoodOrder, type IfoodTokens, type IfoodUserCode } from './ifood.client';
 
 type Status = (typeof ORDER_STATUS)[number];
@@ -64,6 +64,9 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (!this.client.configured) return;
     this.dataService.onRecordUpdated(this.onOrderChanged);
+    this.dataService.onRecordCreated(this.onMenuCreated);
+    this.dataService.onRecordUpdated(this.onMenuChanged);
+    this.dataService.onRecordDeleted(this.onMenuDeleted);
     this.timer = setInterval(() => void this.tick(), POLL_MS);
     this.logger.log('Conector do iFood ligado');
   }
@@ -276,6 +279,77 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     }
     return this.status(user);
   }
+
+  /** Item do cardapio de uma loja ligada ao iFood: a empresa, a tabela e o codigo da loja no iFood. */
+  private async menuTarget(tenantId: string, entity: { slug: string }, data: Record<string, unknown>) {
+    const cfg = await this.delivery.config(tenantId);
+    if (!cfg?.ifood?.on || !cfg.ifood.auth || cfg.ifood.auth.broken || entity.slug !== cfg.tables.menu) return null;
+    const storeId = storeOf(data);
+    const merchantId = Object.entries(cfg.ifood.merchants ?? {}).find(([, l]) => l.storeId === storeId)?.[0];
+    if (!merchantId) return null;
+    return { cfg, merchantId, e: await this.delivery.entities(tenantId, cfg) };
+  }
+
+  /** Aviso no sino para quem mexeu no cardapio (o iFood respondeu depois de salvar). */
+  private async menuNotice(user: { id?: string | null }, tenantId: string, type: 'error' | 'info', title: string, message: string) {
+    if (!user.id) return;
+    await this.notifications.notifyUser(user.id, { type, title, message }, tenantId).catch(() => {});
+  }
+
+  /** Item criado no sistema numa loja ligada: entra no cardapio do iFood. */
+  private readonly onMenuCreated: RecordCreateListener = async ({ tenantId, entity, recordId, current, user }) => {
+    const target = await this.menuTarget(tenantId, entity, current);
+    if (!target || current.codigo_app) return;
+    try {
+      const back = await this.menu.pushCreate(this.auth(tenantId), target.merchantId, target.e, current);
+      await this.dataService.updateFromSite(target.e.menu, recordId, back, ACTOR, { notify: false });
+    } catch (err) {
+      this.logger.warn(`iFood cardapio criar tenant=${tenantId}: ${(err as Error).message}`);
+      await this.menuNotice(user, tenantId, 'error', 'O item não entrou no iFood',
+        `${String(current.nome ?? '')}: ${(err as Error).message}. O item ficou só aqui; salve de novo para tentar outra vez.`);
+    }
+  };
+
+  /** Item alterado no sistema: repassa ao iFood; se o iFood recusar, volta o que mudou. */
+  private readonly onMenuChanged: RecordUpdateListener = async ({ tenantId, entity, recordId, previous, current, user }) => {
+    const target = await this.menuTarget(tenantId, entity, current);
+    if (!target) return;
+    const keys = changed(previous, current, [...MENU_PUSH_FIELDS, 'loja']);
+    if (keys.length === 0) return;
+    const auth = this.auth(tenantId);
+    try {
+      // Item que ainda nao estava no iFood (criado sem loja, ou a criacao falhou): cria agora
+      if (!current.codigo_app) {
+        const back = await this.menu.pushCreate(auth, target.merchantId, target.e, current);
+        await this.dataService.updateFromSite(target.e.menu, recordId, back, ACTOR, { notify: false });
+        return;
+      }
+      if (keys.includes('loja')) throw new Error('para vender em outra loja, crie o item nela (cada loja tem o próprio cardápio no iFood)');
+      const back = await this.menu.pushUpdate(auth, target.merchantId, target.e, previous, current);
+      // Grava como o iFood deixou (ele ajusta maiusculas): a importacao nao ve diferenca depois
+      const differs = changed(current, back, Object.keys(back));
+      if (differs.length) await this.dataService.updateFromSite(target.e.menu, recordId, back, ACTOR, { notify: false });
+    } catch (err) {
+      const message = (err as Error).message;
+      this.logger.warn(`iFood cardapio alterar tenant=${tenantId} item=${String(current.codigo_app ?? '')}: ${message}`);
+      const revert = Object.fromEntries(keys.map((k) => [k, previous[k] ?? null]));
+      await this.dataService.updateFromSite(target.e.menu, recordId, revert, ACTOR, { notify: false }).catch(() => {});
+      await this.menuNotice(user, tenantId, 'error', 'O iFood não aceitou a mudança no cardápio', `${String(current.nome ?? '')}: ${message}. A mudança foi desfeita.`);
+    }
+  };
+
+  /** Item excluido no sistema: fica indisponivel no iFood (restaurar e marcar "a venda" volta). */
+  private readonly onMenuDeleted: RecordDeleteListener = async ({ tenantId, entity, previous, user }) => {
+    const target = await this.menuTarget(tenantId, entity, previous);
+    if (!target || !previous.codigo_app) return;
+    try {
+      await this.menu.pushDelete(this.auth(tenantId), target.merchantId, previous);
+    } catch (err) {
+      this.logger.warn(`iFood cardapio excluir tenant=${tenantId}: ${(err as Error).message}`);
+      await this.menuNotice(user, tenantId, 'error', 'O item continua à venda no iFood',
+        `${String(previous.nome ?? '')}: ${(err as Error).message}. Tire de venda no Portal do Parceiro ou tente de novo.`);
+    }
+  };
 
   /** Importa o cardapio de todas as lojas ligadas da empresa e guarda o resumo. */
   private async syncMenuFor(tenantId: string) {
