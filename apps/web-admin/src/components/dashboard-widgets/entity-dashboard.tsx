@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import { Responsive } from 'react-grid-layout/legacy';
 import { useMyDashboardTemplate, useDashboardTemplate, useEntityRecordCount } from '@/hooks/use-dashboard-templates';
 import { useEntities } from '@/hooks/use-entities';
 import { NewRecordAlert } from './new-record-alert';
@@ -42,7 +42,37 @@ import type { WidgetConfig, WidgetType } from '@crm-builder/shared';
 
 import 'react-grid-layout/css/styles.css';
 
-const ResponsiveGridLayout = WidthProvider(Responsive);
+/**
+ * Grade do painel com a largura medida num contorno proprio. O WidthProvider da
+ * biblioteca guardava qualquer medida, inclusive 0 (aba escondida, pagina trocando),
+ * e a central chegou a ficar com metade da largura ate recarregar.
+ */
+function ResponsiveGridLayout(props: Omit<ComponentProps<typeof Responsive>, 'width'>) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    // Escondido mede 0: mantem a ultima largura boa
+    const measure = () => {
+      const w = box.clientWidth;
+      if (w > 0) setWidth((prev) => (Math.abs(prev - w) < 1 ? prev : w));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    window.addEventListener('resize', measure);
+    window.addEventListener('pageshow', measure);
+    document.addEventListener('visibilitychange', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('pageshow', measure);
+      document.removeEventListener('visibilitychange', measure);
+    };
+  }, []);
+  return <div ref={boxRef} className="w-full min-w-0">{width > 0 && <Responsive {...props} width={width} />}</div>;
+}
 
 type EntityFieldLike = { slug: string; name: string; label?: string; type: string };
 type EntityLike = { slug: string; name: string; fields?: EntityFieldLike[] };
@@ -326,7 +356,6 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
           <RecordCountBadge countEntitySlug={headerCountSlug} mainEntitySlug={entitySlug} />
           <ResponsiveGridLayout
             className="layout"
-            measureBeforeMount
             layouts={layouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
             cols={previewTemplate ? PREVIEW_COLS : GRID_COLS}
@@ -401,7 +430,6 @@ export function EntityDashboard({ entitySlug, entityFields, templateId, external
             <div key={tab.id} style={{ display: isActive ? undefined : 'none' }}>
               <ResponsiveGridLayout
                 className="layout"
-                measureBeforeMount
                 layouts={tabLayouts}
                 breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
                 cols={previewTemplate ? PREVIEW_COLS : GRID_COLS}

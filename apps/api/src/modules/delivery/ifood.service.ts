@@ -7,7 +7,7 @@ import { DataService, type RecordUpdateListener } from '../data/data.service';
 import { NotificationService } from '../notification/notification.service';
 import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
-import { ORDER_STATUS } from './delivery-starter';
+import { DELIVERY_CODE_HELP, ORDER_STATUS } from './delivery-starter';
 import { DeliveryService, type DeliveryConfig, type DeliveryEntities, type IfoodLinks } from './delivery.service';
 import { open, seal } from '../../common/utils/secret-box';
 import { IfoodClient, IfoodError, type IfoodAuth, type IfoodEvent, type IfoodOrder, type IfoodTokens, type IfoodUserCode } from './ifood.client';
@@ -33,6 +33,7 @@ const FROM_IFOOD: Record<string, Status> = {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const rank = (s: string) => ORDER_STATUS.indexOf(s as Status);
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) / 100 : undefined);
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }).replace(/\u00a0/g, ' ');
 
 /**
  * Conector do iFood (fase 2), aplicativo distribuido: cada empresa autoriza com o
@@ -251,6 +252,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       where: { id: store.id }, data: { data: { ...(store.data as Record<string, unknown>), ifood_id: merchant.id } as Prisma.InputJsonValue },
     });
     await this.ensureStoreOption(e, storeName);
+    await this.ensureDeliveryCodeField(e);
     return this.status(user);
   }
 
@@ -358,6 +360,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       const row = await this.prisma.entityData.findFirst({ where: { id: storeId, tenantId, entityId: e.stores.id, deletedAt: null }, select: { data: true } });
       const store = String((row?.data as Record<string, unknown> | undefined)?.nome ?? savedStore);
       await this.ensureStoreOption(e, store);
+      await this.ensureDeliveryCodeField(e);
       await this.createOrder(e, order, store, status);
       return;
     }
@@ -405,10 +408,14 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       : addr?.formattedAddress || [addr?.streetName, addr?.streetNumber, addr?.neighborhood].filter(Boolean).join(', ');
     const created = order.createdAt ?? new Date().toISOString();
     const due = order.delivery?.deliveryDateTime ?? order.takeout?.takeoutDateTime ?? new Date(new Date(created).getTime() + 45 * 60_000).toISOString();
+    // Troco primeiro: o entregador precisa levar
+    const change = (order.payments?.methods ?? []).find((m) => !m.prepaid && (m.cash?.changeFor ?? 0) > 0)?.cash?.changeFor;
     const notes = [
+      change && `Troco para ${brl(change)}`,
       order.extraInfo,
       order.delivery?.observations,
-      order.delivery?.pickupCode && `Código de entrega: ${order.delivery.pickupCode}`,
+      // Codigo do pedido para a coleta; o de entrega o cliente informa ao receber
+      order.delivery?.pickupCode && `Código de coleta: ${order.delivery.pickupCode}`,
       addr?.complement && `Complemento: ${addr.complement}`,
       addr?.reference && `Referência: ${addr.reference}`,
       order.customer?.phone?.localizer && `Código do telefone iFood: ${order.customer.phone.localizer}`,
@@ -463,6 +470,26 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     e.orders = updated;
   }
 
+  /**
+   * Centrais montadas antes do codigo de entrega nao tem o campo: entra no fim do
+   * formulario, so quando a situacao e Entregue.
+   */
+  private async ensureDeliveryCodeField(e: DeliveryEntities) {
+    const fields = (e.orders.fields as unknown as Array<{ slug: string; gridRow?: number }>) || [];
+    if (fields.some((f) => f.slug === 'codigo_entrega')) return;
+    const row = Math.max(0, ...fields.map((f) => f.gridRow ?? 0)) + 1;
+    const field = {
+      name: 'codigo_entrega', slug: 'codigo_entrega', type: 'text', label: 'Código de entrega', helpText: DELIVERY_CODE_HELP,
+      visibleIf: { field: 'situacao', operator: 'equals', value: this.delivery.optionValue(e.orders, 'situacao', 'Entregue') },
+      gridRow: row, gridColStart: 1, gridColSpan: 6,
+    };
+    const updated = await this.prisma.entity.update({
+      where: { id: e.orders.id }, data: { fields: [...fields, field] as unknown as Prisma.InputJsonValue },
+    });
+    invalidateEntityQueryCache(e.orders.slug);
+    e.orders = updated;
+  }
+
   private storeLabels(entity: Entity): string[] {
     const f = ((entity.fields as unknown as Array<{ slug: string; options?: Array<string | { label: string }> }>) || []).find((x) => x.slug === 'loja');
     return (f?.options || []).map((x) => (typeof x === 'string' ? x : x.label));
@@ -470,42 +497,95 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
 
   // ---- Central -> iFood ---------------------------------------------------
 
+  /** Retirada e entrega feita pelo iFood: "pronto"; entrega propria: "saiu para entrega". */
+  private leaveAction(order: IfoodOrder | null): 'readyToPickup' | 'dispatch' {
+    if ((order?.orderType ?? '').toUpperCase() === 'TAKEOUT') return 'readyToPickup';
+    return this.ownDelivery(order) ? 'dispatch' : 'readyToPickup';
+  }
+
+  private ownDelivery(order: IfoodOrder | null) {
+    if ((order?.orderType ?? '').toUpperCase() === 'TAKEOUT') return false;
+    return (order?.delivery?.deliveredBy ?? 'MERCHANT').toUpperCase() === 'MERCHANT';
+  }
+
   /** Alguem mudou a situacao de um pedido do iFood no sistema: repassa ao iFood. */
   private readonly onOrderChanged: RecordUpdateListener = async ({ tenantId, entity, recordId, previous, current, user }) => {
     const cfg = await this.delivery.config(tenantId);
     if (!cfg?.ifood?.on || !cfg.ifood.auth || entity.slug !== cfg.tables.orders) return;
-    if (previous.situacao === current.situacao) return;
     const orderId = typeof current.codigo_app === 'string' ? current.codigo_app : '';
     // So pedido que veio do iFood (o codigo e um UUID); os de demonstracao tem codigo inventado
     if (!UUID.test(orderId) || this.label(entity as Entity, 'app', current.app) !== 'iFood') return;
     const from = this.label(entity as Entity, 'situacao', previous.situacao);
     const to = this.label(entity as Entity, 'situacao', current.situacao);
+    const code = String(current.codigo_entrega ?? '').trim();
+    const statusChanged = previous.situacao !== current.situacao;
+    // Codigo preenchido depois de marcar Entregue tambem conclui no iFood
+    const codeAdded = to === 'Entregue' && !!code && code !== String(previous.codigo_entrega ?? '').trim();
+    if (!statusChanged && !codeAdded) return;
     const auth = this.auth(tenantId);
+    const numero = String(current.numero ?? '');
+    // Ate onde o iFood ja foi: se um passo falha, a situacao volta para ca (nao para o comeco)
+    let reached = from;
+    let checkingCode = false;
 
     try {
       if (to === 'Cancelado') {
         const reasons = await this.client.cancellationReasons(auth, orderId);
-        const code = reasons[0]?.cancelCodeId ?? reasons[0]?.code;
-        if (!code) throw new Error('o iFood não deixou cancelar este pedido agora');
+        const cancelCode = reasons[0]?.cancelCodeId ?? reasons[0]?.code;
+        if (!cancelCode) throw new Error('o iFood não deixou cancelar este pedido agora');
         const reason = typeof current.motivo_cancelamento === 'string' && current.motivo_cancelamento ? current.motivo_cancelamento : reasons[0]?.description ?? 'Cancelado pela loja';
-        await this.client.requestCancellation(auth, orderId, reason.slice(0, 250), code);
+        await this.client.requestCancellation(auth, orderId, reason.slice(0, 250), cancelCode);
         return;
       }
-      if (rank(to) <= rank(from) || to === 'Entregue') return; // o iFood conclui a entrega sozinho
-      if (rank(from) < rank('Aceito')) await this.client.action(auth, orderId, 'confirm');
-      if (to === 'Em preparo') await this.client.action(auth, orderId, 'startPreparation');
-      if (to === 'Saiu para entrega') {
-        const order = await this.client.order(auth, orderId);
-        await this.client.action(auth, orderId, (order?.orderType ?? '').toUpperCase() === 'TAKEOUT' ? 'readyToPickup' : 'dispatch');
+      if (statusChanged && rank(to) <= rank(from)) return; // o iFood nao volta situacao
+      if (rank(from) < rank('Aceito')) {
+        await this.client.action(auth, orderId, 'confirm');
+        reached = 'Aceito';
       }
+      if (to === 'Em preparo') {
+        await this.client.action(auth, orderId, 'startPreparation');
+        reached = 'Em preparo';
+      }
+      let order: IfoodOrder | null = null;
+      if (rank(to) >= rank('Saiu para entrega') && rank(from) < rank('Saiu para entrega')) {
+        order = await this.client.order(auth, orderId);
+        await this.client.action(auth, orderId, this.leaveAction(order));
+        reached = 'Saiu para entrega';
+      }
+      if (to !== 'Entregue') return;
+      order ??= await this.client.order(auth, orderId);
+      // Retirada e entrega do iFood: o proprio iFood conclui
+      if (!this.ownDelivery(order)) return;
+      if (!code) {
+        if (user.id) {
+          await this.notifications.notifyUser(user.id, {
+            type: 'info',
+            title: 'Entregue aqui; no iFood falta o cliente confirmar',
+            message: `Pedido ${numero}: o iFood conclui quando o cliente confirmar no app (ou sozinho, depois de algumas horas). Para concluir agora, abra o pedido e preencha o código de entrega que o cliente informa.`,
+          }, tenantId).catch(() => {});
+        }
+        return;
+      }
+      checkingCode = true;
+      await this.client.verifyDeliveryCode(auth, orderId, code);
     } catch (err) {
       const message = (err as Error).message;
       this.logger.warn(`iFood ${from} -> ${to} pedido=${orderId}: ${message}`);
-      // Volta a situacao e avisa quem mudou: o pedido no iFood nao mudou
+      const wrongCode = checkingCode && err instanceof IfoodError && err.status === 400;
+      // Volta a situacao e avisa quem mudou: o pedido no iFood nao chegou la
       const e = await this.delivery.entities(tenantId, cfg);
-      await this.dataService.updateFromSite(e.orders, recordId, { situacao: previous.situacao }, ACTOR, { notify: false }).catch(() => {});
+      const patch: Record<string, unknown> = { situacao: reached === from ? previous.situacao : this.delivery.optionValue(e.orders, 'situacao', reached) };
+      if (checkingCode) patch.codigo_entrega = '';
+      await this.dataService.updateFromSite(e.orders, recordId, patch, ACTOR, { notify: false }).catch(() => {});
       if (user.id) {
-        await this.notifications.notifyError(user.id, 'O iFood não aceitou a mudança', `Pedido ${String(current.numero ?? '')}: ${to}. ${message}`).catch(() => {});
+        // Com a empresa: fica no sino tambem (quem arrastou o cartao pode nao estar olhando)
+        await this.notifications.notifyUser(user.id, {
+          type: 'error',
+          title: wrongCode ? 'Código de entrega não confere' : 'O iFood não aceitou a mudança',
+          message: wrongCode
+            ? `Pedido ${numero}: o iFood recusou o código ${code}. Confira com o cliente e preencha de novo.`
+            : `Pedido ${numero}: ${to}. ${message}`,
+        }, tenantId).catch(() => {});
       }
     }
   };

@@ -3,7 +3,7 @@
 import { useMemo, useCallback, useEffect, useState } from 'react';
 import { useEntityData, EntityDataProvider } from '@/components/entity-data/entity-data-context';
 import { toDataRecord } from '@/components/entity-data/use-entity-data-source';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { dataService } from '@/services/data.service';
 import { useWidgetFilters } from './dashboard-filter-context';
 import { useUpdateEntityData } from '@/hooks/use-data';
@@ -220,10 +220,10 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
   );
   const isLoading = serverMode ? serverCards.isLoading : ctx.isLoading;
   const [layouts, setLayouts] = useState<{ lg: any[]; md?: any[]; sm?: any[] }>({ lg: [] });
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const updateMutation = useUpdateEntityData({
-    success: 'Status atualizado com sucesso!',
-  });
+  // Muda quando a gravacao falha: remonta o quadro e o cartao volta para a coluna dele
+  const [gridKey, setGridKey] = useState(0);
+  const queryClient = useQueryClient();
+  const updateMutation = useUpdateEntityData();
 
   // Buscar campo de agrupamento e suas opções
   const groupField = useMemo(() => {
@@ -371,8 +371,6 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
           x: item.x % gridCols.sm,
         })),
       });
-      // Marcar como carregado após definir o layout inicial
-      setTimeout(() => setIsInitialLoad(false), 100);
     }
   }, [gridLayout, gridCols.sm]);
 
@@ -395,52 +393,30 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
     [columns]
   );
 
-  // Handler para mudança de layout (drag & drop)
-  const handleLayoutChange = useCallback(
-    (newLayout: any[]) => {
-      // Ignorar mudanças durante o carregamento inicial
-      if (isInitialLoad) return;
+  // Soltou o cartao: grava so aqui. O onLayoutChange tambem dispara em largura,
+  // compactacao e no meio do arrasto, e chegava a mandar a situacao mais de uma vez.
+  const handleDragStop = useCallback(
+    (_layout: any[], _oldItem: any, newItem: any) => {
       if (!columns || columns.length === 0) return;
+      const cardId = newItem.i as string;
+      const targetColumn = columns[Math.max(0, Math.min(Math.round(newItem.x), columns.length - 1))];
+      const currentColumnValue = cardColumnMap.get(cardId);
+      if (!targetColumn || !currentColumnValue || currentColumnValue === targetColumn.value) return;
 
-      const numColumns = columns.length;
-      const colWidth = 1; // Cada coluna ocupa 1 unidade
-
-      // Verificar se algum card mudou de coluna
-      newLayout.forEach((item) => {
-        const cardId = item.i;
-        const newColIndex = Math.floor(item.x / colWidth);
-
-        // Garantir que está dentro do range
-        const clampedColIndex = Math.max(0, Math.min(newColIndex, numColumns - 1));
-        const targetColumn = columns[clampedColIndex];
-
-        if (!targetColumn) return;
-
-        const currentColumnValue = cardColumnMap.get(cardId);
-
-        // Se mudou de coluna, atualizar via API
-        if (currentColumnValue && currentColumnValue !== targetColumn.value) {
-          // SOLUÇÃO: Enviar apenas o campo que mudou para a API
-          // e deixar o WebSocket fazer o update completo quando a API responder
-          // Isso preserva TODOS os campos, incluindo relações
-          updateMutation.mutate(
-            {
-              entitySlug,
-              id: cardId,
-              data: {
-                [config.groupByField]: targetColumn.value,
-              },
-            },
-            {
-              onSuccess: () => {
-                toast.success(`Movido para "${targetColumn.title}"`);
-              },
-            }
-          );
-        }
-      });
+      updateMutation.mutate(
+        { entitySlug, id: cardId, data: { [config.groupByField]: targetColumn.value } },
+        {
+          onSuccess: () => {
+            toast.success(`Movido para "${targetColumn.title}"`);
+            // Quem arrastou nao recebe o proprio aviso em tempo real: busca o registro de novo
+            if (serverMode) queryClient.invalidateQueries({ queryKey: ['kanban-server', entitySlug] });
+            else ctx.updateRecord(cardId, { [config.groupByField]: targetColumn.value });
+          },
+          onError: () => setGridKey((k) => k + 1),
+        },
+      );
     },
-    [isInitialLoad, columns, cardColumnMap, config.groupByField, entitySlug, updateMutation]
+    [columns, cardColumnMap, config.groupByField, entitySlug, updateMutation, serverMode, queryClient, ctx],
   );
 
   if (isLoading) {
@@ -534,7 +510,8 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
         {/* Grid com cards */}
         <div className="w-full mt-20">
           <ResponsiveGridLayout
-            className="layout"
+            key={gridKey}
+            className="layout kanban-grid"
             layouts={layouts}
             breakpoints={{ lg: 1200, md: 996, sm: 768 }}
             cols={gridCols}
@@ -547,7 +524,7 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
             containerPadding={[0, 0]}
             preventCollision={false}
             onDrag={handleDrag as never}
-            onLayoutChange={handleLayoutChange as never}
+            onDragStop={handleDragStop as never}
           >
             {columns.flatMap((column) =>
               column.cards.map((card) => (

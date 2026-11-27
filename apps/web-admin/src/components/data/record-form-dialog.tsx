@@ -121,6 +121,8 @@ function applyCepMask(value: string) {
 
 function applyPhoneMask(value: string) {
   const digits = value.replace(/\D/g, '');
+  // 0800/0300: sem DDD
+  if (digits.startsWith('0')) return digits.slice(0, 11).replace(/^(\d{4})(\d)/, '$1 $2').replace(/^(\d{4} \d{3})(\d)/, '$1 $2');
   if (digits.length <= 10) return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
   return digits.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2').replace(/(-\d{4})\d+?$/, '$1');
 }
