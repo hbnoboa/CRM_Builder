@@ -8,6 +8,15 @@ import { DeliveryService, type DeliveryEntities } from './delivery.service';
 import { IfoodClient, type IfoodAuth, type IfoodCategory, type IfoodCategoryItem, type IfoodOptionGroup, type IfoodSellableItem } from './ifood.client';
 
 const ACTOR = 'iFood';
+/**
+ * A leitura do cardapio do iFood demora alguns segundos para mostrar o que acabou de ser
+ * gravado: procura de novo antes de desistir, e a importacao deixa quieto por um tempo o
+ * item que o sistema acabou de mandar (senao le o valor velho e desfaz a mudanca).
+ */
+const READ_TRIES = 8;
+const READ_WAIT_MS = 4_000;
+const PUSHED_TTL_MS = 5 * 60_000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const IMAGE_BASE = 'https://static-images.ifood.com.br/image/upload/t_medium/pratos/';
 
 /** Resultado da ultima importacao (fica nas configuracoes, o cartao do iFood mostra). */
@@ -83,6 +92,18 @@ const fromSellableGroups = (s: IfoodSellableItem) => groupsText((s.itemOptionGro
 @Injectable()
 export class IfoodMenuService {
   private readonly logger = new Logger(IfoodMenuService.name);
+  /** Itens que o sistema mandou ao iFood ha pouco: empresa:codigo -> quando. */
+  private readonly pushed = new Map<string, number>();
+
+  private markPushed(tenantId: string, code: string) {
+    const now = Date.now();
+    for (const [k, at] of this.pushed) if (now - at > PUSHED_TTL_MS) this.pushed.delete(k);
+    if (code) this.pushed.set(`${tenantId}:${code}`, now);
+  }
+
+  private recentlyPushed(tenantId: string, code: string) {
+    return Date.now() - (this.pushed.get(`${tenantId}:${code}`) ?? 0) < PUSHED_TTL_MS;
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -151,7 +172,7 @@ export class IfoodMenuService {
       try {
         const menu = await this.read(auth, s.merchantId);
         const gone = new Set(trashed.map((r) => (r.data || {}) as Record<string, unknown>).filter((d) => storeOf(d) === s.storeId).map((d) => String(d.codigo_app ?? '')));
-        await this.apply(e, s, menu, rows.map((r) => ({ id: r.id, data: (r.data || {}) as Record<string, unknown> })).filter((r) => storeOf(r.data) === s.storeId), gone, result);
+        await this.apply(tenantId, e, s, menu, rows.map((r) => ({ id: r.id, data: (r.data || {}) as Record<string, unknown> })).filter((r) => storeOf(r.data) === s.storeId), gone, result);
       } catch (err) {
         this.logger.warn(`iFood cardapio tenant=${tenantId} loja=${s.merchantId}: ${(err as Error).message}`);
         result.errors.push(`${s.store}: ${(err as Error).message}`);
@@ -161,7 +182,7 @@ export class IfoodMenuService {
   }
 
   private async apply(
-    e: DeliveryEntities, s: { storeId: string; store: string }, menu: { items: MenuItem[]; keepCategories: Set<string> }, existing: Row[], gone: Set<string>,
+    tenantId: string, e: DeliveryEntities, s: { storeId: string; store: string }, menu: { items: MenuItem[]; keepCategories: Set<string> }, existing: Row[], gone: Set<string>,
     result: MenuSyncResult,
   ) {
     const byCode = new Map(existing.filter((r) => r.data.codigo_app).map((r) => [String(r.data.codigo_app), r]));
@@ -169,7 +190,7 @@ export class IfoodMenuService {
     for (const it of menu.items) {
       if (seen.has(it.id)) continue;
       seen.add(it.id);
-      if (!byCode.has(it.id) && gone.has(it.id) && !it.ativo) continue;
+      if (!byCode.has(it.id) && gone.has(it.id) && (!it.ativo || this.recentlyPushed(tenantId, it.id))) continue;
       e.menu = await this.delivery.ensureOption(e.menu, 'categoria', it.categoria);
       const data: Record<string, unknown> = {
         nome: it.nome,
@@ -186,6 +207,7 @@ export class IfoodMenuService {
       result.items++;
       if (!it.ativo) result.unavailable++;
       const row = byCode.get(it.id);
+      if (row && this.recentlyPushed(tenantId, it.id)) continue;
       if (!row) {
         await this.dataService.createFromSite(e.menu, data, ACTOR, undefined, { notify: false });
         result.created++;
@@ -199,7 +221,7 @@ export class IfoodMenuService {
     }
     for (const row of existing) {
       const code = String(row.data.codigo_app ?? '');
-      if (!code || seen.has(code)) continue;
+      if (!code || seen.has(code) || this.recentlyPushed(tenantId, code)) continue;
       // Pizza e parecidos: fora da lista agora nao quer dizer que saiu do cardapio
       if (menu.keepCategories.has(this.label(e.menu, 'categoria', row.data.categoria))) continue;
       await this.dataService.removeFromSite(e.menu, row.id, ACTOR, { notify: false });
@@ -214,13 +236,17 @@ export class IfoodMenuService {
     const catalogs = await this.client.catalogs(auth, merchantId);
     const catalog = catalogs.find((c) => c.context?.includes('DEFAULT')) ?? catalogs[0];
     if (!catalog) throw new Error('a loja não tem cardápio no iFood');
-    const categories = await this.client.categories(auth, merchantId, catalog.catalogId);
-    let found: { category: IfoodCategory; item: IfoodCategoryItem } | null = null;
-    for (const category of categories) {
-      const item = (category.items ?? []).find((it) => it.id === code || contextId(it) === code);
-      if (item) found = { category, item };
+    // Item gravado ha pouco pode ainda nao aparecer na leitura
+    for (let attempt = 1; ; attempt++) {
+      const categories = await this.client.categories(auth, merchantId, catalog.catalogId);
+      let found: { category: IfoodCategory; item: IfoodCategoryItem } | null = null;
+      for (const category of categories) {
+        const item = (category.items ?? []).find((it) => it.id === code || contextId(it) === code);
+        if (item) found = { category, item };
+      }
+      if (found || !code || attempt >= READ_TRIES) return { catalogId: catalog.catalogId, categories, found };
+      await sleep(READ_WAIT_MS);
     }
-    return { catalogId: catalog.catalogId, categories, found };
   }
 
   /** Categoria do iFood com o nome da categoria do sistema (cria se nao existir). */
@@ -257,7 +283,7 @@ export class IfoodMenuService {
   }
 
   /** Item novo no sistema numa loja ligada: cria no iFood. Devolve o que guardar no registro. */
-  async pushCreate(auth: IfoodAuth, merchantId: string, e: DeliveryEntities, data: Record<string, unknown>) {
+  async pushCreate(tenantId: string, auth: IfoodAuth, merchantId: string, e: DeliveryEntities, data: Record<string, unknown>) {
     const f = this.itemFields(e, data);
     if (!f.nome) throw new Error('o item precisa de nome');
     const { catalogId, categories } = await this.locate(auth, merchantId, '');
@@ -273,14 +299,16 @@ export class IfoodMenuService {
       optionGroups: [],
       options: [],
     });
-    return { codigo_app: id, ...this.savedBack(saved, productId) };
+    const back = { codigo_app: id, ...this.savedBack(saved, productId) };
+    this.markPushed(tenantId, back.codigo_app);
+    return back;
   }
 
   /**
    * Alteracao feita no sistema: preco e "a venda" vao pelas rotas proprias; nome,
    * descricao, categoria e codigo PDV regravam o item inteiro (mantendo os complementos).
    */
-  async pushUpdate(auth: IfoodAuth, merchantId: string, e: DeliveryEntities, previous: Record<string, unknown>, current: Record<string, unknown>) {
+  async pushUpdate(tenantId: string, auth: IfoodAuth, merchantId: string, e: DeliveryEntities, previous: Record<string, unknown>, current: Record<string, unknown>) {
     const keys = changed(previous, current, MENU_PUSH_FIELDS);
     if (keys.length === 0) return {};
     const { catalogId, categories, found } = await this.locate(auth, merchantId, String(current.codigo_app ?? ''));
@@ -295,10 +323,15 @@ export class IfoodMenuService {
     if (keys.every((k) => k === 'preco' || k === 'ativo')) {
       if (keys.includes('preco')) await this.client.itemPrice(auth, merchantId, itemId, f.preco);
       if (keys.includes('ativo')) await this.client.itemStatus(auth, merchantId, itemId, f.status);
+      this.markPushed(tenantId, String(current.codigo_app ?? ''));
       return {};
     }
     // Item inteiro como esta no iFood (corpo do PUT), com as mudancas
-    const full = await this.client.categoryItems(auth, merchantId, found.category.id);
+    let full = await this.client.categoryItems(auth, merchantId, found.category.id);
+    for (let attempt = 1; attempt < READ_TRIES && !(full.items ?? []).some((it) => it.id === itemId); attempt++) {
+      await sleep(READ_WAIT_MS);
+      full = await this.client.categoryItems(auth, merchantId, found.category.id);
+    }
     const item = (full.items ?? []).find((it) => it.id === itemId);
     const product = (full.products ?? []).find((p) => p.id === item?.productId);
     if (!item || !product) throw new Error('o iFood não devolveu o item para editar');
@@ -324,13 +357,17 @@ export class IfoodMenuService {
     });
     const back = this.savedBack(saved, product.id);
     delete (back as { codigo_app?: string }).codigo_app;
+    this.markPushed(tenantId, String(current.codigo_app ?? ''));
     return back;
   }
 
   /** Excluido no sistema: fica indisponivel no iFood (o historico de vendas continua la). */
-  async pushDelete(auth: IfoodAuth, merchantId: string, previous: Record<string, unknown>) {
+  async pushDelete(tenantId: string, auth: IfoodAuth, merchantId: string, previous: Record<string, unknown>) {
     const { found } = await this.locate(auth, merchantId, String(previous.codigo_app ?? ''));
-    if (found && found.item.status !== 'UNAVAILABLE') await this.client.itemStatus(auth, merchantId, found.item.id, 'UNAVAILABLE');
+    if (!found) return;
+    // Sempre manda (a leitura pode estar velha e mostrar o item ja indisponivel)
+    await this.client.itemStatus(auth, merchantId, found.item.id, 'UNAVAILABLE');
+    this.markPushed(tenantId, String(previous.codigo_app ?? ''));
   }
 
   /** Itens do cardapio de uma loja pelo codigo do iFood (para ligar os itens dos pedidos). */

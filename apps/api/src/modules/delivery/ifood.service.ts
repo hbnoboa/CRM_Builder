@@ -301,7 +301,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     const target = await this.menuTarget(tenantId, entity, current);
     if (!target || current.codigo_app) return;
     try {
-      const back = await this.menu.pushCreate(this.auth(tenantId), target.merchantId, target.e, current);
+      const back = await this.menu.pushCreate(tenantId, this.auth(tenantId), target.merchantId, target.e, current);
       await this.dataService.updateFromSite(target.e.menu, recordId, back, ACTOR, { notify: false });
     } catch (err) {
       this.logger.warn(`iFood cardapio criar tenant=${tenantId}: ${(err as Error).message}`);
@@ -320,12 +320,12 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     try {
       // Item que ainda nao estava no iFood (criado sem loja, ou a criacao falhou): cria agora
       if (!current.codigo_app) {
-        const back = await this.menu.pushCreate(auth, target.merchantId, target.e, current);
+        const back = await this.menu.pushCreate(tenantId, auth, target.merchantId, target.e, current);
         await this.dataService.updateFromSite(target.e.menu, recordId, back, ACTOR, { notify: false });
         return;
       }
       if (keys.includes('loja')) throw new Error('para vender em outra loja, crie o item nela (cada loja tem o próprio cardápio no iFood)');
-      const back = await this.menu.pushUpdate(auth, target.merchantId, target.e, previous, current);
+      const back = await this.menu.pushUpdate(tenantId, auth, target.merchantId, target.e, previous, current);
       // Grava como o iFood deixou (ele ajusta maiusculas): a importacao nao ve diferenca depois
       const differs = changed(current, back, Object.keys(back));
       if (differs.length) await this.dataService.updateFromSite(target.e.menu, recordId, back, ACTOR, { notify: false });
@@ -343,7 +343,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     const target = await this.menuTarget(tenantId, entity, previous);
     if (!target || !previous.codigo_app) return;
     try {
-      await this.menu.pushDelete(this.auth(tenantId), target.merchantId, previous);
+      await this.menu.pushDelete(tenantId, this.auth(tenantId), target.merchantId, previous);
     } catch (err) {
       this.logger.warn(`iFood cardapio excluir tenant=${tenantId}: ${(err as Error).message}`);
       await this.menuNotice(user, tenantId, 'error', 'O item continua à venda no iFood',
