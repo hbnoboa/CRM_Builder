@@ -134,6 +134,16 @@ export class DeliveryController {
     return this.ifood.link(user, dto.storeId, dto.merchantId);
   }
 
+  @Post('ifood/menu')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  @ApiOperation({ summary: 'iFood: importa agora o cardapio das lojas ligadas (o sistema tambem importa de hora em hora)' })
+  ifoodMenu(@CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.ifood.syncMenu(user);
+  }
+
   @Delete('ifood')
   @ApiOperation({ summary: 'Desconecta o iFood da empresa (desliga todas as lojas)' })
   ifoodDisconnect(@CurrentUser() user: CurrentUserType) {

@@ -17,6 +17,28 @@ export const PAYMENTS = ['Pago no app', 'Dinheiro na entrega', 'Cartão na entre
 export const DELIVERY_CODE_HELP =
   'Pedido do iFood com entrega própria: o código que o cliente informa ao receber. Com ele, o pedido é concluído no iFood na hora; sem ele, o iFood conclui quando o cliente confirmar no app.';
 
+/** Campo do rascunho do construtor (o mesmo formato serve para incluir em centrais antigas). */
+export interface StarterField {
+  key: string; label: string; type: string; width?: 'quarter' | 'third' | 'half' | 'full';
+  helpText?: string; relatedTable?: string;
+}
+
+/** Campos que o cardapio do iFood preenche (entram sozinhos nas centrais antigas). */
+export const MENU_APP_FIELDS: StarterField[] = [
+  { key: 'loja', label: 'Loja', type: 'relation', relatedTable: 'lojas', width: 'half', helpText: 'A loja que vende o item. Itens que vêm do iFood já chegam com a loja.' },
+  { key: 'codigo_app', label: 'Código no app', type: 'text', width: 'quarter', helpText: 'O código do item no iFood. Preenchido pela importação do cardápio; não mude.' },
+  { key: 'codigo_externo', label: 'Código PDV', type: 'text', width: 'quarter', helpText: 'O código externo (PDV) do item no iFood, se a loja usar.' },
+  { key: 'descricao', label: 'Descrição', type: 'textarea', width: 'full' },
+  { key: 'complementos', label: 'Complementos', type: 'textarea', width: 'full', helpText: 'Os grupos de complementos do item, como estão no iFood.' },
+  { key: 'foto', label: 'Foto', type: 'image', width: 'half' },
+];
+
+/** Item do pedido ligado ao item do cardapio (pelo codigo do item no iFood). */
+export const ORDER_ITEM_MENU_FIELD: StarterField = {
+  key: 'item_cardapio', label: 'Item do cardápio', type: 'relation', relatedTable: 'cardapio', width: 'half',
+  helpText: 'Preenchido quando o item do pedido do iFood está no cardápio importado.',
+};
+
 export const MENU: Array<{ nome: string; categoria: string; preco: number }> = [
   { nome: 'Marmita de frango grelhado', categoria: 'Marmita', preco: 24.9 },
   { nome: 'Marmita de carne de panela', categoria: 'Marmita', preco: 27.9 },
@@ -63,6 +85,7 @@ export function deliveryStarterDraft(stores: string[]) {
           { key: 'categoria', label: 'Categoria', type: 'select', width: 'quarter', options: opt(['Marmita', 'Bebida', 'Sobremesa', 'Adicional'], ['orange', 'blue', 'violet', 'gray']) },
           { key: 'preco', label: 'Preço', type: 'currency', required: true, width: 'quarter' },
           { key: 'ativo', label: 'À venda', type: 'boolean', width: 'quarter' },
+          ...MENU_APP_FIELDS,
         ],
       },
       {
@@ -103,6 +126,7 @@ export function deliveryStarterDraft(stores: string[]) {
           { key: 'quantidade', label: 'Quantidade', type: 'number', required: true, width: 'quarter' },
           { key: 'preco', label: 'Preço', type: 'currency', width: 'quarter' },
           { key: 'observacao', label: 'Observação', type: 'text', width: 'full' },
+          ORDER_ITEM_MENU_FIELD,
         ],
       },
     ],

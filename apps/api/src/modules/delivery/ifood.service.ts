@@ -6,15 +6,17 @@ import { getEffectiveTenantId } from '../../common/utils/tenant.util';
 import { DataService, type RecordUpdateListener } from '../data/data.service';
 import { NotificationService } from '../notification/notification.service';
 import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
-import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import { DELIVERY_CODE_HELP, ORDER_STATUS } from './delivery-starter';
 import { DeliveryService, type DeliveryConfig, type DeliveryEntities, type IfoodLinks } from './delivery.service';
 import { open, seal } from '../../common/utils/secret-box';
+import { IfoodMenuService } from './ifood-menu.service';
 import { IfoodClient, IfoodError, type IfoodAuth, type IfoodEvent, type IfoodOrder, type IfoodTokens, type IfoodUserCode } from './ifood.client';
 
 type Status = (typeof ORDER_STATUS)[number];
 
 const POLL_MS = 30_000;
+/** Cardapio: de hora em hora (o botao do cartao importa na hora). */
+const MENU_MS = 60 * 60_000;
 const ACTOR = 'iFood';
 /** Um evento que falha sempre e confirmado depois disso, para nao travar a fila. */
 const MAX_TRIES = 5;
@@ -56,6 +58,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     private readonly delivery: DeliveryService,
     private readonly dataService: DataService,
     private readonly notifications: NotificationService,
+    private readonly menu: IfoodMenuService,
   ) {}
 
   onModuleInit() {
@@ -136,7 +139,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     const cfg = await this.delivery.config(tenantId);
     const e = cfg ? await this.delivery.entities(tenantId, cfg).catch(() => null) : null;
     const base = { available: this.client.configured };
-    if (!cfg || !e) return { ...base, configured: false, authorized: false, broken: null, pending: null, merchants: [], stores: [] };
+    if (!cfg || !e) return { ...base, configured: false, authorized: false, broken: null, pending: null, merchants: [], menu: null, stores: [] };
     const ifood = cfg.ifood;
     let merchants = ifood?.auth?.merchants ?? [];
     // Lista atualizada: o dono pode ter liberado mais lojas no portal
@@ -162,6 +165,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       authorizedBy: ifood?.auth?.by ?? null,
       pending: pending ? { userCode: pending.userCode, url: pending.url, until: new Date(pending.until).toISOString() } : null,
       merchants,
+      menu: ifood?.menu ?? null,
       stores: rows.map((r) => {
         const link = byStore.get(r.id);
         return { id: r.id, name: String((r.data as Record<string, unknown>).nome ?? ''), merchantId: link?.merchantId ?? null, merchantName: link?.name ?? null };
@@ -253,7 +257,38 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     });
     await this.ensureStoreOption(e, storeName);
     await this.ensureDeliveryCodeField(e);
+    // Cardapio da loja ja entra ao ligar (se o iFood falhar, o botao e a hora cheia tentam de novo)
+    await this.syncMenuFor(tenantId).catch((err) => this.logger.warn(`iFood cardapio tenant=${tenantId}: ${(err as Error).message}`));
     return this.status(user);
+  }
+
+  // ---- Cardapio ----------------------------------------------------------
+
+  /** Botao "Atualizar cardapio do iFood". */
+  async syncMenu(user: CurrentUser) {
+    const tenantId = getEffectiveTenantId(user);
+    const cfg = await this.delivery.config(tenantId);
+    if (!cfg?.ifood?.auth || cfg.ifood.auth.broken) throw new BadRequestException('Autorize o iFood antes de importar o cardápio.');
+    if (Object.keys(cfg.ifood.merchants ?? {}).length === 0) throw new BadRequestException('Ligue uma loja ao iFood antes de importar o cardápio.');
+    const result = await this.syncMenuFor(tenantId);
+    if (result && result.errors.length && result.errors.length === Object.keys(cfg.ifood.merchants).length) {
+      throw new BadRequestException(`O iFood não entregou o cardápio: ${result.errors.join('; ')}`);
+    }
+    return this.status(user);
+  }
+
+  /** Importa o cardapio de todas as lojas ligadas da empresa e guarda o resumo. */
+  private async syncMenuFor(tenantId: string) {
+    const cfg = await this.delivery.config(tenantId);
+    if (!cfg?.ifood?.auth || cfg.ifood.auth.broken) return null;
+    const stores = Object.entries(cfg.ifood.merchants ?? {}).map(([merchantId, l]) => ({ merchantId, storeId: l.storeId, store: l.store }));
+    if (stores.length === 0) return null;
+    // Marca antes: um iFood fora do ar nao faz a hora cheia tentar a cada 30 s
+    await this.patchIfood(tenantId, { menu: { ...(cfg.ifood.menu ?? { items: 0, created: 0, updated: 0, unavailable: 0, trashed: 0, errors: [] }), at: new Date().toISOString() } });
+    const e = await this.delivery.entities(tenantId, cfg);
+    const result = await this.menu.sync(tenantId, this.auth(tenantId), e, stores);
+    await this.patchIfood(tenantId, { menu: result });
+    return result;
   }
 
   /** Desconecta o iFood da empresa: desliga as lojas e apaga a autorizacao. */
@@ -302,6 +337,10 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       for (const t of await this.connectedTenants()) {
         // Cada empresa com a autorizacao dela: um problema numa nao para as outras
         await this.pollTenant(t.tenantId, t.ifood).catch((err) => this.logger.warn(`iFood polling tenant=${t.tenantId}: ${(err as Error).message}`));
+        const last = Date.parse(t.ifood.menu?.at ?? '') || 0;
+        if (Date.now() - last >= MENU_MS) {
+          await this.syncMenuFor(t.tenantId).catch((err) => this.logger.warn(`iFood cardapio tenant=${t.tenantId}: ${(err as Error).message}`));
+        }
       }
     } catch (err) {
       this.logger.error(`iFood polling: ${(err as Error).message}`);
@@ -361,7 +400,8 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       const store = String((row?.data as Record<string, unknown> | undefined)?.nome ?? savedStore);
       await this.ensureStoreOption(e, store);
       await this.ensureDeliveryCodeField(e);
-      await this.createOrder(e, order, store, status);
+      await this.menu.ensureFields(e);
+      await this.createOrder(tenantId, e, order, storeId, store, status);
       return;
     }
     if (!status) return;
@@ -400,7 +440,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
     return 'Pago no app';
   }
 
-  private async createOrder(e: DeliveryEntities, order: IfoodOrder, store: string, status: Status) {
+  private async createOrder(tenantId: string, e: DeliveryEntities, order: IfoodOrder, storeId: string, store: string, status: Status) {
     const addr = order.delivery?.deliveryAddress;
     const takeout = (order.orderType ?? '').toUpperCase() === 'TAKEOUT';
     const address = takeout
@@ -438,7 +478,10 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
       observacoes: notes,
     };
     const record = await this.dataService.createFromSite(e.orders, data, ACTOR, undefined, { notify: false });
+    // Item do pedido -> item do cardapio importado (o id do item no iFood e o mesmo)
+    const menu = await this.menu.byCode(tenantId, e.menu, storeId, (order.items ?? []).map((it) => it.id ?? ''));
     for (const it of order.items ?? []) {
+      const linked = it.id ? menu.get(it.id) : undefined;
       const options = (it.options ?? []).map((o) => `${o.quantity && o.quantity > 1 ? `${o.quantity}x ` : ''}${o.name}`).filter(Boolean).join(', ');
       const qty = it.quantity ?? 1;
       await this.dataService.createFromSite(e.items, {
@@ -447,6 +490,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
         // Com os complementos (totalPrice ja soma as opcoes)
         preco: num(it.totalPrice !== undefined ? it.totalPrice / qty : it.unitPrice),
         observacao: [options, it.observations].filter(Boolean).join(' · '),
+        ...(linked ? { item_cardapio: { value: linked.id, label: linked.nome } } : {}),
       }, ACTOR, record.id, { notify: false });
     }
   }
@@ -456,18 +500,7 @@ export class IfoodService implements OnModuleInit, OnModuleDestroy {
    * entra na lista para o pedido nao chegar sem loja (e o filtro do atendente funcionar).
    */
   private async ensureStoreOption(e: DeliveryEntities, store: string) {
-    if (!store || this.storeLabels(e.orders).includes(store)) return;
-    const fields = ((e.orders.fields as unknown as Array<{ slug: string; options?: Array<string | { value: string; label: string; color?: string }> }>) || []).map((f) => ({ ...f }));
-    const field = fields.find((f) => f.slug === 'loja');
-    if (!field) return;
-    const options = (field.options || []).map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
-    const base = slugify(store, '_') || 'loja';
-    let value = base;
-    for (let i = 2; options.some((o) => o.value === value); i++) value = `${base}_${i}`;
-    field.options = [...options, { value, label: store, color: '#64748b' }];
-    const updated = await this.prisma.entity.update({ where: { id: e.orders.id }, data: { fields: fields as unknown as Prisma.InputJsonValue } });
-    invalidateEntityQueryCache(e.orders.slug);
-    e.orders = updated;
+    e.orders = await this.delivery.ensureOption(e.orders, 'loja', store);
   }
 
   /**

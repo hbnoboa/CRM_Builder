@@ -26,12 +26,66 @@ export interface IfoodOrder {
     deliveredBy?: string;
   };
   takeout?: { takeoutDateTime?: string };
-  items?: Array<{ name?: string; quantity?: number; unitPrice?: number; totalPrice?: number; observations?: string; options?: Array<{ name?: string; quantity?: number }> }>;
+  /** id = item do cardapio no iFood (o mesmo `itemId` dos itens a venda). */
+  items?: Array<{ id?: string; externalCode?: string; name?: string; quantity?: number; unitPrice?: number; totalPrice?: number; observations?: string; options?: Array<{ name?: string; quantity?: number }> }>;
   total?: { subTotal?: number; deliveryFee?: number; orderAmount?: number };
   payments?: { prepaid?: number; pending?: number; methods?: Array<{ method?: string; type?: string; prepaid?: boolean; cash?: { changeFor?: number } }> };
   extraInfo?: string;
   /** Pedido de teste: o iFood troca o nome dos itens por "PEDIDO DE TESTE - NÃO ENTREGAR". */
   isTest?: boolean;
+}
+
+/** Cardapio da loja no iFood (um por contexto: DEFAULT e o do app de delivery). */
+export interface IfoodCatalog {
+  catalogId: string;
+  groupId?: string;
+  context?: string[];
+  status?: string;
+}
+
+export interface IfoodOptionGroup {
+  name?: string;
+  min?: number;
+  max?: number;
+  status?: string;
+  options?: Array<{ name?: string; status?: string; price?: { value?: number } }>;
+}
+
+/** Item como o cardapio guarda (categorias com itens). */
+export interface IfoodCategoryItem {
+  id: string;
+  name?: string;
+  description?: string;
+  externalCode?: string;
+  status?: string;
+  imagePath?: string;
+  price?: { value?: number; originalValue?: number };
+  optionGroups?: IfoodOptionGroup[];
+  /** itemContextId do contexto DEFAULT = id do item nos pedidos e nos itens a venda. */
+  contextModifiers?: Array<{ catalogContext?: string; itemContextId?: string }>;
+}
+
+export interface IfoodCategory {
+  id: string;
+  name?: string;
+  status?: string;
+  /** DEFAULT = itens comuns; PIZZA e outros montam os itens a venda a partir de opcoes. */
+  template?: string;
+  items?: IfoodCategoryItem[];
+}
+
+/** Item a venda como o cliente ve (pizza ja aberta por tamanho). */
+export interface IfoodSellableItem {
+  itemId: string;
+  categoryId?: string;
+  categoryName?: string;
+  itemName?: string;
+  itemDescription?: string;
+  itemExternalCode?: string;
+  logosUrls?: string[];
+  itemPrice?: { value?: number | null; originalValue?: number | null };
+  itemMinSalePrice?: number;
+  itemOptionGroups?: Array<{ name?: string; minQuantity?: number; maxQuantity?: number; options?: Array<{ name?: string; price?: { value?: number | null } }> }>;
 }
 
 /** Codigo que o dono confirma no Portal do Parceiro (aplicativo distribuido). */
@@ -176,6 +230,25 @@ export class IfoodClient {
   /** Entrega propria: o codigo que o cliente informa conclui o pedido no iFood (errado = HTTP 400). */
   async verifyDeliveryCode(auth: IfoodAuth, orderId: string, code: string) {
     await this.call(auth, 'POST', `/order/v1.0/orders/${encodeURIComponent(orderId)}/verifyDeliveryCode`, { body: { code } });
+  }
+
+  // ---- Cardapio (so leitura) ----
+
+  async catalogs(auth: IfoodAuth, merchantId: string) {
+    return (await this.call<IfoodCatalog[]>(auth, 'GET', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/catalogs`)) ?? [];
+  }
+
+  async categories(auth: IfoodAuth, merchantId: string, catalogId: string) {
+    return (await this.call<IfoodCategory[]>(
+      auth, 'GET', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/catalogs/${encodeURIComponent(catalogId)}/categories?includeItems=true`,
+    )) ?? [];
+  }
+
+  /** Itens a venda (pede o groupId do cardapio, nao o catalogId). */
+  async sellableItems(auth: IfoodAuth, merchantId: string, groupId: string) {
+    return (await this.call<IfoodSellableItem[]>(
+      auth, 'GET', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/catalogs/${encodeURIComponent(groupId)}/sellableItems`,
+    )) ?? [];
   }
 
   async cancellationReasons(auth: IfoodAuth, orderId: string) {

@@ -1452,6 +1452,38 @@ export class DataService {
     return updated;
   }
 
+  /**
+   * Manda para a Lixeira um registro que o sistema tirou (ex.: item que saiu do cardapio
+   * do iFood). Mesmo soft delete em cascata da tela, com historico; restaura pela Lixeira.
+   */
+  async removeFromSite(
+    entity: Entity, recordId: string, actorName: string,
+    /** notify=false: sem o aviso "fulano excluiu" (ex.: sincronizacao que tira varios itens). */
+    options: { notify?: boolean } = {},
+  ): Promise<void> {
+    const tenantId = entity.tenantId;
+    const actor = { id: null, tenantId, name: actorName, email: '' } as unknown as CurrentUser;
+    const record = await this.prisma.entityData.findFirst({ where: { id: recordId, tenantId, entityId: entity.id, deletedAt: null } });
+    if (!record) throw new NotFoundException('Registro nao encontrado');
+    const ids = [recordId, ...(await this.collectDescendantIds([recordId], tenantId))];
+    await this.prisma.entityData.updateMany({ where: { id: { in: ids }, deletedAt: null }, data: { deletedAt: new Date(), deletedById: null } });
+
+    const recordData = record.data as Record<string, unknown>;
+    const titleField = (entity.settings as EntitySettings)?.titleField || 'nome';
+    if (options.notify !== false) {
+      this.notificationService.notifyRecordDeleted(
+        tenantId, entity.name, String(recordData[titleField] || recordId), actorName, entity.slug, recordData,
+        { actorId: undefined as unknown as string, creatorId: record.createdById ?? null },
+      ).catch((err) => this.logger.error('Failed to send notification', err));
+    }
+    this.auditService.log(actor, {
+      action: 'delete', resource: 'entity_data', resourceId: recordId, oldData: recordData,
+      metadata: { entitySlug: entity.slug, entityId: entity.id, source: 'site', actorName },
+    }).catch(() => {});
+    this.notificationService.emitDataChanged(tenantId, { operation: 'deleted', entitySlug: entity.slug, recordId, userId: undefined as unknown as string });
+    this.triggerAutomations('deleted', tenantId, { id: entity.id, slug: entity.slug, name: entity.name }, { id: recordId, ...recordData }, actor);
+  }
+
   async update(entitySlug: string, id: string, dto: CreateDataDto, currentUser: CurrentUser) {
     // Verificar permissao de edicao na entidade
     await this.checkEntityPermission(currentUser, entitySlug, 'canUpdate');
