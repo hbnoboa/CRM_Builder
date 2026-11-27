@@ -189,3 +189,10 @@ html:has(.pwa-app:not(.pwa-no-tabs)), body:has(.pwa-app:not(.pwa-no-tabs)) { ove
     font-size: 16px;
   }
 }
+
+/* Central (quadro de cartoes): a sombra de onde o cartao vai cair era vermelha (padrao da biblioteca) e parecia erro */
+.kanban-grid .react-grid-item.react-grid-placeholder {
+  background: hsl(var(--primary));
+  opacity: 0.15;
+  border-radius: 0.75rem;
+}

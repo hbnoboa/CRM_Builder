@@ -13,6 +13,10 @@ export const ORDER_STATUS = ['Novo', 'Aceito', 'Em preparo', 'Saiu para entrega'
 export const ORDER_APPS = ['iFood', '99Food', 'Balcão'] as const;
 export const PAYMENTS = ['Pago no app', 'Dinheiro na entrega', 'Cartão na entrega'] as const;
 
+/** Ajuda do campo "Código de entrega" (central nova e campo incluido nas centrais antigas). */
+export const DELIVERY_CODE_HELP =
+  'Pedido do iFood com entrega própria: o código que o cliente informa ao receber. Com ele, o pedido é concluído no iFood na hora; sem ele, o iFood conclui quando o cliente confirmar no app.';
+
 export const MENU: Array<{ nome: string; categoria: string; preco: number }> = [
   { nome: 'Marmita de frango grelhado', categoria: 'Marmita', preco: 24.9 },
   { nome: 'Marmita de carne de panela', categoria: 'Marmita', preco: 27.9 },
@@ -84,6 +88,10 @@ export function deliveryStarterDraft(stores: string[]) {
             key: 'motivo_cancelamento', label: 'Motivo do cancelamento', type: 'textarea',
             visibleIf: { field: 'situacao', operator: 'equals', value: 'Cancelado' },
             requiredIf: { field: 'situacao', operator: 'equals', value: 'Cancelado' },
+          },
+          {
+            key: 'codigo_entrega', label: 'Código de entrega', type: 'text', width: 'half', helpText: DELIVERY_CODE_HELP,
+            visibleIf: { field: 'situacao', operator: 'equals', value: 'Entregue' },
           },
         ],
       },

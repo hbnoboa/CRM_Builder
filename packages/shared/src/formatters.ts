@@ -112,6 +112,13 @@ function formatCep(value: string): string {
 
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, '');
+  // 0800/0300/0500/0900 e 3003/4004: sem DDD, nao vira "(08) 00705-3040"
+  if (/^0[3589]00\d{7}$/.test(digits)) {
+    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+  }
+  if (/^[34]00\d{5}$/.test(digits)) {
+    return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  }
   if (digits.length === 11) {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   }

@@ -22,12 +22,16 @@ export interface IfoodOrder {
   delivery?: {
     deliveryAddress?: { formattedAddress?: string; streetName?: string; streetNumber?: string; complement?: string; neighborhood?: string; reference?: string };
     deliveryDateTime?: string; observations?: string; pickupCode?: string;
+    /** MERCHANT = entrega propria da loja; IFOOD = entregador do iFood. */
+    deliveredBy?: string;
   };
   takeout?: { takeoutDateTime?: string };
   items?: Array<{ name?: string; quantity?: number; unitPrice?: number; totalPrice?: number; observations?: string; options?: Array<{ name?: string; quantity?: number }> }>;
   total?: { subTotal?: number; deliveryFee?: number; orderAmount?: number };
-  payments?: { prepaid?: number; pending?: number; methods?: Array<{ method?: string; type?: string; prepaid?: boolean }> };
+  payments?: { prepaid?: number; pending?: number; methods?: Array<{ method?: string; type?: string; prepaid?: boolean; cash?: { changeFor?: number } }> };
   extraInfo?: string;
+  /** Pedido de teste: o iFood troca o nome dos itens por "PEDIDO DE TESTE - NÃO ENTREGAR". */
+  isTest?: boolean;
 }
 
 /** Codigo que o dono confirma no Portal do Parceiro (aplicativo distribuido). */
@@ -137,7 +141,12 @@ export class IfoodClient {
     if (res.status === 204) return null;
     const text = await res.text();
     if (!res.ok) throw new IfoodError(`iFood ${method} ${path.split('?')[0]}: HTTP ${res.status} ${this.detail(text)}`.trim(), res.status);
-    return text ? (JSON.parse(text) as T) : null;
+    // As acoes (confirm, dispatch...) respondem 202 sem JSON: nao e erro
+    try {
+      return text ? (JSON.parse(text) as T) : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Lojas que o dono liberou para o CRM Builder. */
@@ -162,6 +171,11 @@ export class IfoodClient {
 
   async action(auth: IfoodAuth, orderId: string, action: 'confirm' | 'startPreparation' | 'readyToPickup' | 'dispatch') {
     await this.call(auth, 'POST', `/order/v1.0/orders/${encodeURIComponent(orderId)}/${action}`);
+  }
+
+  /** Entrega propria: o codigo que o cliente informa conclui o pedido no iFood (errado = HTTP 400). */
+  async verifyDeliveryCode(auth: IfoodAuth, orderId: string, code: string) {
+    await this.call(auth, 'POST', `/order/v1.0/orders/${encodeURIComponent(orderId)}/verifyDeliveryCode`, { body: { code } });
   }
 
   async cancellationReasons(auth: IfoodAuth, orderId: string) {
