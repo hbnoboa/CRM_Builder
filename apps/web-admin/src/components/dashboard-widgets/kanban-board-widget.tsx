@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback, useEffect, useState } from 'react';
+import { useMemo, useCallback, useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useEntityData, EntityDataProvider } from '@/components/entity-data/entity-data-context';
 import { toDataRecord } from '@/components/entity-data/use-entity-data-source';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +15,7 @@ import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatFieldValue, type FieldType } from '@crm-builder/shared';
 import { toast } from 'sonner';
+import { useOpenRecord } from '@/components/data/record-nav';
 import { Responsive, WidthProvider } from 'react-grid-layout/legacy';
 import 'react-grid-layout/css/styles.css';
 
@@ -141,11 +142,13 @@ function KanbanCardItem({
   config,
   columnValue,
   entityFields,
+  onOpen,
 }: {
   card: KanbanCard;
   config: KanbanBoardWidgetProps['config'];
   columnValue: string;
   entityFields?: KanbanBoardWidgetProps['entityFields'];
+  onOpen: (event?: ReactMouseEvent) => void;
 }) {
   const fieldOf = (slug?: string) => (slug ? entityFields?.find((f) => f.slug === slug) : undefined);
   const cardData = (card as any).data || card;
@@ -167,7 +170,15 @@ function KanbanCardItem({
   };
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow min-h-[100px] h-full">
+    <Card
+      className="p-4 hover:shadow-md transition-shadow min-h-[100px] h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      role="button"
+      tabIndex={0}
+      data-testid="kanban-card"
+      // Clique abre o registro; o fim de um arrasto pela alca nao conta como clique
+      onClick={(e) => { if (!(e.target as HTMLElement).closest('.kanban-drag')) onOpen(e); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(); }}
+    >
       <div className="flex items-start gap-3 h-full">
         {/* So a alca arrasta: no celular, tocar/rolar no cartao nao muda a situacao */}
         <GripVertical className="kanban-drag h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0 cursor-move touch-none" />
@@ -200,6 +211,7 @@ function KanbanCardItem({
 
 function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanBoardWidgetProps) {
   const ctx = useEntityData();
+  const openRecord = useOpenRecord();
   // Tabela grande (modo servidor): os N cartoes mais recentes vem do servidor, com os filtros do painel
   const serverMode = !!ctx.serverMode;
   const panelFilters = useWidgetFilters({ includeOwn: true });
@@ -534,6 +546,7 @@ function KanbanBoardContent({ entitySlug, title, config, entityFields }: KanbanB
                     config={config}
                     columnValue={column.value}
                     entityFields={entityFields}
+                    onOpen={(e) => openRecord(entitySlug, card.id, { event: e })}
                   />
                 </div>
               ))

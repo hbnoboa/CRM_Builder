@@ -7,8 +7,11 @@ import { EntityDataQueryService } from '../../common/services/entity-data-query.
 import { DataService } from '../data/data.service';
 import { DashboardTemplateService } from '../dashboard-template/dashboard-template.service';
 import { AiWorkspaceService } from '../ai-builder/ai-workspace.service';
-import { DEFAULT_STORES, MENU, deliveryStarterDraft, fakeCustomer } from './delivery-starter';
+import { DEFAULT_STORES, MENU, deliveryStarterDraft, fakeCustomer, type StarterField } from './delivery-starter';
+import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
+import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import { IfoodClient } from './ifood.client';
+import type { MenuSyncResult } from './ifood-menu.service';
 
 /** Onde o modelo ficou (slugs das tabelas criadas) e o modo demonstracao. */
 export interface DeliveryConfig {
@@ -29,6 +32,8 @@ export interface IfoodLinks {
     merchants: Array<{ id: string; name: string }>;
     at: string; by?: string | null; broken?: string | null;
   };
+  /** Ultima importacao do cardapio do iFood. */
+  menu?: MenuSyncResult;
   /** Codigo esperando o dono confirmar no Portal do Parceiro (verificador cifrado). */
   pending?: { verifier: string; userCode: string; url: string; until: number };
 }
@@ -39,6 +44,7 @@ type Option = { value: string; label: string };
 type RawField = { slug: string; type: string; options?: Array<string | Option> };
 
 const DEMO_TICK_MS = 30_000;
+const SPAN = { quarter: 3, third: 4, half: 6, full: 12 } as const;
 const KEYS = { stores: 'lojas', menu: 'cardapio', orders: 'pedidos', items: 'itens-do-pedido' } as const;
 
 /** Sorteio simples (Math.random basta: so dados de demonstracao). */
@@ -102,6 +108,50 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     const f = ((entity.fields as unknown as RawField[]) || []).find((x) => x.slug === field);
     const o = (f?.options || []).map((x) => (typeof x === 'string' ? { value: x, label: x } : x)).find((x) => x.label === label);
     return o?.value ?? label;
+  }
+
+  /**
+   * Inclui no fim do formulario os campos que faltam numa tabela ja montada (centrais
+   * criadas antes do campo existir). `related` resolve as tabelas das relacoes.
+   */
+  async ensureFields(entity: Entity, defs: StarterField[], related: Partial<Record<string, Entity>> = {}): Promise<Entity> {
+    const fields = (entity.fields as unknown as Array<{ slug: string; gridRow?: number }>) || [];
+    const missing = defs.filter((d) => !fields.some((f) => f.slug === d.key));
+    if (missing.length === 0) return entity;
+    let row = Math.max(0, ...fields.map((f) => f.gridRow ?? 0)) + 1;
+    let col = 1;
+    const added = missing.map((d) => {
+      const span = SPAN[d.width ?? 'full'];
+      if (col + span > 13) { row++; col = 1; }
+      const target = d.relatedTable ? related[d.relatedTable] : undefined;
+      const field = {
+        name: d.key, slug: d.key, type: d.type === 'relation' && !target ? 'text' : d.type, label: d.label,
+        ...(d.helpText ? { helpText: d.helpText } : {}),
+        ...(target ? { relatedEntitySlug: target.slug, relatedEntityId: target.id, relatedDisplayField: (target.settings as { titleField?: string } | null)?.titleField || 'nome' } : {}),
+        gridRow: row, gridColStart: col, gridColSpan: span,
+      };
+      col += span;
+      return field;
+    });
+    const updated = await this.prisma.entity.update({ where: { id: entity.id }, data: { fields: [...fields, ...added] as unknown as Prisma.InputJsonValue } });
+    invalidateEntityQueryCache(entity.slug);
+    return updated;
+  }
+
+  /** Inclui uma opcao que falta num campo de lista (ex.: loja ou categoria nova vinda do app). */
+  async ensureOption(entity: Entity, field: string, label: string): Promise<Entity> {
+    if (!label || this.optionLabels(entity, field).includes(label)) return entity;
+    const fields = ((entity.fields as unknown as Array<{ slug: string; options?: Array<string | { value: string; label: string; color?: string }> }>) || []).map((f) => ({ ...f }));
+    const target = fields.find((f) => f.slug === field);
+    if (!target) return entity;
+    const options = (target.options || []).map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+    const base = slugify(label, '_') || 'opcao';
+    let value = base;
+    for (let i = 2; options.some((o) => o.value === value); i++) value = `${base}_${i}`;
+    target.options = [...options, { value, label, color: '#64748b' }];
+    const updated = await this.prisma.entity.update({ where: { id: entity.id }, data: { fields: fields as unknown as Prisma.InputJsonValue } });
+    invalidateEntityQueryCache(entity.slug);
+    return updated;
   }
 
   private optionLabels(entity: Entity, field: string): string[] {

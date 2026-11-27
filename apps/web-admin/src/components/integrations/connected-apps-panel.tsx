@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Bike, CheckCircle2, Copy, Clock, ExternalLink, HelpCircle, Link2, Loader2, Play, Plug, Plus, Puzzle, Square, Store, Unlink } from 'lucide-react';
+import { AlertTriangle, Bike, CheckCircle2, Copy, Clock, ExternalLink, HelpCircle, Link2, Loader2, Play, Plug, Plus, Puzzle, RefreshCw, Square, Store, Unlink, Utensils } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from '@/i18n/tenant-navigation';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,8 @@ interface IfoodStatus {
   authorizedBy?: string | null;
   pending: { userCode: string; url: string; until: string } | null;
   merchants: Array<{ id: string; name: string }>;
+  /** Ultima importacao do cardapio do iFood. */
+  menu: { at: string; items: number; created: number; updated: number; unavailable: number; trashed: number; errors: string[] } | null;
   stores: Array<{ id: string; name: string; merchantId: string | null; merchantName: string | null }>;
 }
 
@@ -140,7 +142,7 @@ export function ConnectedAppsPanel() {
           <DeliveryCenter />
         </section>
       </div>
-      <IfoodDialog open={ifoodOpen} onOpenChange={setIfoodOpen} />
+      <IfoodDialog open={ifoodOpen} onOpenChange={setIfoodOpen} menuTable={data?.tables?.menu} />
     </TooltipProvider>
   );
 }
@@ -270,7 +272,7 @@ function DeliveryCenter() {
  * iFood: o dono autoriza com um codigo (prova que as lojas sao dele), depois cada loja
  * da central e ligada a uma das lojas que ele liberou. Tambem desconecta tudo.
  */
-function IfoodDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function IfoodDialog({ open, onOpenChange, menuTable }: { open: boolean; onOpenChange: (open: boolean) => void; menuTable?: string }) {
   const queryClient = useQueryClient();
   const { data } = useQuery({ queryKey: IFOOD_KEY, queryFn: async () => (await api.get<IfoodStatus>('/delivery/ifood')).data, enabled: open });
   const [picks, setPicks] = useState<Record<string, string>>({});
@@ -294,6 +296,7 @@ function IfoodDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
     }
   };
 
+  const syncMenu = () => save('menu', async () => (await api.post<IfoodStatus>('/delivery/ifood/menu')).data, 'Cardápio atualizado');
   const newCode = () => save('code', async () => (await api.post<IfoodStatus>('/delivery/ifood/authorize')).data, null);
   const finish = async () => {
     if (await save('finish', async () => (await api.post<IfoodStatus>('/delivery/ifood/authorize/finish', { authorizationCode: authCode.trim() })).data, 'iFood autorizado')) setAuthCode('');
@@ -411,6 +414,30 @@ function IfoodDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
                 Autorizado{data.authorizedBy ? ` por ${data.authorizedBy}` : ''} em {new Date(data.authorizedAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}.
                 Liberou mais lojas no iFood? Elas aparecem na lista sozinhas.
               </p>
+            )}
+            {linked > 0 && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm" data-testid="ifood-menu">
+                <Utensils className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-48 flex-1 space-y-0.5">
+                  <span className="block">
+                    {data.menu?.items
+                      ? <>Cardápio do iFood: {data.menu.items} {data.menu.items === 1 ? 'item' : 'itens'}{data.menu.unavailable ? ` (${data.menu.unavailable} fora de venda)` : ''}.</>
+                      : 'O cardápio das lojas ligadas vem do iFood.'}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {data.menu?.at ? `Atualizado em ${new Date(data.menu.at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}. ` : ''}
+                    Atualiza sozinho de hora em hora. Item que sai do iFood vai para a Lixeira.
+                  </span>
+                  {(data.menu?.errors ?? []).map((err) => <span key={err} className="flex items-center gap-1 text-xs text-amber-700"><AlertTriangle className="h-3 w-3" /> {err}</span>)}
+                </span>
+                {menuTable && (
+                  <Button asChild size="sm" variant="ghost"><Link href={`/data?entity=${menuTable}`}>Ver cardápio</Link></Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => void syncMenu()} disabled={busy !== null} data-testid="ifood-menu-sync">
+                  {busy === 'menu' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
+                  Atualizar cardápio do iFood
+                </Button>
+              </div>
             )}
           </div>
         )}

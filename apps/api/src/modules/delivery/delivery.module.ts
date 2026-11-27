@@ -8,11 +8,12 @@ import { NotificationModule } from '../notification/notification.module';
 import { DeliveryController } from './delivery.controller';
 import { DeliveryService } from './delivery.service';
 import { IfoodClient } from './ifood.client';
+import { IfoodMenuService } from './ifood-menu.service';
 import { IfoodService } from './ifood.service';
 
 @Module({
   imports: [PrismaModule, EntityDataQueryModule, DataModule, DashboardTemplateModule, AiBuilderModule, NotificationModule],
   controllers: [DeliveryController],
-  providers: [DeliveryService, IfoodClient, IfoodService],
+  providers: [DeliveryService, IfoodClient, IfoodMenuService, IfoodService],
 })
 export class DeliveryModule {}
