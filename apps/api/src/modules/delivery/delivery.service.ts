@@ -11,6 +11,7 @@ import { DEFAULT_STORES, MENU, deliveryStarterDraft, fakeCustomer, type StarterF
 import { invalidateEntityQueryCache } from '../../common/services/entity-query-cache';
 import { slugify } from '../ai-builder/ai-proposal-normalizer';
 import { IfoodClient } from './ifood.client';
+import { Food99Client } from './food99.client';
 import type { MenuSyncResult } from './ifood-menu.service';
 
 /** Onde o modelo ficou (slugs das tabelas criadas) e o modo demonstracao. */
@@ -21,6 +22,17 @@ export interface DeliveryConfig {
   demo?: { until: number; every: number; last: number };
   /** Lojas ligadas ao iFood: codigo da loja no iFood -> loja da central. */
   ifood?: IfoodLinks;
+  /** Lojas ligadas a 99Food: app_shop_id -> loja da central. */
+  food99?: Food99Links;
+}
+
+export interface Food99Links {
+  on: boolean;
+  stores: Record<string, { storeId: string; store: string; name?: string }>;
+  /** Link de autorizacao aberto: so lojas autorizadas enquanto ele vale aparecem para esta empresa. */
+  pending?: { url: string; at: number; until: number; candidates?: Array<{ appShopId: string; name: string }> };
+  /** Token de cada loja (cifrado com secret-box). */
+  tokens?: Record<string, { token: string; until: number }>;
 }
 
 export interface IfoodLinks {
@@ -69,6 +81,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     private readonly dashboardService: DashboardTemplateService,
     private readonly queryService: EntityDataQueryService,
     private readonly ifood: IfoodClient,
+    private readonly food99: Food99Client,
   ) {}
 
   onModuleInit() {
@@ -167,7 +180,8 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
       ifood: !this.ifood.configured ? 'waiting-access'
         : c?.ifood?.auth?.broken ? 'reconnect'
           : c?.ifood?.auth && Object.keys(c.ifood.merchants ?? {}).length ? 'connected' : 'ready',
-      food99: 'waiting-access',
+      food99: !this.food99.configured ? 'waiting-access'
+        : Object.keys(c?.food99?.stores ?? {}).length ? 'connected' : 'ready',
     });
     if (!cfg) return { configured: false, defaultStores: DEFAULT_STORES, connectors: connectors() };
     const e = await this.entities(tenantId, cfg).catch(() => null);
@@ -184,7 +198,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
         const d = (s.data || {}) as Record<string, unknown>;
         return { id: s.id, name: String(d.nome ?? ''), active: d.ativa !== false, ifoodId: String(d.ifood_id ?? ''), food99Id: String(d.food99_id ?? '') };
       }),
-      // Conectores: iFood (fase 2) e 99Food (fase 3, ainda sem acesso)
+      // Conectores: iFood e 99Food
       connectors: connectors(cfg),
       demo: demo ? { until: new Date(demo.until).toISOString(), every: demo.every } : null,
     };

@@ -11,6 +11,7 @@ import { ServiceScope } from '../../common/service-scope/service-scope.decorator
 import { checkModulePermission } from '../../common/utils/check-module-permission';
 import { DeliveryService } from './delivery.service';
 import { IfoodService } from './ifood.service';
+import { Food99Service } from './food99.service';
 
 class DeliverySetupDto {
   @IsOptional() @IsArray() @ArrayMaxSize(20) @IsString({ each: true }) @MaxLength(60, { each: true })
@@ -38,6 +39,14 @@ class IfoodAuthorizationDto {
   authorizationCode!: string;
 }
 
+class Food99LinkDto {
+  @IsString() @MaxLength(40)
+  storeId!: string;
+
+  @IsString() @MinLength(1) @MaxLength(80)
+  appShopId!: string;
+}
+
 class IfoodLinkDto {
   @IsString() @MaxLength(40)
   storeId!: string;
@@ -53,7 +62,7 @@ class IfoodLinkDto {
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class DeliveryController {
-  constructor(private readonly service: DeliveryService, private readonly ifood: IfoodService) {}
+  constructor(private readonly service: DeliveryService, private readonly ifood: IfoodService, private readonly food99: Food99Service) {}
 
   @Get()
   @ApiOperation({ summary: 'Central de pedidos: montada?, lojas, conectores e modo demonstracao' })
@@ -156,5 +165,46 @@ export class DeliveryController {
   ifoodUnlink(@Param('storeId') storeId: string, @CurrentUser() user: CurrentUserType) {
     checkModulePermission(user, 'settings', 'canUpdate');
     return this.ifood.unlink(user, storeId);
+  }
+
+  @Get('99food')
+  @ApiOperation({ summary: '99Food: link de autorizacao, lojas autorizadas e lojas ligadas' })
+  food99Status(@CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.food99.status(user);
+  }
+
+  @Post('99food/authorize')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: '99Food: gera o link que o dono abre para autorizar as lojas (vale 7 dias)' })
+  food99Authorize(@CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.food99.authorize(user);
+  }
+
+  @Post('99food/link')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @ApiOperation({ summary: '99Food: liga uma loja da central a uma loja autorizada pelo link desta empresa' })
+  food99Link(@Body() dto: Food99LinkDto, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.food99.link(user, dto.storeId, dto.appShopId);
+  }
+
+  @Delete('99food')
+  @ApiOperation({ summary: 'Desconecta a 99Food da empresa (desliga todas as lojas)' })
+  food99Disconnect(@CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.food99.disconnect(user);
+  }
+
+  @Delete('99food/link/:storeId')
+  @ApiOperation({ summary: 'Desliga uma loja da 99Food' })
+  food99Unlink(@Param('storeId') storeId: string, @CurrentUser() user: CurrentUserType) {
+    checkModulePermission(user, 'settings', 'canUpdate');
+    return this.food99.unlink(user, storeId);
   }
 }
