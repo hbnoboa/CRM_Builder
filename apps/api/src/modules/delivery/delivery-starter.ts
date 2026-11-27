@@ -25,12 +25,12 @@ export interface StarterField {
 
 /** Campos que o cardapio do iFood preenche (entram sozinhos nas centrais antigas). */
 export const MENU_APP_FIELDS: StarterField[] = [
-  { key: 'loja', label: 'Loja', type: 'relation', relatedTable: 'lojas', width: 'half', helpText: 'A loja que vende o item. Itens que vêm do iFood já chegam com a loja.' },
+  { key: 'loja', label: 'Loja', type: 'relation', relatedTable: 'lojas', width: 'half', helpText: 'A loja que vende o item. Se a loja estiver ligada ao iFood, criar, mudar ou excluir o item aqui muda também no iFood.' },
   { key: 'codigo_app', label: 'Código no app', type: 'text', width: 'quarter', helpText: 'O código do item no iFood. Preenchido pela importação do cardápio; não mude.' },
   { key: 'codigo_externo', label: 'Código PDV', type: 'text', width: 'quarter', helpText: 'O código externo (PDV) do item no iFood, se a loja usar.' },
   { key: 'descricao', label: 'Descrição', type: 'textarea', width: 'full' },
-  { key: 'complementos', label: 'Complementos', type: 'textarea', width: 'full', helpText: 'Os grupos de complementos do item, como estão no iFood.' },
-  { key: 'foto', label: 'Foto', type: 'image', width: 'half' },
+  { key: 'complementos', label: 'Complementos', type: 'textarea', width: 'full', helpText: 'Os grupos de complementos do item, como estão no iFood. Para mudar, use o Portal do Parceiro.' },
+  { key: 'foto', label: 'Foto', type: 'image', width: 'half', helpText: 'A foto do item no iFood. Para trocar, use o Portal do Parceiro.' },
 ];
 
 /** Item do pedido ligado ao item do cardapio (pelo codigo do item no iFood). */

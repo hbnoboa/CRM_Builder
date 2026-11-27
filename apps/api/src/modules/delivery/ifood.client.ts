@@ -88,6 +88,24 @@ export interface IfoodSellableItem {
   itemOptionGroups?: Array<{ name?: string; minQuantity?: number; maxQuantity?: number; options?: Array<{ name?: string; price?: { value?: number | null } }> }>;
 }
 
+/**
+ * Itens de uma categoria no formato de gravacao: o mesmo corpo do PUT /items (item,
+ * produtos, grupos de complementos e complementos). Nome e descricao ficam no produto.
+ */
+export interface IfoodCategoryItems {
+  categoryId?: string;
+  items?: Array<Record<string, unknown> & { id: string; productId?: string; contextModifiers?: Array<{ catalogContext?: string; itemContextId?: string }> }>;
+  products?: Array<Record<string, unknown> & { id: string; optionGroups?: Array<{ id: string }> }>;
+  optionGroups?: Array<Record<string, unknown> & { id: string; optionIds?: string[] }>;
+  options?: Array<Record<string, unknown> & { id: string; productId?: string }>;
+}
+
+/** Resposta do PUT /items: o item gravado (com o id usado nos pedidos) e o produto. */
+export interface IfoodItemSaved {
+  item?: { id: string; contextModifiers?: Array<{ catalogContext?: string; itemContextId?: string }> };
+  products?: Array<{ id: string; name?: string; description?: string }>;
+}
+
 /** Codigo que o dono confirma no Portal do Parceiro (aplicativo distribuido). */
 export interface IfoodUserCode {
   userCode: string;
@@ -176,7 +194,7 @@ export class IfoodClient {
     });
   }
 
-  private async call<T>(auth: IfoodAuth, method: 'GET' | 'POST', path: string, opts: { body?: unknown; headers?: Record<string, string> } = {}): Promise<T | null> {
+  private async call<T>(auth: IfoodAuth, method: 'GET' | 'POST' | 'PUT' | 'PATCH', path: string, opts: { body?: unknown; headers?: Record<string, string> } = {}): Promise<T | null> {
     const send = async () => fetch(`${this.base}${path}`, {
       method,
       headers: {
@@ -249,6 +267,34 @@ export class IfoodClient {
     return (await this.call<IfoodSellableItem[]>(
       auth, 'GET', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/catalogs/${encodeURIComponent(groupId)}/sellableItems`,
     )) ?? [];
+  }
+
+  // ---- Cardapio (gravacao) ----
+
+  async categoryItems(auth: IfoodAuth, merchantId: string, categoryId: string) {
+    return (await this.call<IfoodCategoryItems>(
+      auth, 'GET', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/categories/${encodeURIComponent(categoryId)}/items`,
+    )) ?? {};
+  }
+
+  async createCategory(auth: IfoodAuth, merchantId: string, catalogId: string, name: string, index: number) {
+    return this.call<{ id: string; name?: string }>(
+      auth, 'POST', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/catalogs/${encodeURIComponent(catalogId)}/categories`,
+      { body: { name, status: 'AVAILABLE', template: 'DEFAULT', index } },
+    );
+  }
+
+  /** Cria ou substitui o item inteiro (item, produto, complementos). */
+  saveItem(auth: IfoodAuth, merchantId: string, body: Omit<IfoodCategoryItems, 'categoryId' | 'items'> & { item: Record<string, unknown> }) {
+    return this.call<IfoodItemSaved>(auth, 'PUT', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/items`, { body });
+  }
+
+  async itemPrice(auth: IfoodAuth, merchantId: string, itemId: string, value: number) {
+    await this.call(auth, 'PATCH', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/items/price`, { body: { itemId, price: { value } } });
+  }
+
+  async itemStatus(auth: IfoodAuth, merchantId: string, itemId: string, status: 'AVAILABLE' | 'UNAVAILABLE') {
+    await this.call(auth, 'PATCH', `/catalog/v2.0/merchants/${encodeURIComponent(merchantId)}/items/status`, { body: { itemId, status } });
   }
 
   async cancellationReasons(auth: IfoodAuth, orderId: string) {
