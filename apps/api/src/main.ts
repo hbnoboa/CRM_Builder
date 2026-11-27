@@ -29,6 +29,24 @@ async function bootstrap() {
   validateSecrets(logger);
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // Avisos da 99Food: corpo cru (a assinatura e sobre ele, e os ids de 64 bits nao passam
+  // pelo JSON.parse). Antes do leitor de JSON, que pula pedidos ja lidos.
+  app.use('/api/v1/delivery/99food/webhook', (req: NodeJS.ReadableStream & { rawBody99?: Buffer; _body?: boolean; body?: unknown }, res: { status: (n: number) => { end: () => void } }, next: () => void) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > 1_000_000) { res.status(413).end(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (size > 1_000_000) return;
+      req.rawBody99 = Buffer.concat(chunks);
+      req._body = true;
+      req.body = {};
+      next();
+    });
+  });
   // PDF em lote manda os ids da lista filtrada da tabela (29 mil ids ~ 800 KB); padrao era 100 KB.
   app.useBodyParser('json', { limit: '5mb' });
 

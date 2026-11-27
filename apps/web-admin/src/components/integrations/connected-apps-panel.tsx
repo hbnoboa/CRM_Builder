@@ -45,8 +45,18 @@ interface IfoodStatus {
   stores: Array<{ id: string; name: string; merchantId: string | null; merchantName: string | null }>;
 }
 
+interface Food99Status {
+  available: boolean;
+  configured: boolean;
+  pending: { url: string; until: string } | null;
+  /** Lojas autorizadas pelo link desta empresa, ainda sem loja da central. */
+  candidates: Array<{ appShopId: string; name: string }>;
+  stores: Array<{ id: string; name: string; appShopId: string | null; shopName: string | null }>;
+}
+
 const KEY = ['delivery-status'];
 const IFOOD_KEY = ['delivery-ifood'];
+const FOOD99_KEY = ['delivery-99food'];
 
 /** Apps prontos que a empresa liga ao sistema (um cartao por app). */
 const APPS = [
@@ -58,7 +68,7 @@ const APPS = [
   {
     key: 'food99', name: '99Food', mark: '99', color: '#f5b800',
     summary: 'Pedidos das suas lojas na 99Food entram na central de pedidos.',
-    hover: 'Funciona igual ao iFood: você autoriza as lojas na 99Food e os pedidos entram sozinhos na central, com a situação indo e voltando. A ligação usa o padrão Open Delivery; falta o acesso da IOS System pela 99Food.',
+    hover: 'Ao conectar, o dono da loja abre um link da 99Food e autoriza as lojas dele. Daí em diante os pedidos entram sozinhos na central de pedidos, e aceitar, marcar como pronto, entregue ou cancelar aqui avisa a 99Food.',
   },
 ];
 
@@ -85,6 +95,7 @@ const STATE: Record<string, { label: string; icon: typeof Clock; variant: 'outli
 export function ConnectedAppsPanel() {
   const { data } = useQuery({ queryKey: KEY, queryFn: async () => (await api.get<DeliveryStatus>('/delivery')).data });
   const [ifoodOpen, setIfoodOpen] = useState(false);
+  const [food99Open, setFood99Open] = useState(false);
   return (
     <TooltipProvider>
       <div className="space-y-6" data-testid="connected-apps">
@@ -92,8 +103,7 @@ export function ConnectedAppsPanel() {
           {APPS.map((app) => {
             const key = data?.connectors?.[app.key as 'ifood' | 'food99'] ?? 'waiting-access';
             const state = STATE[key] ?? STATE['waiting-access'];
-            // Por enquanto so o iFood tem conector; a 99Food entra na fase 3
-            const action = app.key === 'ifood' && key !== 'waiting-access' ? (key === 'connected' ? 'Gerenciar' : key === 'reconnect' ? 'Autorizar de novo' : 'Conectar') : null;
+            const action = key !== 'waiting-access' ? (key === 'connected' ? 'Gerenciar' : key === 'reconnect' ? 'Autorizar de novo' : 'Conectar') : null;
             const Icon = state.icon;
             return (
             <Hint key={app.key} text={app.hover}>
@@ -109,7 +119,7 @@ export function ConnectedAppsPanel() {
                     {action && (
                       <Button
                         size="sm" variant={key === 'connected' ? 'outline' : 'default'} className="mt-1 h-8"
-                        onClick={() => setIfoodOpen(true)} data-testid={`app-action-${app.key}`}
+                        onClick={() => (app.key === 'ifood' ? setIfoodOpen(true) : setFood99Open(true))} data-testid={`app-action-${app.key}`}
                       >
                         <Plug className="mr-1.5 h-4 w-4" /> {action}
                       </Button>
@@ -143,6 +153,7 @@ export function ConnectedAppsPanel() {
         </section>
       </div>
       <IfoodDialog open={ifoodOpen} onOpenChange={setIfoodOpen} menuTable={data?.tables?.menu} />
+      <Food99Dialog open={food99Open} onOpenChange={setFood99Open} />
     </TooltipProvider>
   );
 }
@@ -464,6 +475,155 @@ function IfoodDialog({ open, onOpenChange, menuTable }: { open: boolean; onOpenC
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     onClick={() => void save('all', async () => (await api.delete<IfoodStatus>('/delivery/ifood')).data, 'iFood desconectado')}
                   >
+                    Desconectar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : <span />}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * 99Food: a empresa gera um link, o dono abre no portal da 99 e autoriza as lojas; as
+ * lojas autorizadas aparecem aqui para ligar a uma loja da central.
+ */
+function Food99Dialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: FOOD99_KEY,
+    queryFn: async () => (await api.get<Food99Status>('/delivery/99food')).data,
+    enabled: open,
+    // Com o link aberto, as lojas autorizadas pelo dono aparecem sozinhas
+    refetchInterval: (q) => (q.state.data?.pending ? 5000 : false),
+  });
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const linked = (data?.stores ?? []).filter((s) => s.appShopId).length;
+
+  const save = async (key: string, call: () => Promise<Food99Status>, ok: string | null) => {
+    setBusy(key);
+    try {
+      queryClient.setQueryData(FOOD99_KEY, await call());
+      void queryClient.invalidateQueries({ queryKey: KEY });
+      setPicks((c) => ({ ...c, [key]: '' }));
+      if (ok) toast.success(ok);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Não deu certo. Tente de novo.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const newLink = () => save('link', async () => (await api.post<Food99Status>('/delivery/99food/authorize')).data, null);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl" data-testid="food99-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded text-xs font-bold text-white" style={{ backgroundColor: '#f5b800' }}>99</span>
+            99Food
+          </DialogTitle>
+          <DialogDescription>
+            Os pedidos das lojas ligadas entram sozinhos na central. Aceitar, marcar como saiu para entrega, entregue ou cancelar aqui avisa a 99Food.
+          </DialogDescription>
+        </DialogHeader>
+
+        {!data ? (
+          <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></div>
+        ) : !data.configured ? (
+          <p className="text-sm text-muted-foreground">Monte a central de pedidos primeiro (logo abaixo, nesta página). Depois as lojas aparecem aqui para conectar.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-2 rounded-lg border p-4 text-sm" data-testid="food99-authorize">
+              {!data.pending ? (
+                <>
+                  <p>Para ligar uma loja, o dono da conta da loja na 99Food autoriza o CRM Builder por um link. Leva um minuto.</p>
+                  <Button onClick={() => void newLink()} disabled={busy !== null} data-testid="food99-new-link">
+                    {busy === 'link' ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
+                    Gerar link de autorização
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <ol className="list-decimal space-y-1.5 pl-5">
+                    <li>
+                      Abra (ou mande ao dono) o{' '}
+                      <a href={data.pending.url} target="_blank" rel="noreferrer" className="font-medium text-primary underline" data-testid="food99-link">link de autorização da 99Food <ExternalLink className="inline h-3 w-3" /></a>
+                      <Button size="icon" variant="ghost" className="ml-1 h-7 w-7" aria-label="Copiar link" onClick={() => void navigator.clipboard?.writeText(data.pending!.url)}><Copy className="h-3.5 w-3.5" /></Button>
+                    </li>
+                    <li>Entre com o login de dono da loja na 99, escolha a loja e clique em Autorizar.</li>
+                    <li>A loja aparece aqui embaixo para ligar a uma loja da central.</li>
+                  </ol>
+                  <p className="text-xs text-muted-foreground">
+                    O link vale até {new Date(data.pending.until).toLocaleDateString()}. Só aparecem aqui as lojas autorizadas enquanto ele vale.
+                  </p>
+                </>
+              )}
+            </div>
+
+            {(linked > 0 || data.candidates.length > 0) && (
+              <ul className="max-h-[50vh] divide-y overflow-y-auto rounded-lg border text-sm" data-testid="food99-stores">
+                {data.stores.map((s) => (
+                  <li key={s.id} className="flex flex-wrap items-center gap-2 px-3 py-2" data-testid={`food99-store-${s.id}`}>
+                    <span className="min-w-32 flex-1 font-medium">{s.name}</span>
+                    {s.appShopId ? (
+                      <>
+                        <Badge variant="secondary" className="gap-1"><Link2 className="h-3 w-3" /> {s.shopName || 'conectada'}</Badge>
+                        <Button size="sm" variant="ghost" disabled={busy !== null}
+                          onClick={() => void save(s.id, async () => (await api.delete<Food99Status>(`/delivery/99food/link/${s.id}`)).data, 'Loja desligada da 99Food')}>
+                          <Unlink className="mr-1.5 h-4 w-4" /> Desligar
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Select value={picks[s.id] ?? ''} onValueChange={(v) => setPicks((c) => ({ ...c, [s.id]: v }))} disabled={data.candidates.length === 0}>
+                          <SelectTrigger className="h-8 w-64 max-w-full text-xs" data-testid={`food99-pick-${s.id}`}><SelectValue placeholder="Escolha a loja na 99Food" /></SelectTrigger>
+                          <SelectContent>
+                            {data.candidates.map((c) => <SelectItem key={c.appShopId} value={c.appShopId}>{c.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" disabled={busy !== null || !picks[s.id]} data-testid={`food99-link-${s.id}`}
+                          onClick={() => void save(s.id, async () => (await api.post<Food99Status>('/delivery/99food/link', { storeId: s.id, appShopId: picks[s.id] })).data, 'Loja conectada à 99Food')}>
+                          {busy === s.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Plug className="mr-1.5 h-4 w-4" />}
+                          Conectar
+                        </Button>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {data.pending && data.candidates.length === 0 && linked === 0 && (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Esperando o dono autorizar no portal da 99Food…</p>
+            )}
+          </div>
+        )}
+
+        <DialogFooter className="gap-2 sm:justify-between">
+          {linked > 0 ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" className="text-destructive hover:text-destructive" disabled={busy !== null} data-testid="food99-disconnect">
+                  <Unlink className="mr-1.5 h-4 w-4" /> Desconectar a 99Food
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Desconectar a 99Food?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {linked === 1 ? 'A loja conectada para' : `As ${linked} lojas conectadas param`} de receber pedidos da 99Food aqui. Os pedidos que já entraram continuam na central.
+                    Para tirar a autorização no portal da 99Food, o dono desfaz por lá.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => void save('all', async () => (await api.delete<Food99Status>('/delivery/99food')).data, '99Food desconectada')}>
                     Desconectar
                   </AlertDialogAction>
                 </AlertDialogFooter>
